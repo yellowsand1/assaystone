@@ -158,7 +158,8 @@ current pack caught it. Details: [docs/corpus.md](docs/corpus.md).
 
 Running a design-partner session? The 45-minute script, the invitation, and what
 to collect are in [docs/adoption.md](docs/adoption.md). The reproducible evasion
-write-up is [docs/evasions.md](docs/evasions.md).
+write-up is [docs/evasions.md](docs/evasions.md). What the current pack still
+misses is public in [docs/known-evasions.md](docs/known-evasions.md).
 
 ## Protocol
 
@@ -613,6 +614,7 @@ docs/protocol.json     # generated catalog of every conformant verifier
 docs/corpus.md         # how to add a labelled case
 docs/adoption.md       # the 45-minute design-partner script
 docs/evasions.md       # three reproducible ways to make tests lie
+docs/known-evasions.md # what the current pack still misses
 docs/leaderboard.md    # generated comparison of built-in contracts
 docs/goodhart.md       # generated resistance report
 docs/report-card.md    # generated contract report card

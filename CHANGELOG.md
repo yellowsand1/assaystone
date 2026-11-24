@@ -49,6 +49,10 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Known evasions.** [docs/known-evasions.md](docs/known-evasions.md) lists every
+  failure class the current pack does not catch, split into declared and open.
+  The open list names the next verifier to build: test support code outside the
+  protected prefixes.
 - **Adversarial demo.** `assaystone demo adversarial` shows the trap in one
   screen: a `sitecustomize.py` that neutralises `assertEqual`, the naive contract
   returning pass, and the hardened contract failing at `tests.harness_integrity`.
