@@ -710,6 +710,8 @@ def cmd_demo(args: argparse.Namespace) -> int:
         print(demo.run_ops(output_dir))
     elif args.pack == "audit":
         print(demo.run_audit(output_dir))
+    elif args.pack == "adversarial":
+        print(demo.run_adversarial(output_dir))
     else:
         print(demo.run_code(output_dir))
     return 0
@@ -724,7 +726,12 @@ def _parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     demo_parser = sub.add_parser("demo", help="run an end-to-end demo")
-    demo_parser.add_argument("pack", nargs="?", choices=["code", "ops", "audit"], default="code")
+    demo_parser.add_argument(
+        "pack",
+        nargs="?",
+        choices=["code", "ops", "audit", "adversarial"],
+        default="code",
+    )
     demo_parser.add_argument("--output-dir", default=".")
     demo_parser.set_defaults(func=cmd_demo)
 

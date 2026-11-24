@@ -42,6 +42,11 @@
   compares several contracts on coverage, recall, resistance, false alarms, cost,
   and a single result. The committed table is
   [docs/leaderboard.md](docs/leaderboard.md).
+- **Adversarial demo.** `assaystone demo adversarial` shows the trap in one
+  screen: a `sitecustomize.py` that neutralises `assertEqual`, the naive contract
+  returning pass, and the hardened contract failing at `tests.harness_integrity`.
+  [docs/evasions.md](docs/evasions.md) has the minimal reproductions for the
+  module-shadow and `conftest.py` variants as well.
 - **Contract composition.** `assaystone compose` solves the weighted set cover
   over declared defect classes: the cheapest independent checks, the classes no
   check decides, and the classes that rest on a single check. Exact for small

@@ -37,6 +37,26 @@ leaves your machine; no API key or runtime dependency is required.
 
 <img src="assets/demo.gif" alt="Assaystone auditing a Claude Code transcript and finding a deleted failing test" width="760">
 
+## 60-second adversarial demo
+
+```bash
+assaystone demo adversarial
+```
+
+A six-line `sitecustomize.py` neutralises `assertEqual`, so the suite passes while
+the bug remains. The naive contract (`syntax + tests`) returns **pass**; the
+hardened contract fails at `tests.harness_integrity`:
+
+```
+contract     verdict   first failure
+naive        pass      —
+hardened     fail      tests.harness_integrity: sitecustomize.py (added): can change the test runtime
+```
+
+That is the product in one screen: a green suite is not acceptance. The same
+attacks, with minimal reproductions, are in
+[docs/evasions.md](docs/evasions.md).
+
 ## 60-second audit
 
 No transcript yet? Run the bundled failure case — no Python setup required:
