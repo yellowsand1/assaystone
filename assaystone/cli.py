@@ -10,6 +10,7 @@ from pathlib import Path
 from . import __version__, demo
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
+from .compose import compose, render_plan
 from .contract import Contract
 from .corpus import CorpusError, add_case, case_outcome
 from .coverage import analyze_coverage, render_coverage
@@ -507,6 +508,28 @@ def cmd_corpus(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compose(args: argparse.Namespace) -> int:
+    contract = _load_contract(args.contract) if args.contract else None
+    if args.contract and contract is None:
+        return 2
+    try:
+        plan = compose(
+            contract,
+            declared=args.require,
+            budget_usd=args.budget,
+            contract_only=args.contract_only,
+            require_independent=not args.allow_low_independence,
+        )
+    except (ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(plan.to_dict(), indent=2))
+    else:
+        print(render_plan(plan))
+    return 0 if plan.ok else 1
+
+
 def cmd_coverage(args: argparse.Namespace) -> int:
     contract = _load_contract(args.contract)
     if contract is None:
@@ -989,6 +1012,42 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true", help="overwrite an existing contract")
     init.add_argument("--ci", action="store_true", help="also write a GitHub Actions workflow")
     init.set_defaults(func=cmd_init)
+
+    compose_parser = sub.add_parser(
+        "compose",
+        help=(
+            "choose the cheapest independent cover for declared defect "
+            "classes, and report what no check decides"
+        ),
+        epilog=(
+            "Coverage is a weighted set cover: each declared class needs one "
+            "medium/high independence check. Exit codes: 0 all covered and "
+            "within budget, 1 uncovered or over budget, 2 input error."
+        ),
+    )
+    compose_parser.add_argument("--contract", default=None, metavar="PATH")
+    compose_parser.add_argument(
+        "--require",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help="defect class to cover; repeatable. Defaults to required_defects.",
+    )
+    compose_parser.add_argument(
+        "--budget", type=float, default=None, metavar="USD"
+    )
+    compose_parser.add_argument(
+        "--contract-only",
+        action="store_true",
+        help="plan from the contract's own verifiers instead of the registry",
+    )
+    compose_parser.add_argument(
+        "--allow-low-independence",
+        action="store_true",
+        help="let low-independence checks cover a class",
+    )
+    compose_parser.add_argument("--json", action="store_true")
+    compose_parser.set_defaults(func=cmd_compose)
 
     leaderboard_parser = sub.add_parser(
         "leaderboard",

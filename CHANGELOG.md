@@ -42,6 +42,10 @@
   compares several contracts on coverage, recall, resistance, false alarms, cost,
   and a single result. The committed table is
   [docs/leaderboard.md](docs/leaderboard.md).
+- **Contract composition.** `assaystone compose` solves the weighted set cover
+  over declared defect classes: the cheapest independent checks, the classes no
+  check decides, and the classes that rest on a single check. Exact for small
+  declared sets, with a deterministic greedy fallback.
 - **Onboarding fixes.** `assaystone init` now writes `domain` and a default
   `required_defects` list, and includes `diff.ci_surface` and
   `tests.harness_integrity`. A contract that declares no defect classes is no

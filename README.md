@@ -212,6 +212,19 @@ have perfect recall and no coverage; a long one can cover every declared class a
 still leak semantics. A leaderboard makes that visible instead of reducing it to a
 single score.
 
+## Plan a contract
+
+`assaystone compose` turns "these defect classes matter" into the cheapest set of
+independent checks that decides them:
+
+```bash
+assaystone compose --contract examples/code_agent/contracts/hardened.json
+```
+
+It reports the selected checks, the cost against the budget, classes that no check
+decides, and classes that rest on a single check. The last list is the useful one:
+a contract can cover every declared class and still have no redundancy.
+
 ## External tools
 
 The protocol is not limited to the built-in pack. `external.pytest` and
