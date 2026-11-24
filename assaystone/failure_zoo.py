@@ -429,7 +429,18 @@ def _load_manifest(path: str | Path) -> tuple[dict[str, Any], Path]:
     return data, target.parent
 
 
-def _verifier_specs(family: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+def _verifier_specs(
+    family: dict[str, Any],
+    override: list[tuple[str, dict[str, Any]]] | None = None,
+) -> list[tuple[str, dict[str, Any]]]:
+    if override is not None:
+        if not override:
+            raise BenchmarkError("verifier override is empty")
+        for name, _params in override:
+            if name not in REGISTRY:
+                raise BenchmarkError(f"unknown verifier in override: {name!r}")
+        return [(name, dict(params)) for name, params in override]
+
     specs = family.get("verifiers")
     if not isinstance(specs, list) or not specs:
         raise BenchmarkError(f"family {family.get('name')!r} has no verifiers")
@@ -528,6 +539,7 @@ def _run_case(
 def run_benchmark(
     corpus: str | Path = DEFAULT_CORPUS,
     thresholds: str | Path | None = DEFAULT_THRESHOLDS,
+    verifier_override: list[tuple[str, dict[str, Any]]] | None = None,
 ) -> BenchmarkResult:
     manifest, base = _load_manifest(corpus)
     result = BenchmarkResult(
@@ -539,7 +551,7 @@ def run_benchmark(
     for family in manifest["families"]:
         traces, baseline = _family_cases(family, base)
         name = family["name"]
-        specs = _verifier_specs(family)
+        specs = _verifier_specs(family, verifier_override)
         test_command = list(
             family.get("test_command")
             or ["{python}", "-m", "unittest", "discover", "-s", "tests", "-t", ".", "-v"]

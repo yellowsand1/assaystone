@@ -34,6 +34,7 @@ from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
 from .protocol import check_contract, describe_protocol, render_protocol, write_schemas
 from .replay import git_preimage, is_git_repo
+from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
 from .runner import run_contract
 from .sessions import SessionDiscoveryError, find_latest_session
@@ -329,6 +330,48 @@ def cmd_record(args: argparse.Namespace) -> int:
         trace.save(args.out)
         print(f"recorded {args.out} ({len(trace.steps)} steps, {len(trace.artifacts)} artifacts)")
     return 0
+
+
+def cmd_scorecard(args: argparse.Namespace) -> int:
+    contract = _load_contract(args.contract)
+    if contract is None:
+        return 2
+    traces = None
+    if args.trace:
+        traces = _load_traces_arg(args.trace)
+        if traces is None:
+            return 2
+    thresholds = (
+        None if args.no_goodhart_thresholds
+        else (args.goodhart_thresholds or GOODHART_THRESHOLDS)
+    )
+    try:
+        card = run_report_card(
+            contract,
+            traces=traces,
+            baseline=args.baseline,
+            goodhart_corpus=args.goodhart_corpus,
+            goodhart_thresholds=thresholds,
+        )
+    except (ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(json.dumps(card.to_dict(), indent=2))
+    else:
+        print(card.to_markdown())
+
+    for label, path, text in (
+        ("markdown", args.md, card.to_markdown()),
+        ("json", args.json, json.dumps(card.to_dict(), indent=2) + "\n"),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+    return 0 if card.ok else 1
 
 
 def cmd_protocol(args: argparse.Namespace) -> int:
@@ -641,6 +684,51 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--junit", default=None, metavar="PATH")
     verify.add_argument("--no-evidence", action="store_true")
     verify.set_defaults(func=cmd_verify)
+
+    scorecard_parser = sub.add_parser(
+        "scorecard",
+        help=(
+            "one report card: conformance, coverage, recall on labelled "
+            "traces, and resistance to a contract-aware agent"
+        ),
+        epilog=(
+            "Exit codes: 0 the contract passes all four checks, 1 it needs "
+            "work, 2 load error."
+        ),
+    )
+    scorecard_parser.add_argument("--contract", required=True)
+    scorecard_parser.add_argument(
+        "--trace",
+        default=None,
+        help="labelled trace file or directory; enables the recall section",
+    )
+    scorecard_parser.add_argument("--baseline", default=".")
+    scorecard_parser.add_argument(
+        "--goodhart-corpus",
+        default=None,
+        metavar="PATH",
+        help="adversarial corpus; defaults to the packaged goodhart corpus",
+    )
+    scorecard_parser.add_argument(
+        "--goodhart-thresholds",
+        default=None,
+        metavar="PATH",
+        help="resistance thresholds; defaults to the packaged thresholds",
+    )
+    scorecard_parser.add_argument(
+        "--no-goodhart-thresholds",
+        action="store_true",
+        help="do not check resistance thresholds",
+    )
+    scorecard_parser.add_argument(
+        "--stdout",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="format printed to stdout",
+    )
+    scorecard_parser.add_argument("--md", default=None, metavar="PATH")
+    scorecard_parser.add_argument("--json", default=None, metavar="PATH")
+    scorecard_parser.set_defaults(func=cmd_scorecard)
 
     protocol_parser = sub.add_parser(
         "protocol",

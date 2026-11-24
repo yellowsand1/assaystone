@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .contract import Contract
 from .failure_zoo import (
     CAUGHT,
     ESCALATED,
@@ -139,6 +140,45 @@ class GoodhartReport:
     def thresholds_passed(self) -> bool:
         return not self.threshold_failures
 
+    def family_rows(self) -> list[dict[str, Any]]:
+        rows: dict[str, dict[str, Any]] = {}
+        for case in self.cases:
+            row = rows.setdefault(
+                case.family,
+                {
+                    "family": case.family,
+                    "defective": 0,
+                    "controls": 0,
+                    "caught": 0,
+                    "escalated": 0,
+                    "escaped": 0,
+                    "false_alarms": 0,
+                },
+            )
+            if case.human == FAIL:
+                row["defective"] += 1
+                if case.outcome == CAUGHT:
+                    row["caught"] += 1
+                elif case.outcome == ESCALATED:
+                    row["escalated"] += 1
+                elif case.is_escape:
+                    row["escaped"] += 1
+            else:
+                row["controls"] += 1
+                if case.outcome == FALSE_ALARM:
+                    row["false_alarms"] += 1
+        out: list[dict[str, Any]] = []
+        for name in sorted(rows):
+            row = rows[name]
+            defective = row["defective"]
+            row["resistance"] = (
+                round((defective - row["escaped"]) / defective, 6)
+                if defective
+                else 1.0
+            )
+            out.append(row)
+        return out
+
     def summary_dict(self) -> dict[str, Any]:
         return {
             "cases": len(self.cases),
@@ -162,6 +202,7 @@ class GoodhartReport:
             "corpus": self.corpus,
             "corpus_version": self.version,
             "summary": self.summary_dict(),
+            "families": self.family_rows(),
             "cases": [case.to_dict() for case in self.cases],
             "thresholds": {
                 "source": self.threshold_source,
@@ -204,6 +245,22 @@ class GoodhartReport:
             f"{'was a surprise' if len(self.surprise_escapes) == 1 else 'were surprises'}. "
             f"Declared escape rate: **{self.declared_escape_rate:.0%}**."
         )
+        add("")
+
+        add("## Resistance by family")
+        add("")
+        add(
+            "Mechanical attacks and semantic attacks fail for different reasons. "
+            "A single resistance number hides that; the split does not."
+        )
+        add("")
+        add("| family | defective | caught | escalated | escaped | resistance |")
+        add("|---|---|---|---|---|---|")
+        for row in self.family_rows():
+            add(
+                f"| `{row['family']}` | {row['defective']} | {row['caught']} | "
+                f"{row['escalated']} | {row['escaped']} | {row['resistance']:.0%} |"
+            )
         add("")
 
         add("## Cases")
@@ -275,6 +332,7 @@ def build_report(
     result: BenchmarkResult,
     corpus: str | None = None,
     version: str | None = None,
+    required_defects: list[str] | None = None,
 ) -> GoodhartReport:
     report = GoodhartReport(
         corpus=corpus or result.corpus,
@@ -288,7 +346,11 @@ def build_report(
     for family in result.families:
         if family.category != "adversarial":
             continue
-        required = set(family.required_defects)
+        required = (
+            set(required_defects)
+            if required_defects is not None
+            else set(family.required_defects)
+        )
         for case in family.cases:
             results = by_case.get((family.name, case.trace_id), [])
             passed_by = sorted(
@@ -326,10 +388,23 @@ def build_report(
 def run_goodhart(
     corpus: str | Path | None = None,
     thresholds: str | Path | None = GOODHART_THRESHOLDS,
+    contract: Contract | None = None,
 ) -> GoodhartReport:
     corpus_path = Path(corpus) if corpus is not None else GOODHART_CORPUS
-    result = run_benchmark(corpus_path, thresholds=None)
-    report = build_report(result)
+    override = (
+        [(spec.name, dict(spec.params)) for spec in contract.verifiers]
+        if contract is not None
+        else None
+    )
+    result = run_benchmark(
+        corpus_path, thresholds=None, verifier_override=override
+    )
+    report = build_report(
+        result,
+        required_defects=(
+            contract.required_defects if contract is not None else None
+        ),
+    )
     if thresholds is not None:
         threshold_path = Path(thresholds)
         report.threshold_source = (
@@ -393,6 +468,36 @@ def check_thresholds(
                 f"declared escape rate {report.declared_escape_rate:.1%} is below "
                 f"the threshold {minimum:.1%}"
             )
+
+    families = data.get("families") or {}
+    if not isinstance(families, dict):
+        raise ValueError("thresholds 'families' must be an object")
+    by_family = {row["family"]: row for row in report.family_rows()}
+    for name, config in sorted(families.items()):
+        if not isinstance(config, dict):
+            raise ValueError(f"thresholds family {name!r} must be an object")
+        row = by_family.get(name)
+        if row is None:
+            failures.append(f"{name}: family missing from the report")
+            continue
+        resistance = float(row["resistance"])
+        if "min_resistance" in config:
+            minimum = float(config["min_resistance"])
+            if resistance + 1e-9 < minimum:
+                failures.append(
+                    f"{name}: resistance {resistance:.1%} is below the threshold "
+                    f"{minimum:.1%}"
+                )
+        if "max_escape_rate" in config:
+            maximum = float(config["max_escape_rate"])
+            escape_rate = (
+                row["escaped"] / row["defective"] if row["defective"] else 0.0
+            )
+            if escape_rate - 1e-9 > maximum:
+                failures.append(
+                    f"{name}: escape rate {escape_rate:.1%} exceeds the threshold "
+                    f"{maximum:.1%}"
+                )
     return failures
 
 
@@ -409,6 +514,14 @@ def render_summary(report: GoodhartReport) -> str:
         f"broken_claims={len(report.broken_claims)}",
         "",
     ]
+    lines.append("by family:")
+    for row in report.family_rows():
+        lines.append(
+            f"  {row['family']:<12} resistance={row['resistance']:.0%} "
+            f"caught={row['caught']} escalated={row['escalated']} "
+            f"escaped={row['escaped']}"
+        )
+    lines.append("")
     lines.append(
         f"{'case':<24} {'defect':<22} {'outcome':<10} caught by"
     )

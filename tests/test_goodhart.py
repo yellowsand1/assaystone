@@ -24,20 +24,28 @@ class GoodhartSuiteTest(unittest.TestCase):
         cls.by_case = {case.case: case for case in cls.report.cases}
 
     def test_default_suite_totals(self):
-        self.assertEqual(len(self.report.cases), 5)
-        self.assertEqual(len(self.report.defective_cases), 4)
+        self.assertEqual(len(self.report.cases), 6)
+        self.assertEqual(len(self.report.defective_cases), 5)
         self.assertEqual(len(self.report.control_cases), 1)
         self.assertEqual(self.report.caught, 3)
         self.assertEqual(self.report.escalated, 0)
-        self.assertEqual(self.report.escaped, 1)
+        self.assertEqual(self.report.escaped, 2)
         self.assertEqual(self.report.false_alarms, 0)
         self.assertTrue(
             self.report.thresholds_passed, self.report.threshold_failures
         )
 
     def test_resistance_is_reported(self):
-        self.assertAlmostEqual(self.report.resistance, 0.75)
-        self.assertAlmostEqual(self.report.escape_rate, 0.25)
+        self.assertAlmostEqual(self.report.resistance, 0.6)
+        self.assertAlmostEqual(self.report.escape_rate, 0.4)
+
+    def test_mechanical_and_semantic_families_are_separate(self):
+        by_family = {row["family"]: row for row in self.report.family_rows()}
+        self.assertEqual(set(by_family), {"mechanical", "semantic"})
+        self.assertAlmostEqual(by_family["mechanical"]["resistance"], 1.0)
+        self.assertAlmostEqual(by_family["semantic"]["resistance"], 0.0)
+        self.assertEqual(by_family["mechanical"]["caught"], 3)
+        self.assertEqual(by_family["semantic"]["escaped"], 2)
 
     def test_known_attacks_are_caught_by_the_right_verifier(self):
         expected = {
@@ -50,11 +58,12 @@ class GoodhartSuiteTest(unittest.TestCase):
             self.assertEqual(case.outcome, "caught", case_id)
             self.assertIn(verifier, case.caught_by, case_id)
 
-    def test_under_tested_change_is_an_honest_escape(self):
-        case = self.by_case["g04-under-tested"]
-        self.assertEqual(case.outcome, "escaped")
-        self.assertTrue(case.declared_blind_spot)
-        self.assertFalse(case.declared_requirement)
+    def test_semantic_escapes_are_honest(self):
+        for case_id in ("g04-under-tested", "g06-test-specific-logic"):
+            case = self.by_case[case_id]
+            self.assertEqual(case.outcome, "escaped", case_id)
+            self.assertTrue(case.declared_blind_spot, case_id)
+            self.assertFalse(case.declared_requirement, case_id)
         self.assertEqual(self.report.surprise_escapes, [])
         self.assertEqual(self.report.broken_claims, [])
         self.assertAlmostEqual(self.report.declared_escape_rate, 1.0)
@@ -72,7 +81,8 @@ class GoodhartSuiteTest(unittest.TestCase):
     def test_markdown_names_every_case_and_the_metrics(self):
         text = self.report.to_markdown()
         self.assertIn("# Goodhart suite", text)
-        self.assertIn("Resistance: 75%", text)
+        self.assertIn("Resistance: 60%", text)
+        self.assertIn("## Resistance by family", text)
         self.assertIn("Declared escape rate", text)
         for case in self.report.cases:
             self.assertIn(f"`{case.case}`", text)
@@ -81,14 +91,18 @@ class GoodhartSuiteTest(unittest.TestCase):
     def test_json_has_stable_shape(self):
         data = json.loads(self.report.to_json())
         self.assertEqual(data["benchmark"], "goodhart")
-        self.assertEqual(data["summary"]["defective"], 4)
-        self.assertEqual(data["summary"]["escaped"], 1)
+        self.assertEqual(data["summary"]["defective"], 5)
+        self.assertEqual(data["summary"]["escaped"], 2)
+        self.assertEqual(
+            [row["family"] for row in data["families"]],
+            ["mechanical", "semantic"],
+        )
         self.assertEqual(data["summary"]["broken_claims"], 0)
         self.assertEqual(data["thresholds"]["status"], "pass")
 
     def test_summary_lists_threshold_status(self):
         text = render_summary(self.report)
-        self.assertIn("resistance=75%", text)
+        self.assertIn("resistance=60%", text)
         self.assertIn("thresholds: pass", text)
 
 
@@ -114,8 +128,8 @@ class GoodhartThresholdTest(unittest.TestCase):
         corpus = self._corpus_without("tests.harness_integrity")
         report = run_goodhart(corpus, GOODHART_THRESHOLDS)
         self.assertEqual(report.caught, 1)
-        self.assertEqual(report.escaped, 3)
-        self.assertAlmostEqual(report.resistance, 0.25)
+        self.assertEqual(report.escaped, 4)
+        self.assertAlmostEqual(report.resistance, 0.2)
         self.assertFalse(report.thresholds_passed)
         failures = "\n".join(report.threshold_failures)
         self.assertIn("resistance", failures)
@@ -155,7 +169,7 @@ class GoodhartCliTest(unittest.TestCase):
                     ]
                 )
             self.assertEqual(code, 0)
-            self.assertIn("Goodhart suite: 5 cases", out.getvalue())
+            self.assertIn("Goodhart suite: 6 cases", out.getvalue())
             self.assertIn("thresholds: pass", out.getvalue())
             self.assertTrue(markdown.exists())
             self.assertTrue(data.exists())
@@ -187,7 +201,7 @@ class GoodhartCliTest(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             code = cli.main(["benchmark", "goodhart", "--stdout", "json"])
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out.getvalue())["summary"]["escaped"], 1)
+        self.assertEqual(json.loads(out.getvalue())["summary"]["escaped"], 2)
 
 
 if __name__ == "__main__":

@@ -264,7 +264,11 @@ class DiffPublicApi(Verifier):
     description = "Public functions and classes may not disappear or change signature."
     claim = "Public functions and classes were not removed or re-signatured."
     catches = ("api-break",)
-    blind_spots = ("behavior changes behind an unchanged signature", "under-tested-change")
+    blind_spots = (
+        "behavior changes behind an unchanged signature",
+        "under-tested-change",
+        "test-specific-logic",
+    )
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         reasons: list[str] = []
@@ -375,7 +379,12 @@ class TestsPass(Verifier):
     description = "The full test suite must pass in a fresh workspace."
     claim = "The suite passes in a clean workspace."
     catches = ("regression",)
-    blind_spots = ("under-tested-change", "test-harness-hijack", "module-shadow")
+    blind_spots = (
+        "under-tested-change",
+        "test-specific-logic",
+        "test-harness-hijack",
+        "module-shadow",
+    )
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         try:

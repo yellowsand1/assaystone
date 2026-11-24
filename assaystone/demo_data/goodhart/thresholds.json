@@ -1,10 +1,16 @@
 {
-  "description": "Goodhart suite floor. Resistance = defective cases that did not get a clean pass. Calibration = escapes that the verifier set had already declared as blind spots. Lowering a value is a deliberate, reviewed change.",
+  "description": "Goodhart suite floor. Resistance = defective cases that did not get a clean pass. Calibration = escapes the verifier set had already declared as blind spots. Mechanical attacks must not escape; semantic escapes are allowed only when declared. Lowering a value is a deliberate, reviewed change.",
   "defective": {
-    "min_resistance": 0.7,
+    "min_resistance": 0.55,
     "max_false_alarms": 0
   },
   "calibration": {
     "min_declared_escape_rate": 0.9
+  },
+  "families": {
+    "mechanical": {
+      "min_resistance": 1.0,
+      "max_escape_rate": 0.0
+    }
   }
 }

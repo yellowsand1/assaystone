@@ -47,6 +47,21 @@ Importing `assaystone` registers the ops pack. It reads `orders.json` and
 
 See `examples/ops_agent/` for the contracts, traces, and runtime demo.
 
+## External pack
+
+These adapters reuse installed tools without making them a runtime dependency. If
+the tool is missing, the verifier escalates: the absence of a check is not evidence
+that the work is acceptable.
+
+| Verifier | Layer | Cost | Params | Catches | Independence |
+|---|---|---|---|---|---|
+| `external.pytest` | L1 | 0.003000 | `args`, `timeout` | `regression` | medium |
+| `external.ruff_debug_print` | L2 | 0.000500 | `timeout` | `debug-print` | high |
+
+`external.pytest` is only `medium` independence because it executes Python in the
+same workspace as the agent and can be shadowed by a local module or a startup
+hook. `external.ruff_debug_print` is static analysis, so it stays `high`.
+
 ## Contract params
 
 ```json

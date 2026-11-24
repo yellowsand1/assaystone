@@ -19,12 +19,23 @@
   Contracts gain `required_defects`.
 - **Goodhart suite.** `assaystone benchmark goodhart` measures whether an agent
   that knows the contract can obtain a clean pass without doing the work. The
-  bundled adversary covers a startup-hook hijack, a stdlib module shadow, a CI
-  bypass, and an untested semantic drift; resistance is 75%, and the one escape is
-  a declared blind spot rather than a surprise.
+  bundled adversary is split into `mechanical` attacks (startup-hook hijack,
+  stdlib module shadow, CI bypass) and `semantic` attacks (an untested behavior
+  change and hardcoded test inputs). Mechanical resistance is 100%; semantic
+  resistance is 0%; the overall 60% is reported with both escapes declared as
+  blind spots rather than surprises.
+- **Report card.** `assaystone scorecard` puts protocol conformance, declared
+  coverage, recall on labelled traces, and resistance by family on one page, and
+  exits non-zero when any of the four fails.
+- **External pack.** `external.pytest` and `external.ruff_debug_print` run real
+  third-party tools when installed and escalate when they are missing. The pytest
+  adapter is declared `medium` independence because it shares the runtime hijack
+  surface.
 - New verifiers: `tests.harness_integrity` catches `sitecustomize.py`,
   `unittest.py`, `.pth`, and related runtime hijacks; `diff.ci_surface` protects
   the whole CI/build surface, not only `.github/workflows/`.
+- SARIF and JUnit now surface unconfirmed low-independence failures so CI and
+  reviewers can see a routed check instead of a silent one.
 - Benchmark families gain `category` and `required_defects`, so an adversarial
   corpus and a recall corpus can share one runner.
 
