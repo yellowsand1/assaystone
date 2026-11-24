@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- `assaystone schema list|trace|contract` prints bundled draft 2020-12 JSON
+  Schemas; the schemas ship in the wheel and sdist, and the test suite validates
+  every bundled demo trace and contract against them
 - `assaystone benchmark failure-zoo` runs every built-in verifier independently
   against the labelled corpus (code/test, ops/refund, and an audit transcript),
   reports caught / escaped / false-alarm counts per verifier, and emits deterministic

@@ -662,10 +662,11 @@ def _parser() -> argparse.ArgumentParser:
         help="print Assaystone JSON Schemas",
     )
     schema_sub = schema.add_subparsers(dest="command_name")
-    schema_sub.add_parser("list", help="list available schema names")
+    list_schema = schema_sub.add_parser("list", help="list available schema names")
+    list_schema.set_defaults(func=cmd_schema, command_name="list")
     for schema_name in available_schemas():
         show = schema_sub.add_parser(schema_name, help=f"print the {schema_name} JSON Schema")
-        show.set_defaults(command_name="show", schema=schema_name)
+        show.set_defaults(func=cmd_schema, command_name="show", schema=schema_name)
     schema.set_defaults(func=cmd_schema, command_name="show", schema="trace")
 
     return parser

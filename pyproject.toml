@@ -54,8 +54,8 @@ Changelog = "https://github.com/yellowsand1/assaystone/blob/main/CHANGELOG.md"
 assaystone = "assaystone.cli:main"
 
 [project.optional-dependencies]
-pytest = ["pytest>=7"]
-dev = ["pytest>=7", "build>=1.2", "ruff>=0.9", "coverage[toml]>=7"]
+pytest = ["pytest>=7", "jsonschema>=4.18"]
+dev = ["pytest>=7", "jsonschema>=4.18", "build>=1.2", "ruff>=0.9", "coverage[toml]>=7"]
 
 [project.entry-points.pytest11]
 assaystone = "assaystone.pytest_plugin"
@@ -69,6 +69,7 @@ exclude = ["*__pycache__*"]
 
 [tool.setuptools.package-data]
 assaystone = [
+  "schemas/*.json",
   "demo_data/**/*.json",
   "demo_data/**/*.jsonl",
   "demo_data/**/*.md",

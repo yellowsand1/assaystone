@@ -183,6 +183,19 @@ claim-vs-evidence. `--run-tests` adds the test suite. `--json` is for machines;
 it is not a sandbox, so only audit traces and repositories you trust.
 Details: [docs/audit.md](docs/audit.md) · [importers](docs/importers.md).
 
+### JSON Schemas
+
+Print the bundled trace or contract schema for an editor or CI check:
+
+```bash
+assaystone schema list        # contract, trace
+assaystone schema trace       # trace schema as JSON
+assaystone schema contract    # contract schema as JSON
+```
+
+The schemas are pure data (draft 2020-12) and ship in the wheel and sdist. Details:
+[docs/schema.md](docs/schema.md).
+
 ## Quickstart in your repo
 
 If you already have transcripts, start with `assaystone audit` above. `init` is for

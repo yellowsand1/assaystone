@@ -30,9 +30,12 @@ rm -rf dist
 python3 -m pip install build twine
 python3 -m build
 python3 -m twine check dist/*
+python3 -c "import glob,sys,zipfile; names=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); want=['assaystone/schemas/contract.schema.json','assaystone/schemas/trace.schema.json']; missing=[w for w in want if w not in names]; sys.exit(f'missing from wheel: {missing}' if missing else 0)"
+tar -tzf dist/*.tar.gz | grep -q 'assaystone/schemas/trace.schema.json'
 python3 -m venv /tmp/assaystone-release
 /tmp/assaystone-release/bin/pip install dist/*.whl pytest
 /tmp/assaystone-release/bin/assaystone --version
+/tmp/assaystone-release/bin/assaystone schema list
 cd /tmp && /tmp/assaystone-release/bin/assaystone demo audit
 ```
 

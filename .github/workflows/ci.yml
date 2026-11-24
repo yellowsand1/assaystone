@@ -62,6 +62,11 @@ jobs:
         run: |
           python -m pip install build
           python -m build
+      - name: Check schemas ship in the distributions
+        run: |
+          python -c "import glob,sys,zipfile; names=zipfile.ZipFile(glob.glob('dist/*.whl')[0]).namelist(); want=['assaystone/schemas/contract.schema.json','assaystone/schemas/trace.schema.json']; missing=[w for w in want if w not in names]; sys.exit(f'missing from wheel: {missing}' if missing else 0)"
+          tar -tzf dist/*.tar.gz | grep -q 'assaystone/schemas/contract.schema.json'
+          tar -tzf dist/*.tar.gz | grep -q 'assaystone/schemas/trace.schema.json'
       - name: Install wheel in a clean venv
         run: |
           python -m venv /tmp/assaystone-wheel
@@ -72,6 +77,8 @@ jobs:
           mkdir -p /tmp/assaystone-demo
           cd /tmp/assaystone-demo
           /tmp/assaystone-wheel/bin/assaystone demo audit
+          /tmp/assaystone-wheel/bin/assaystone schema list
+          /tmp/assaystone-wheel/bin/assaystone schema trace > /dev/null
           /tmp/assaystone-wheel/bin/assaystone demo
           /tmp/assaystone-wheel/bin/assaystone demo ops
           /tmp/assaystone-wheel/bin/assaystone benchmark failure-zoo

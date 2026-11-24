@@ -1,6 +1,7 @@
 include LICENSE
 include README.md
 include CHANGELOG.md
+recursive-include assaystone/schemas *.json
 recursive-include assaystone/demo_data *.json *.jsonl *.md *.py *.yml
 recursive-include scripts *.py
 global-exclude __pycache__

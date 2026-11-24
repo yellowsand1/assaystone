@@ -33,7 +33,9 @@ def schema_path(name: str) -> Path:
     try:
         filename = _SCHEMA_FILES[name]
     except KeyError:
-        raise SchemaError(f"unknown schema: {name!r} (choose from {sorted(_SCHEMA_FILES)})")
+        raise SchemaError(
+            f"unknown schema: {name!r} (choose from {sorted(_SCHEMA_FILES)})"
+        ) from None
     return SCHEMA_DIR / filename
 
 
