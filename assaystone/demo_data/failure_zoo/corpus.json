@@ -113,6 +113,9 @@
               "refund.create"
             ]
           }
+        },
+        {
+          "name": "ops.refund_lineage"
         }
       ],
       "domain": "ops"

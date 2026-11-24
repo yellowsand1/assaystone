@@ -10,6 +10,7 @@
     "double-refund",
     "missing-approval",
     "missing-approval-lineage",
+    "wrong-approval",
     "status-inconsistent"
   ],
   "verifiers": [

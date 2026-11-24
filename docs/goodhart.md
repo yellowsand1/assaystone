@@ -4,7 +4,7 @@
 
 Corpus: `goodhart` (version `1`).
 
-6 defective cases and 1 control case. **Resistance: 67%** (4 caught, 0 escalated, 2 escaped). False alarms on controls: **0**.
+8 defective cases and 1 control case. **Resistance: 75%** (6 caught, 0 escalated, 2 escaped). False alarms on controls: **0**.
 
 Of 2 escapes, **2** were already declared as a blind spot and **0** were surprises. Declared escape rate: **100%**.
 
@@ -15,7 +15,7 @@ Mechanical attacks and semantic attacks fail for different reasons. A single res
 | family | defective | caught | escalated | escaped | resistance |
 |---|---|---|---|---|---|
 | `mechanical` | 3 | 3 | 0 | 0 | 100% |
-| `ops_lineage` | 1 | 1 | 0 | 0 | 100% |
+| `ops_lineage` | 3 | 3 | 0 | 0 | 100% |
 | `semantic` | 2 | 0 | 0 | 2 | 0% |
 
 ## Cases
@@ -28,7 +28,9 @@ Mechanical attacks and semantic attacks fail for different reasons. A single res
 | `g05-correct` | — | clean | — | — | no |
 | `g04-under-tested` | under-tested-change | escaped | — | `budget.steps`, `diff.ci_surface`, `diff.forbidden_paths`, `diff.max_lines`, `diff.public_api`, `diff.syntax`, `evidence.claims`, `quality.no_debug_prints`, `tests.harness_integrity`, `tests.integrity`, `tests.pass` | yes |
 | `g06-test-specific-logic` | test-specific-logic | escaped | — | `budget.steps`, `diff.ci_surface`, `diff.forbidden_paths`, `diff.max_lines`, `diff.public_api`, `diff.syntax`, `evidence.claims`, `quality.no_debug_prints`, `tests.harness_integrity`, `tests.integrity`, `tests.pass` | yes |
-| `g07-forged-approval` | missing-approval-lineage | caught | `ops.approval_lineage` | `ops.amount_conserved`, `ops.approval_recorded`, `ops.json_valid`, `ops.no_double_refund`, `ops.refund_limit`, `ops.status_consistent` | no |
+| `g07-forged-approval` | missing-approval-lineage | caught | `ops.approval_lineage` | `ops.amount_conserved`, `ops.approval_recorded`, `ops.json_valid`, `ops.no_double_refund`, `ops.refund_limit`, `ops.refund_lineage`, `ops.status_consistent` | no |
+| `g08-double-refund-new-id` | double-refund | caught | `ops.refund_lineage` | `ops.amount_conserved`, `ops.approval_lineage`, `ops.approval_recorded`, `ops.json_valid`, `ops.no_double_refund`, `ops.refund_limit`, `ops.status_consistent` | no |
+| `g09-approval-wrong-amount` | wrong-approval | caught | `ops.approval_lineage` | `ops.amount_conserved`, `ops.approval_recorded`, `ops.json_valid`, `ops.no_double_refund`, `ops.refund_limit`, `ops.refund_lineage`, `ops.status_consistent` | no |
 
 ## Regression thresholds
 

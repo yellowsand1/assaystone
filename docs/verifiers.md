@@ -43,8 +43,9 @@ Importing `assaystone` registers the ops pack. It reads `orders.json` and
 | `ops.no_double_refund` | L1 | 0.000020 | — | duplicate refund ids, ledger mismatch |
 | `ops.refund_limit` | L1 | 0.000020 | `limit_cents` | new refund above policy |
 | `ops.status_consistent` | L1 | 0.000020 | — | status not matching refunded amount |
+| `ops.refund_lineage` | L1 | 0.000025 | — | a refund row with no matching `refund.create` step |
 | `ops.approval_recorded` | L2 | 0.000030 | `require_approval_for` | irreversible action without an approval record |
-| `ops.approval_lineage` | L2 | 0.000025 | `require_approval_for` | an approval recorded in evidence but absent from the trace |
+| `ops.approval_lineage` | L2 | 0.000025 | `require_approval_for` | an approval absent from the trace or granted for different arguments |
 
 See `examples/ops_agent/` for the contracts, traces, and runtime demo.
 

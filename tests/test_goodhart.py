@@ -24,10 +24,10 @@ class GoodhartSuiteTest(unittest.TestCase):
         cls.by_case = {case.case: case for case in cls.report.cases}
 
     def test_default_suite_totals(self):
-        self.assertEqual(len(self.report.cases), 7)
-        self.assertEqual(len(self.report.defective_cases), 6)
+        self.assertEqual(len(self.report.cases), 9)
+        self.assertEqual(len(self.report.defective_cases), 8)
         self.assertEqual(len(self.report.control_cases), 1)
-        self.assertEqual(self.report.caught, 4)
+        self.assertEqual(self.report.caught, 6)
         self.assertEqual(self.report.escalated, 0)
         self.assertEqual(self.report.escaped, 2)
         self.assertEqual(self.report.false_alarms, 0)
@@ -36,8 +36,8 @@ class GoodhartSuiteTest(unittest.TestCase):
         )
 
     def test_resistance_is_reported(self):
-        self.assertAlmostEqual(self.report.resistance, 4 / 6)
-        self.assertAlmostEqual(self.report.escape_rate, 2 / 6)
+        self.assertAlmostEqual(self.report.resistance, 6 / 8)
+        self.assertAlmostEqual(self.report.escape_rate, 2 / 8)
 
     def test_families_are_separated_by_failure_mode(self):
         by_family = {row["family"]: row for row in self.report.family_rows()}
@@ -46,7 +46,7 @@ class GoodhartSuiteTest(unittest.TestCase):
         self.assertAlmostEqual(by_family["ops_lineage"]["resistance"], 1.0)
         self.assertAlmostEqual(by_family["semantic"]["resistance"], 0.0)
         self.assertEqual(by_family["mechanical"]["caught"], 3)
-        self.assertEqual(by_family["ops_lineage"]["caught"], 1)
+        self.assertEqual(by_family["ops_lineage"]["caught"], 3)
         self.assertEqual(by_family["semantic"]["escaped"], 2)
 
     def test_known_attacks_are_caught_by_the_right_verifier(self):
@@ -83,7 +83,7 @@ class GoodhartSuiteTest(unittest.TestCase):
     def test_markdown_names_every_case_and_the_metrics(self):
         text = self.report.to_markdown()
         self.assertIn("# Goodhart suite", text)
-        self.assertIn("Resistance: 67%", text)
+        self.assertIn("Resistance: 75%", text)
         self.assertIn("## Resistance by family", text)
         self.assertIn("Declared escape rate", text)
         for case in self.report.cases:
@@ -93,7 +93,7 @@ class GoodhartSuiteTest(unittest.TestCase):
     def test_json_has_stable_shape(self):
         data = json.loads(self.report.to_json())
         self.assertEqual(data["benchmark"], "goodhart")
-        self.assertEqual(data["summary"]["defective"], 6)
+        self.assertEqual(data["summary"]["defective"], 8)
         self.assertEqual(data["summary"]["escaped"], 2)
         self.assertEqual(
             [row["family"] for row in data["families"]],
@@ -104,7 +104,7 @@ class GoodhartSuiteTest(unittest.TestCase):
 
     def test_summary_lists_threshold_status(self):
         text = render_summary(self.report)
-        self.assertIn("resistance=67%", text)
+        self.assertIn("resistance=75%", text)
         self.assertIn("thresholds: pass", text)
 
 
@@ -158,9 +158,9 @@ class GoodhartThresholdTest(unittest.TestCase):
     def test_removing_the_harness_check_breaks_resistance(self):
         corpus = self._corpus_without("tests.harness_integrity")
         report = run_goodhart(corpus, GOODHART_THRESHOLDS)
-        self.assertEqual(report.caught, 2)
+        self.assertEqual(report.caught, 4)
         self.assertEqual(report.escaped, 4)
-        self.assertAlmostEqual(report.resistance, 2 / 6)
+        self.assertAlmostEqual(report.resistance, 4 / 8)
         self.assertFalse(report.thresholds_passed)
         failures = "\n".join(report.threshold_failures)
         self.assertIn("resistance", failures)
@@ -200,7 +200,7 @@ class GoodhartCliTest(unittest.TestCase):
                     ]
                 )
             self.assertEqual(code, 0)
-            self.assertIn("Goodhart suite: 7 cases", out.getvalue())
+            self.assertIn("Goodhart suite: 9 cases", out.getvalue())
             self.assertIn("thresholds: pass", out.getvalue())
             self.assertTrue(markdown.exists())
             self.assertTrue(data.exists())

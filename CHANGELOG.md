@@ -28,7 +28,18 @@
 - **Approval lineage.** The runtime now records an `approval.request` step before
   an irreversible action, and `ops.approval_lineage` walks the trace instead of
   trusting a boolean in evidence. An approval that exists only as a claim is
-  caught even when `ops.approval_recorded` is satisfied.
+  caught even when `ops.approval_recorded` is satisfied. The check matches the
+  approved arguments, so an approval for 4000 cents does not cover an 8000-cent
+  refund.
+- **Refund lineage.** `ops.refund_lineage` requires one `refund.create` step per
+  new refund row. Two identical refunds recorded from a single step are caught,
+  even when the ledger balances and every id is unique.
+- **Corpus on-ramp.** `assaystone corpus add` turns a trace or a redacted
+  transcript into a labelled fixture in an existing family, replays a transcript
+  against a baseline, and optionally validates the new case against the current
+  pack. See [docs/corpus.md](docs/corpus.md).
+- The Goodhart `ops_lineage` family grows to three attacks: forged approval,
+  duplicate refund from one step, and an approval for a different amount.
 - **Report card.** `assaystone scorecard` puts protocol conformance, declared
   coverage, recall on labelled traces, and resistance by family on one page, and
   exits non-zero when any of the four fails. A contract's card is scoped to its

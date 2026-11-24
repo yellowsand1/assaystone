@@ -186,7 +186,8 @@
         "double-refund",
         "missing-approval",
         "missing-approval-lineage",
-        "status-inconsistent"
+        "status-inconsistent",
+        "wrong-approval"
       ],
       "verifiers": [
         {
@@ -222,6 +223,9 @@
               "refund.create"
             ]
           }
+        },
+        {
+          "name": "ops.refund_lineage"
         }
       ]
     }

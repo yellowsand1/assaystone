@@ -11,6 +11,7 @@ from . import __version__, demo
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .contract import Contract
+from .corpus import CorpusError, add_case, case_outcome
 from .coverage import analyze_coverage, render_coverage
 from .failure_zoo import (
     DEFAULT_CORPUS,
@@ -438,6 +439,43 @@ def cmd_protocol(args: argparse.Namespace) -> int:
         print(json.dumps(describe_protocol(), indent=2))
     else:
         print(render_protocol())
+    return 0
+
+
+def cmd_corpus(args: argparse.Namespace) -> int:
+    try:
+        added = add_case(
+            args.corpus,
+            args.family,
+            args.trace,
+            label=args.label,
+            defect=args.defect,
+            note=args.note or "",
+            baseline=args.baseline,
+            fmt=args.format,
+            case_id=args.id,
+            force=args.force,
+        )
+    except CorpusError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"added {added.family}/{added.trace_id} -> {_display(added.path)}")
+    label = added.verdict
+    if added.defect:
+        label = f"{label} ({added.defect})"
+    print(f"label: {label}")
+
+    if args.validate:
+        try:
+            outcome = case_outcome(args.corpus, added.family, added.trace_id)
+        except CorpusError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        caught = ", ".join(outcome["caught_by"]) or "—"
+        print(f"outcome: {outcome['outcome']} ({caught})")
+    else:
+        print("next: rerun the benchmark, or pass --validate to score it now")
     return 0
 
 
@@ -923,6 +961,67 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true", help="overwrite an existing contract")
     init.add_argument("--ci", action="store_true", help="also write a GitHub Actions workflow")
     init.set_defaults(func=cmd_init)
+
+    corpus_parser = sub.add_parser(
+        "corpus",
+        help="add a labelled case to an existing benchmark corpus",
+        epilog=(
+            "The manifest is never edited: an existing family points at a "
+            "directory, so the new labelled trace is picked up by the next run. "
+            "Exit codes: 0 added, 2 corpus or input error."
+        ),
+    )
+    corpus_sub = corpus_parser.add_subparsers(
+        dest="corpus_command", required=True
+    )
+    corpus_add = corpus_sub.add_parser(
+        "add",
+        help="write one labelled trace into a family",
+    )
+    corpus_add.add_argument("--corpus", required=True, metavar="PATH")
+    corpus_add.add_argument("--family", required=True)
+    corpus_add.add_argument(
+        "--trace",
+        required=True,
+        metavar="PATH",
+        help="a trace JSON, a transcript, or an observability export",
+    )
+    corpus_add.add_argument("--label", required=True, choices=["pass", "fail"])
+    corpus_add.add_argument(
+        "--defect",
+        default=None,
+        metavar="TAG",
+        help="required for a failing case; the shared defect vocabulary",
+    )
+    corpus_add.add_argument("--note", default="")
+    corpus_add.add_argument(
+        "--baseline",
+        default=None,
+        metavar="DIR",
+        help="baseline used to replay a transcript; defaults to the family's",
+    )
+    corpus_add.add_argument(
+        "--format",
+        default="auto",
+        choices=[
+            "auto",
+            "trace",
+            "messages",
+            "claude-code",
+            "codex",
+            "langsmith",
+            "langfuse",
+            "otel",
+        ],
+    )
+    corpus_add.add_argument("--id", default=None, metavar="CASE_ID")
+    corpus_add.add_argument("--force", action="store_true")
+    corpus_add.add_argument(
+        "--validate",
+        action="store_true",
+        help="rerun the corpus and report what the verifier pack did",
+    )
+    corpus_add.set_defaults(func=cmd_corpus)
 
     record = sub.add_parser("record", help="convert a transcript or export into a trace")
     record.add_argument("--transcript", required=True, help="transcript, export, or trace file")

@@ -10,12 +10,14 @@
     "double-refund",
     "missing-approval",
     "missing-approval-lineage",
+    "wrong-approval",
     "status-inconsistent"
   ],
   "verifiers": [
     {"name": "ops.json_valid", "required": true},
     {"name": "ops.amount_conserved", "required": true},
     {"name": "ops.no_double_refund", "required": true},
+    {"name": "ops.refund_lineage", "required": true},
     {"name": "ops.refund_limit", "required": true, "params": {"limit_cents": 10000}},
     {"name": "ops.status_consistent", "required": true},
     {"name": "ops.approval_recorded", "required": true, "params": {"require_approval_for": ["refund.create"]}},
