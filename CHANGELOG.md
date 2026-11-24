@@ -31,7 +31,11 @@
   caught even when `ops.approval_recorded` is satisfied.
 - **Report card.** `assaystone scorecard` puts protocol conformance, declared
   coverage, recall on labelled traces, and resistance by family on one page, and
-  exits non-zero when any of the four fails.
+  exits non-zero when any of the four fails. A contract's card is scoped to its
+  declared domain; the benchmark itself reports every family.
+- **Verifier manifest check.** `assaystone protocol --check-manifest` validates a
+  third-party verifier manifest without a JSON Schema dependency. The
+  `examples/third_party_pack/` pack registers a verifier outside the package.
 - **External pack.** `external.pytest` and `external.ruff_debug_print` run real
   third-party tools when installed and escalate when they are missing. The pytest
   adapter is declared `medium` independence because it shares the runtime hijack

@@ -405,6 +405,7 @@ def run_goodhart(
         thresholds=None,
         verifier_override=override,
         override_domain=(contract.domain or None) if contract is not None else None,
+        domain_filter=(contract.domain or None) if contract is not None else None,
     )
     report = build_report(
         result,
@@ -420,13 +421,18 @@ def run_goodhart(
             if threshold_path == GOODHART_THRESHOLDS
             else str(threshold_path)
         )
-        report.threshold_failures = check_thresholds(report, threshold_path)
+        report.threshold_failures = check_thresholds(
+            report,
+            threshold_path,
+            strict_families=contract is None or not contract.domain,
+        )
     return report
 
 
 def check_thresholds(
     report: GoodhartReport,
     thresholds: str | Path | dict[str, Any],
+    strict_families: bool = True,
 ) -> list[str]:
     if isinstance(thresholds, dict):
         data: Any = thresholds
@@ -486,7 +492,8 @@ def check_thresholds(
             raise ValueError(f"thresholds family {name!r} must be an object")
         row = by_family.get(name)
         if row is None:
-            failures.append(f"{name}: family missing from the report")
+            if strict_families:
+                failures.append(f"{name}: family missing from the report")
             continue
         resistance = float(row["resistance"])
         if "min_resistance" in config:

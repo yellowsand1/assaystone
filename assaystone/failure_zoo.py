@@ -547,6 +547,7 @@ def run_benchmark(
     thresholds: str | Path | None = DEFAULT_THRESHOLDS,
     verifier_override: list[tuple[str, dict[str, Any]]] | None = None,
     override_domain: str | None = None,
+    domain_filter: str | None = None,
 ) -> BenchmarkResult:
     manifest, base = _load_manifest(corpus)
     result = BenchmarkResult(
@@ -556,6 +557,11 @@ def run_benchmark(
     rows: dict[str, VerifierRow] = {}
 
     for family in manifest["families"]:
+        if (
+            domain_filter is not None
+            and str(family.get("domain") or "") != domain_filter
+        ):
+            continue
         traces, baseline = _family_cases(family, base)
         name = family["name"]
         specs = _verifier_specs(family, verifier_override, override_domain)

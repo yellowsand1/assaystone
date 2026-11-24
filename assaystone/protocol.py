@@ -199,6 +199,64 @@ def describe_protocol() -> dict[str, Any]:
     }
 
 
+MANIFEST_FIELDS = (
+    "name",
+    "version",
+    "layer",
+    "independence",
+    "claim",
+    "catches",
+    "blind_spots",
+    "cost",
+)
+
+
+def check_manifest(data: dict[str, Any]) -> list[str]:
+    """Validate a verifier manifest without a full JSON Schema engine."""
+    violations: list[str] = []
+    if not isinstance(data, dict):
+        return ["manifest must be a JSON object"]
+
+    for field_name in MANIFEST_FIELDS:
+        if field_name not in data:
+            violations.append(f"missing field: {field_name}")
+
+    if "name" in data and not str(data["name"]).strip():
+        violations.append("name is empty")
+    if "version" in data and not str(data["version"]).strip():
+        violations.append("version is empty")
+    if "layer" in data and data["layer"] not in LAYERS:
+        violations.append(
+            f"layer {data['layer']!r} is not one of {', '.join(LAYERS)}"
+        )
+    if "independence" in data and data["independence"] not in INDEPENDENCE:
+        violations.append(
+            f"independence {data['independence']!r} is not one of "
+            f"{', '.join(INDEPENDENCE)}"
+        )
+    if "claim" in data and not str(data["claim"]).strip():
+        violations.append("claim is empty")
+    for list_field in ("catches", "blind_spots"):
+        value = data.get(list_field)
+        if value is None:
+            continue
+        if not isinstance(value, list) or not value:
+            violations.append(f"{list_field} must be a non-empty array")
+        elif any(not str(item).strip() for item in value):
+            violations.append(f"{list_field} contains an empty tag")
+
+    cost = data.get("cost")
+    if cost is not None:
+        if not isinstance(cost, dict):
+            violations.append("cost must be an object")
+        else:
+            if "usd" not in cost:
+                violations.append("cost.usd is required")
+            elif not isinstance(cost["usd"], (int, float)) or cost["usd"] < 0:
+                violations.append("cost.usd must be a non-negative number")
+    return violations
+
+
 def check_contract(contract: Contract) -> ContractCheck:
     """Check a contract against the protocol, without a full JSON Schema engine."""
     violations: list[str] = []

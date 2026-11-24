@@ -19,7 +19,8 @@ assaystone protocol --schemas ./schemas
 
 Print the catalog of every registered verifier, including its declared blind
 spots, with `assaystone protocol`. Check a contract against the protocol with
-`assaystone protocol --check path/to/contract.json`.
+`assaystone protocol --check path/to/contract.json`, and check an external
+verifier manifest with `assaystone protocol --check-manifest path/to/manifest.json`.
 
 ## The verifier manifest
 

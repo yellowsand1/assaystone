@@ -38,7 +38,8 @@ class ReportCardTest(unittest.TestCase):
         self.assertEqual(card.coverage.at_risk, [])
         self.assertEqual(card.recall.escaped, 0)
         self.assertEqual(card.recall.caught, 4)
-        self.assertAlmostEqual(card.resistance.resistance, 4 / 6)
+        # A code contract is scored only against code families: 3/5.
+        self.assertAlmostEqual(card.resistance.resistance, 3 / 5)
         self.assertTrue(card.ok)
 
     def test_naive_needs_work_and_names_the_risk(self):
@@ -47,11 +48,22 @@ class ReportCardTest(unittest.TestCase):
         self.assertGreater(len(card.coverage.at_risk), 0)
         self.assertIn("at risk", card.headline)
 
-    def test_resistance_is_split_by_family(self):
+    def test_resistance_is_scoped_to_the_contract_domain(self):
         rows = {row["family"]: row for row in self.hardened.resistance.family_rows()}
+        self.assertEqual(set(rows), {"mechanical", "semantic"})
         self.assertAlmostEqual(rows["mechanical"]["resistance"], 1.0)
-        self.assertAlmostEqual(rows["ops_lineage"]["resistance"], 1.0)
         self.assertAlmostEqual(rows["semantic"]["resistance"], 0.0)
+
+    def test_ops_contract_is_scored_only_against_ops_families(self):
+        ops = run_report_card(
+            Contract.load(REPO / "examples" / "ops_agent" / "contracts" / "hardened.json"),
+            traces=load_traces(REPO / "examples" / "ops_agent" / "traces"),
+            baseline=REPO / "examples" / "ops_agent" / "baseline",
+        )
+        rows = ops.resistance.family_rows()
+        self.assertEqual([row["family"] for row in rows], ["ops_lineage"])
+        self.assertAlmostEqual(ops.resistance.resistance, 1.0)
+        self.assertTrue(ops.ok, ops.headline)
 
     def test_markdown_has_all_sections(self):
         text = self.hardened.to_markdown()
@@ -73,7 +85,7 @@ class ReportCardTest(unittest.TestCase):
         self.assertEqual(data["recall"]["caught"], 4)
         self.assertEqual(
             [row["family"] for row in data["resistance"]["families"]],
-            ["mechanical", "ops_lineage", "semantic"],
+            ["mechanical", "semantic"],
         )
 
     def test_without_traces_the_recall_section_is_absent(self):

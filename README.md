@@ -157,11 +157,15 @@ reasons:
 | ops | an approval recorded in evidence but never requested in the trace | caught by `ops.approval_lineage` |
 
 Mechanical resistance is **100%**, the ops lineage check is **100%**, and semantic
-resistance is **0%**. The overall number is **67%** (4/6), and both escapes were
-already in `tests.pass`'s declared blind spots, so the report counts them as
+resistance is **0%**. The catalog-wide number is **67%** (4/6), and both escapes
+were already in `tests.pass`'s declared blind spots, so the report counts them as
 declared escapes, not surprises. That split is the point: deterministic checks stop
 mechanical attacks and can enforce a recorded approval lineage; they do not specify
-semantics. `--md` and `--json` emit the full report; regressions are blocked by
+semantics.
+
+A contract's report card is scoped to its domain: the code contract is scored
+against the code families (60%), and the ops contract against the ops family
+(100%). The benchmark itself reports every family. `--md` and `--json` emit the full report; regressions are blocked by
 [thresholds](assaystone/demo_data/goodhart/thresholds.json).
 
 ## Report card
@@ -531,6 +535,7 @@ examples/ops_agent/    # runtime gate + ops/refund pack
 examples/audit/        # a Claude Code transcript that deletes the failing test
 examples/importers/    # LangSmith / Langfuse / OTel export fixtures
 examples/hooks/        # Claude Code Stop hook settings
+examples/third_party_pack/ # a verifier implemented outside the package
 failure_zoo/           # labeled failure corpus (seed)
 docs/why.md            # the longer argument
 docs/protocol.md       # the verifier ABI and the three schemas

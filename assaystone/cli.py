@@ -32,7 +32,13 @@ from .hooks.claude_code import main as claude_code_hook_main
 from .init import init_project
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
-from .protocol import check_contract, describe_protocol, render_protocol, write_schemas
+from .protocol import (
+    check_contract,
+    check_manifest,
+    describe_protocol,
+    render_protocol,
+    write_schemas,
+)
 from .replay import git_preimage, is_git_repo
 from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
@@ -375,6 +381,40 @@ def cmd_scorecard(args: argparse.Namespace) -> int:
 
 
 def cmd_protocol(args: argparse.Namespace) -> int:
+    if args.check_manifest:
+        try:
+            data = json.loads(
+                Path(args.check_manifest).read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            print(f"error: manifest not found: {args.check_manifest}", file=sys.stderr)
+            return 2
+        except json.JSONDecodeError as exc:
+            print(f"error: invalid manifest JSON: {exc}", file=sys.stderr)
+            return 2
+        violations = check_manifest(data)
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "manifest": args.check_manifest,
+                        "ok": not violations,
+                        "violations": violations,
+                    },
+                    indent=2,
+                )
+            )
+        elif not violations:
+            print(f"manifest {args.check_manifest}: ok")
+        else:
+            print(
+                f"manifest {args.check_manifest}: "
+                f"{len(violations)} violation(s)"
+            )
+            for violation in violations:
+                print(f"  - {violation}")
+        return 0 if not violations else 1
+
     if args.check:
         contract = _load_contract(args.check)
         if contract is None:
@@ -753,6 +793,12 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CONTRACT",
         help="check a contract against the protocol instead of printing it",
+    )
+    protocol_parser.add_argument(
+        "--check-manifest",
+        default=None,
+        metavar="PATH",
+        help="check a verifier manifest (JSON) against the protocol",
     )
     protocol_parser.set_defaults(func=cmd_protocol)
 

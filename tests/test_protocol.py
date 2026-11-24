@@ -126,6 +126,34 @@ class ProtocolCliTest(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn("unknown verifier", out.getvalue())
 
+    def test_check_manifest_exit_codes(self):
+        manifest = {
+            "name": "example.x",
+            "version": "1",
+            "layer": "L1",
+            "independence": "high",
+            "claim": "c",
+            "catches": ["a"],
+            "blind_spots": ["b"],
+            "cost": {"usd": 0.0},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            good = Path(tmp) / "good.json"
+            good.write_text(json.dumps(manifest), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = cli.main(["protocol", "--check-manifest", str(good)])
+            self.assertEqual(code, 0)
+            self.assertIn("ok", out.getvalue())
+
+            bad = Path(tmp) / "bad.json"
+            bad.write_text(json.dumps({"name": "x"}), encoding="utf-8")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = cli.main(["protocol", "--check-manifest", str(bad)])
+            self.assertEqual(code, 1)
+            self.assertIn("missing field", out.getvalue())
+
     def test_schemas_are_written(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = io.StringIO()
