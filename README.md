@@ -467,6 +467,10 @@ ship today.
 
 ## Contributing
 
+New here? The [Start here discussion](https://github.com/yellowsand1/assaystone/discussions/11)
+has the 60-second audit path, the honest limits of `tests.integrity`, and a place to ask
+questions.
+
 The fastest way to help is to
 [bring a failure case](.github/ISSUE_TEMPLATE/failure_case.md). See
 [CONTRIBUTING.md](CONTRIBUTING.md) for verifier and adapter guidelines.
