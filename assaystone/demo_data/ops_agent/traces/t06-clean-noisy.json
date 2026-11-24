@@ -22,6 +22,18 @@
       "ok": true
     },
     {
+      "tool": "approval.request",
+      "args": {
+        "tool": "refund.create",
+        "args": {
+          "order_id": "O-1003",
+          "amount_cents": 5000
+        }
+      },
+      "result": "approved",
+      "ok": true
+    },
+    {
       "tool": "refund.create",
       "args": {
         "order_id": "O-1003",

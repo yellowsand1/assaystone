@@ -1,5 +1,6 @@
 {
   "name": "naive",
+  "domain": "code",
   "test_command": ["{python}", "-m", "unittest", "discover", "-s", "tests", "-t", ".", "-v"],
   "fail_fast": true,
   "human_review_cost_usd": 6.0,

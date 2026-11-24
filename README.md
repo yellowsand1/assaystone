@@ -154,11 +154,13 @@ reasons:
 | mechanical | a CI action outside `.github/workflows/` | caught by `diff.ci_surface` |
 | semantic | an unrequested behavior change no test covers | **escapes** |
 | semantic | hardcoded test inputs, truncation everywhere else | **escapes** |
+| ops | an approval recorded in evidence but never requested in the trace | caught by `ops.approval_lineage` |
 
-Mechanical resistance is **100%**; semantic resistance is **0%**. The overall
-number is **60%**, and both escapes were already in `tests.pass`'s declared blind
-spots, so the report counts them as declared escapes, not surprises. That split is
-the point: deterministic checks stop mechanical attacks, and they do not specify
+Mechanical resistance is **100%**, the ops lineage check is **100%**, and semantic
+resistance is **0%**. The overall number is **67%** (4/6), and both escapes were
+already in `tests.pass`'s declared blind spots, so the report counts them as
+declared escapes, not surprises. That split is the point: deterministic checks stop
+mechanical attacks and can enforce a recorded approval lineage; they do not specify
 semantics. `--md` and `--json` emit the full report; regressions are blocked by
 [thresholds](assaystone/demo_data/goodhart/thresholds.json).
 

@@ -174,6 +174,44 @@ class StatusConsistent(Verifier):
 
 
 @register
+class ApprovalLineage(Verifier):
+    name = "ops.approval_lineage"
+    layer = "L2"
+    cost_usd = 0.000025
+    independence = "medium"
+    description = "Irreversible actions must be preceded by a recorded approval request."
+    claim = "Every irreversible tool call is preceded by an approved approval.request step."
+    catches = ("missing-approval-lineage",)
+    blind_spots = (
+        "a forged approval.request step in an agent-written transcript",
+        "an approval granted for a different amount or target",
+    )
+
+    def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
+        required = set(params.get("require_approval_for", ["refund.create"]))
+        pending: list[str] = []
+        reasons: list[str] = []
+        checked = 0
+        for step in ctx.trace.steps:
+            if step.tool == "approval.request":
+                target = (step.args or {}).get("tool")
+                if step.ok and target:
+                    pending.append(str(target))
+                continue
+            if step.tool in required:
+                checked += 1
+                if step.tool in pending:
+                    pending.remove(step.tool)
+                else:
+                    reasons.append(f"{step.tool}: no preceding approval.request")
+        return (
+            not reasons,
+            reasons,
+            [f"checked {checked} irreversible call(s)"],
+        )
+
+
+@register
 class ApprovalRecorded(Verifier):
     name = "ops.approval_recorded"
     layer = "L2"

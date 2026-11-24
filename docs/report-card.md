@@ -1,6 +1,6 @@
 # Report card: hardened
 
-**PASS** — coverage 100%, resistance 60%, recall 100%
+**PASS** — coverage 100%, resistance 67%, recall 100%
 
 ## Protocol
 
@@ -25,6 +25,7 @@ Contract and verifiers conform to the protocol.
 | family | defective | caught | escalated | escaped | resistance |
 |---|---|---|---|---|---|
 | `mechanical` | 3 | 3 | 0 | 0 | 100% |
+| `ops_lineage` | 1 | 1 | 0 | 0 | 100% |
 | `semantic` | 2 | 0 | 0 | 2 | 0% |
 
 Declared escape rate: **100%**. Broken claims: **0**. Surprises: **0**.

@@ -333,6 +333,7 @@ def build_report(
     corpus: str | None = None,
     version: str | None = None,
     required_defects: list[str] | None = None,
+    required_domain: str | None = None,
 ) -> GoodhartReport:
     report = GoodhartReport(
         corpus=corpus or result.corpus,
@@ -346,9 +347,12 @@ def build_report(
     for family in result.families:
         if family.category != "adversarial":
             continue
+        scoped = required_defects is not None and (
+            required_domain is None or family.domain == required_domain
+        )
         required = (
             set(required_defects)
-            if required_defects is not None
+            if scoped
             else set(family.required_defects)
         )
         for case in family.cases:
@@ -397,13 +401,17 @@ def run_goodhart(
         else None
     )
     result = run_benchmark(
-        corpus_path, thresholds=None, verifier_override=override
+        corpus_path,
+        thresholds=None,
+        verifier_override=override,
+        override_domain=(contract.domain or None) if contract is not None else None,
     )
     report = build_report(
         result,
         required_defects=(
             contract.required_defects if contract is not None else None
         ),
+        required_domain=(contract.domain or None) if contract is not None else None,
     )
     if thresholds is not None:
         threshold_path = Path(thresholds)

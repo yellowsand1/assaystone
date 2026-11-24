@@ -177,6 +177,16 @@ class GuardSession:
         if policy == REQUIRE_APPROVAL:
             callback = self.guard.approval_callback
             approved = bool(callback(tool, args, self.snapshot())) if callback else False
+            # Record the request in the trace, not only in evidence. Evidence is
+            # a claim; a step is a lineage that a verifier can walk.
+            self.steps.append(
+                Step(
+                    tool="approval.request",
+                    args={"tool": tool, "args": args},
+                    result="approved" if approved else "denied",
+                    ok=approved,
+                )
+            )
             self.evidence.setdefault("approvals", []).append(
                 {"tool": tool, "args": args, "approved": approved}
             )

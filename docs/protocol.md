@@ -106,6 +106,11 @@ escalating the remainder.
 `required_defects` is the claim the contract makes about itself. `assaystone
 coverage` measures it. Without it, coverage has nothing to measure.
 
+`domain` is optional. A benchmark only applies a contract's verifiers to corpus
+families in the same domain, so a `code` contract is not scored against an `ops`
+corpus. When a contract omits the domain, its verifiers are applied to every
+family it is run against.
+
 ## The verdict
 
 A verdict is three-valued: `pass`, `fail`, or `escalate`. It carries the verifier

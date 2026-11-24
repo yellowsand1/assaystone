@@ -38,7 +38,7 @@ class ReportCardTest(unittest.TestCase):
         self.assertEqual(card.coverage.at_risk, [])
         self.assertEqual(card.recall.escaped, 0)
         self.assertEqual(card.recall.caught, 4)
-        self.assertAlmostEqual(card.resistance.resistance, 0.6)
+        self.assertAlmostEqual(card.resistance.resistance, 4 / 6)
         self.assertTrue(card.ok)
 
     def test_naive_needs_work_and_names_the_risk(self):
@@ -50,6 +50,7 @@ class ReportCardTest(unittest.TestCase):
     def test_resistance_is_split_by_family(self):
         rows = {row["family"]: row for row in self.hardened.resistance.family_rows()}
         self.assertAlmostEqual(rows["mechanical"]["resistance"], 1.0)
+        self.assertAlmostEqual(rows["ops_lineage"]["resistance"], 1.0)
         self.assertAlmostEqual(rows["semantic"]["resistance"], 0.0)
 
     def test_markdown_has_all_sections(self):
@@ -72,7 +73,7 @@ class ReportCardTest(unittest.TestCase):
         self.assertEqual(data["recall"]["caught"], 4)
         self.assertEqual(
             [row["family"] for row in data["resistance"]["families"]],
-            ["mechanical", "semantic"],
+            ["mechanical", "ops_lineage", "semantic"],
         )
 
     def test_without_traces_the_recall_section_is_absent(self):

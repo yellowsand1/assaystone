@@ -20,10 +20,15 @@
 - **Goodhart suite.** `assaystone benchmark goodhart` measures whether an agent
   that knows the contract can obtain a clean pass without doing the work. The
   bundled adversary is split into `mechanical` attacks (startup-hook hijack,
-  stdlib module shadow, CI bypass) and `semantic` attacks (an untested behavior
-  change and hardcoded test inputs). Mechanical resistance is 100%; semantic
-  resistance is 0%; the overall 60% is reported with both escapes declared as
-  blind spots rather than surprises.
+  stdlib module shadow, CI bypass), `semantic` attacks (an untested behavior
+  change and hardcoded test inputs), and an `ops_lineage` attack (an approval
+  recorded in evidence but absent from the trace). Mechanical and ops resistance
+  are 100%; semantic resistance is 0%; the overall 67% is reported with both
+  escapes declared as blind spots rather than surprises.
+- **Approval lineage.** The runtime now records an `approval.request` step before
+  an irreversible action, and `ops.approval_lineage` walks the trace instead of
+  trusting a boolean in evidence. An approval that exists only as a claim is
+  caught even when `ops.approval_recorded` is satisfied.
 - **Report card.** `assaystone scorecard` puts protocol conformance, declared
   coverage, recall on labelled traces, and resistance by family on one page, and
   exits non-zero when any of the four fails.

@@ -39,6 +39,7 @@ CONTRACT_SCHEMA: dict[str, Any] = {
             "items": {"type": "string", "minLength": 1},
             "uniqueItems": True,
         },
+        "domain": {"type": "string"},
         "verifiers": {
             "type": "array",
             "minItems": 1,

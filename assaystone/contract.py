@@ -28,6 +28,9 @@ class Contract:
     # Defect tags this contract is expected to cover. Coverage is a claim
     # about a contract, so the requirement has to be stated, not inferred.
     required_defects: list[str] = field(default_factory=list)
+    # Optional domain label ("code", "ops", ...). A benchmark only applies a
+    # contract's verifiers to corpus families in the same domain.
+    domain: str = ""
 
     @classmethod
     def load(cls, path: str | Path) -> "Contract":
@@ -53,6 +56,7 @@ class Contract:
             human_review_cost_usd=float(data.get("human_review_cost_usd", 6.0)),
             max_verification_cost_usd=float(data.get("max_verification_cost_usd", 0.05)),
             required_defects=[str(tag) for tag in data.get("required_defects") or []],
+            domain=str(data.get("domain") or ""),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -63,6 +67,7 @@ class Contract:
             "human_review_cost_usd": self.human_review_cost_usd,
             "max_verification_cost_usd": self.max_verification_cost_usd,
             "required_defects": list(self.required_defects),
+            "domain": self.domain,
             "verifiers": [
                 {
                     "name": spec.name,

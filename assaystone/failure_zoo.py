@@ -103,6 +103,7 @@ class VerifierRow:
 class FamilySummary:
     name: str
     category: str = "recall"
+    domain: str = ""
     required_defects: list[str] = field(default_factory=list)
     cases: list[BenchmarkCase] = field(default_factory=list)
     case_outcomes: dict[str, str] = field(default_factory=dict)  # trace_id -> outcome
@@ -212,6 +213,7 @@ class BenchmarkResult:
                 {
                     "family": family.name,
                     "category": family.category,
+                    "domain": family.domain,
                     "required_defects": list(family.required_defects),
                     "cases": len(family.cases),
                     "defective": family.defective,
@@ -432,8 +434,12 @@ def _load_manifest(path: str | Path) -> tuple[dict[str, Any], Path]:
 def _verifier_specs(
     family: dict[str, Any],
     override: list[tuple[str, dict[str, Any]]] | None = None,
+    override_domain: str | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
-    if override is not None:
+    if override is not None and (
+        override_domain is None
+        or str(family.get("domain") or "") == override_domain
+    ):
         if not override:
             raise BenchmarkError("verifier override is empty")
         for name, _params in override:
@@ -540,6 +546,7 @@ def run_benchmark(
     corpus: str | Path = DEFAULT_CORPUS,
     thresholds: str | Path | None = DEFAULT_THRESHOLDS,
     verifier_override: list[tuple[str, dict[str, Any]]] | None = None,
+    override_domain: str | None = None,
 ) -> BenchmarkResult:
     manifest, base = _load_manifest(corpus)
     result = BenchmarkResult(
@@ -551,7 +558,7 @@ def run_benchmark(
     for family in manifest["families"]:
         traces, baseline = _family_cases(family, base)
         name = family["name"]
-        specs = _verifier_specs(family, verifier_override)
+        specs = _verifier_specs(family, verifier_override, override_domain)
         test_command = list(
             family.get("test_command")
             or ["{python}", "-m", "unittest", "discover", "-s", "tests", "-t", ".", "-v"]
@@ -559,6 +566,7 @@ def run_benchmark(
         summary = FamilySummary(
             name=name,
             category=str(family.get("category", "recall")),
+            domain=str(family.get("domain") or ""),
             required_defects=[
                 str(tag) for tag in (family.get("required_defects") or [])
             ],
