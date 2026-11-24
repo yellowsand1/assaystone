@@ -156,6 +156,10 @@ One labelled trace or redacted transcript becomes a scored fixture. The command
 never edits the manifest; `--validate` reruns the corpus and tells you whether the
 current pack caught it. Details: [docs/corpus.md](docs/corpus.md).
 
+Running a design-partner session? The 45-minute script, the invitation, and what
+to collect are in [docs/adoption.md](docs/adoption.md). The reproducible evasion
+write-up is [docs/evasions.md](docs/evasions.md).
+
 ## Protocol
 
 A verifier is only useful if another tool can consume it. The v1 protocol makes the
@@ -607,6 +611,8 @@ docs/why.md            # the longer argument
 docs/protocol.md       # the verifier ABI and the three schemas
 docs/protocol.json     # generated catalog of every conformant verifier
 docs/corpus.md         # how to add a labelled case
+docs/adoption.md       # the 45-minute design-partner script
+docs/evasions.md       # three reproducible ways to make tests lie
 docs/leaderboard.md    # generated comparison of built-in contracts
 docs/goodhart.md       # generated resistance report
 docs/report-card.md    # generated contract report card

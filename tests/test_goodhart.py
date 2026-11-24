@@ -227,6 +227,33 @@ class GoodhartCliTest(unittest.TestCase):
             self.assertEqual(code, 1)
             self.assertIn("thresholds: FAIL", out.getvalue())
 
+    def test_cli_scores_a_contract(self):
+        contract = (
+            Path(__file__).resolve().parent.parent
+            / "examples"
+            / "code_agent"
+            / "contracts"
+            / "hardened.json"
+        )
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(
+                [
+                    "benchmark",
+                    "goodhart",
+                    "--contract",
+                    str(contract),
+                    "--stdout",
+                    "json",
+                ]
+            )
+        self.assertEqual(code, 0)
+        data = json.loads(out.getvalue())
+        self.assertEqual(
+            [row["family"] for row in data["families"]],
+            ["mechanical", "semantic"],
+        )
+
     def test_cli_json_stdout_is_parseable(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):

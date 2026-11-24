@@ -635,8 +635,13 @@ def cmd_benchmark_failure_zoo(args: argparse.Namespace) -> int:
 
 def cmd_benchmark_goodhart(args: argparse.Namespace) -> int:
     thresholds = None if args.no_thresholds else (args.thresholds or GOODHART_THRESHOLDS)
+    contract = _load_contract(args.contract) if args.contract else None
+    if args.contract and contract is None:
+        return 2
     try:
-        report = run_goodhart(args.corpus or GOODHART_CORPUS, thresholds)
+        report = run_goodhart(
+            args.corpus or GOODHART_CORPUS, thresholds, contract=contract
+        )
     except (ValueError, KeyError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -985,6 +990,15 @@ def _parser() -> argparse.ArgumentParser:
         epilog=(
             "Runs offline against packaged adversarial fixtures. Exit codes: "
             "0 thresholds pass, 1 regression below threshold, 2 corpus error."
+        ),
+    )
+    goodhart.add_argument(
+        "--contract",
+        default=None,
+        metavar="PATH",
+        help=(
+            "score this contract's verifiers instead of the corpus manifests; "
+            "the contract's domain selects the families"
         ),
     )
     goodhart.add_argument(

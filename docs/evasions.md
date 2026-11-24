@@ -77,6 +77,33 @@ does **not** put the root on `PYTHONPATH` early enough, so the file is not
 imported. The benchmark's workspace sets `PYTHONPATH` explicitly because that is
 the common CI setup, and a verifier must not trust the workspace it is checking.
 
+## The default stack
+
+A contract with pytest and ruff only — "the tests pass and the linter is clean" —
+declares `regression` and `debug-print`, and covers both. Against the same
+adversarial corpus:
+
+| family | defective | caught | escaped | resistance |
+|---|---|---|---|---|
+| mechanical | 3 | 0 | 3 | 0% |
+| semantic | 2 | 0 | 2 | 0% |
+
+All three mechanical attacks escape: the harness hijack and the module shadow make
+the pytest command succeed, and the CI bypass is outside ruff's rules.
+
+This is not a knock on either tool. A test runner proves the tests passed; a
+linter proves the code matches its rules. Neither proves the work is acceptable.
+
+```bash
+assaystone benchmark goodhart \
+  --contract examples/code_agent/contracts/default_stack.json --no-thresholds
+```
+
+One of the five escapes is a **surprise**, not a declared blind spot: neither
+pytest nor ruff declares that it cannot see a CI bypass. The tool did not just
+miss it; it did not know it was missing it. That distinction is the point of
+declaring blind spots.
+
 ## What deterministic checks cannot see
 
 The three attacks above are mechanical. A deterministic check can name the files

@@ -42,6 +42,13 @@
   compares several contracts on coverage, recall, resistance, false alarms, cost,
   and a single result. The committed table is
   [docs/leaderboard.md](docs/leaderboard.md).
+- **Default-stack result.** `benchmark goodhart --contract` now scores an
+  arbitrary contract on the adversarial corpus. The bundled pytest+ruff contract
+  covers its two declared classes and resists 0/3 mechanical attacks; one escape
+  (CI bypass) is a surprise because neither tool declares that blind spot.
+- **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
+  design-partner script: who to ask, the invitation, the agenda, and what to
+  collect.
 - **Adversarial demo.** `assaystone demo adversarial` shows the trap in one
   screen: a `sitecustomize.py` that neutralises `assertEqual`, the naive contract
   returning pass, and the hardened contract failing at `tests.harness_integrity`.
