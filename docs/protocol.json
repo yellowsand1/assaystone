@@ -231,18 +231,19 @@
       "version": "1",
       "layer": "L2",
       "independence": "medium",
-      "claim": "Every irreversible tool call is preceded by an approved approval.request step.",
+      "claim": "Every irreversible tool call is preceded by an approved approval.request for the same arguments.",
       "catches": [
-        "missing-approval-lineage"
+        "missing-approval-lineage",
+        "wrong-approval"
       ],
       "blind_spots": [
         "a forged approval.request step in an agent-written transcript",
-        "an approval granted for a different amount or target"
+        "an approval granted outside the trace and never recorded"
       ],
       "cost": {
         "usd": 2.5e-05
       },
-      "description": "Irreversible actions must be preceded by a recorded approval request.",
+      "description": "Irreversible actions must be preceded by a matching approval request.",
       "builtin": true,
       "conformant": true
     },
@@ -320,6 +321,27 @@
         "usd": 2e-05
       },
       "description": "New refunds must stay within the per-refund policy limit.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
+      "name": "ops.refund_lineage",
+      "version": "1",
+      "layer": "L1",
+      "independence": "medium",
+      "claim": "Each new refund in orders.json matches a recorded refund.create step.",
+      "catches": [
+        "double-refund",
+        "phantom-refund"
+      ],
+      "blind_spots": [
+        "a forged refund.create step in an agent-written transcript",
+        "a refund already present in the baseline ledger"
+      ],
+      "cost": {
+        "usd": 2.5e-05
+      },
+      "description": "Every new refund in the ledger has a matching refund.create step.",
       "builtin": true,
       "conformant": true
     },
@@ -427,6 +449,6 @@
       "conformant": true
     }
   ],
-  "conformant": 20,
+  "conformant": 21,
   "nonconformant": []
 }
