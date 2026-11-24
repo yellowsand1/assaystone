@@ -6,8 +6,11 @@ A verifier returns `(ok, reasons, evidence)`:
 - `ok=False` — the check failed.
 - `ok=None` — the check cannot decide; the run escalates to a human.
 
-Every verifier declares `layer`, `cost_usd`, and `independence`. The runner sorts by
-cost and stops at the first required failure.
+Every verifier declares `layer`, `cost_usd`, `independence`, `claim`, `catches`,
+and `blind_spots`. The runner sorts by cost and stops at the first required
+failure. A failure from a `low`-independence verifier is not decisive: the runner
+looks for independent confirmation and escalates if none arrives. See
+[the protocol](protocol.md) for the full ABI.
 
 ## Built-in pack
 
@@ -15,8 +18,10 @@ cost and stops at the first required failure.
 |---|---|---|---|---|
 | `budget.steps` | L0 | 0.000001 | `max_steps` | runaway loops |
 | `diff.syntax` | L1 | 0.000010 | — | broken Python |
-| `diff.forbidden_paths` | L1 | 0.000010 | `forbidden` | CI/config edits |
+| `diff.forbidden_paths` | L1 | 0.000010 | `forbidden` | CI/config edits on the declared list |
+| `diff.ci_surface` | L1 | 0.000020 | `protected` | CI/build edits anywhere (`.github/`, `ci/`, `tox.ini`, …) |
 | `tests.integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_test_changes` | test edits anywhere (`tests/`, `server/tests/`) |
+| `tests.harness_integrity` | L1 | 0.000020 | `extra_names`, `extra_suffixes` | startup hooks, module shadowing, `.pth` files |
 | `diff.max_lines` | L0 | 0.000020 | `max_changed_lines` | oversized patches |
 | `diff.public_api` | L2 | 0.000030 | — | removed/changed public API |
 | `quality.no_debug_prints` | L2 | 0.000030 | — | `print()` / `breakpoint()` |

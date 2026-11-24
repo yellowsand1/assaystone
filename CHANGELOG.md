@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+### Verifier protocol and adversarial measurement
+
+- **Verifier protocol v1.** Every verifier now declares `claim`, `catches`,
+  `blind_spots`, `cost`, and `independence`. `assaystone protocol` prints the
+  catalog, `--schemas DIR` exports contract/verifier/verdict JSON Schemas, and
+  `--check` validates a contract without a third-party dependency. A verifier that
+  cannot name its blind spots fails conformance.
+- **Independence-aware verdicts.** A low-independence failure can no longer decide
+  alone. The runner seeks independent confirmation and escalates when none arrives;
+  unknown independence levels are treated as low. `Verdict` and `RunResult` carry
+  the independence level and the unconfirmed failures.
+- **Contract coverage.** `assaystone coverage` separates declared defect classes
+  that are decided by an independent check, weakly covered by a low-independence
+  check, and not covered at all. `--strict` exits non-zero on residual risk.
+  Contracts gain `required_defects`.
+- **Goodhart suite.** `assaystone benchmark goodhart` measures whether an agent
+  that knows the contract can obtain a clean pass without doing the work. The
+  bundled adversary covers a startup-hook hijack, a stdlib module shadow, a CI
+  bypass, and an untested semantic drift; resistance is 75%, and the one escape is
+  a declared blind spot rather than a surprise.
+- New verifiers: `tests.harness_integrity` catches `sitecustomize.py`,
+  `unittest.py`, `.pth`, and related runtime hijacks; `diff.ci_surface` protects
+  the whole CI/build surface, not only `.github/workflows/`.
+- Benchmark families gain `category` and `required_defects`, so an adversarial
+  corpus and a recall corpus can share one runner.
+
+### Failure Zoo
+
 - `assaystone benchmark failure-zoo` runs every built-in verifier independently
   against the labelled corpus (code/test, ops/refund, and an audit transcript),
   reports caught / escaped / false-alarm counts per verifier, and emits deterministic

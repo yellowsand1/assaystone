@@ -77,6 +77,7 @@ class Verdict:
     evidence: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
     duration_ms: float = 0.0
+    independence: str = "high"
 
     @property
     def outcome(self) -> str:
@@ -93,6 +94,7 @@ class Verdict:
             "evidence": self.evidence,
             "cost_usd": round(self.cost_usd, 8),
             "duration_ms": round(self.duration_ms, 2),
+            "independence": self.independence,
         }
 
 
@@ -105,6 +107,9 @@ class RunResult:
     cost_usd: float = 0.0
     duration_ms: float = 0.0
     first_failure: str | None = None
+    # Failures raised by low-independence verifiers that no independent
+    # verifier confirmed. They route to a human instead of deciding.
+    unconfirmed: list[str] = field(default_factory=list)
 
     @property
     def reasons(self) -> list[str]:
@@ -121,6 +126,7 @@ class RunResult:
             "cost_usd": round(self.cost_usd, 8),
             "duration_ms": round(self.duration_ms, 2),
             "first_failure": self.first_failure,
+            "unconfirmed": list(self.unconfirmed),
             "verdicts": [v.to_dict() for v in self.verdicts],
         }
 

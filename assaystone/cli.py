@@ -11,6 +11,7 @@ from . import __version__, demo
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .contract import Contract
+from .coverage import analyze_coverage, render_coverage
 from .failure_zoo import (
     DEFAULT_CORPUS,
     DEFAULT_THRESHOLDS,
@@ -18,11 +19,20 @@ from .failure_zoo import (
     render_summary,
     run_benchmark,
 )
+from .goodhart import (
+    GOODHART_CORPUS,
+    GOODHART_THRESHOLDS,
+    run_goodhart,
+)
+from .goodhart import (
+    render_summary as render_goodhart_summary,
+)
 from .hooks.claude_code import install_claude_code
 from .hooks.claude_code import main as claude_code_hook_main
 from .init import init_project
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
+from .protocol import check_contract, describe_protocol, render_protocol, write_schemas
 from .replay import git_preimage, is_git_repo
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
 from .runner import run_contract
@@ -321,6 +331,51 @@ def cmd_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_protocol(args: argparse.Namespace) -> int:
+    if args.check:
+        contract = _load_contract(args.check)
+        if contract is None:
+            return 2
+        result = check_contract(contract)
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2))
+        elif result.ok:
+            print(f"contract {result.contract}: ok")
+        else:
+            print(f"contract {result.contract}: {len(result.violations)} violation(s)")
+            for violation in result.violations:
+                print(f"  - {violation}")
+        return 0 if result.ok else 1
+
+    if args.schemas:
+        for path in write_schemas(args.schemas):
+            print(_display(Path(path)))
+
+    if args.json:
+        print(json.dumps(describe_protocol(), indent=2))
+    else:
+        print(render_protocol())
+    return 0
+
+
+def cmd_coverage(args: argparse.Namespace) -> int:
+    contract = _load_contract(args.contract)
+    if contract is None:
+        return 2
+    try:
+        report = analyze_coverage(contract, args.require)
+    except KeyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_coverage(report))
+    if args.strict and report.at_risk:
+        return 1
+    return 0
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     contract = _load_contract(args.contract)
     if contract is None:
@@ -404,6 +459,34 @@ def cmd_benchmark_failure_zoo(args: argparse.Namespace) -> int:
             print(f"{label}: {_display(target)}")
 
     return 0 if result.thresholds_passed else 1
+
+
+def cmd_benchmark_goodhart(args: argparse.Namespace) -> int:
+    thresholds = None if args.no_thresholds else (args.thresholds or GOODHART_THRESHOLDS)
+    try:
+        report = run_goodhart(args.corpus or GOODHART_CORPUS, thresholds)
+    except (ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(report.to_json(), end="")
+    elif args.stdout == "markdown":
+        print(report.to_markdown())
+    else:
+        print(render_goodhart_summary(report))
+
+    for label, path, text in (
+        ("markdown", args.md, report.to_markdown()),
+        ("json", args.json, report.to_json()),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+
+    return 0 if report.thresholds_passed else 1
 
 
 def cmd_init(args: argparse.Namespace) -> int:
@@ -559,6 +642,59 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--no-evidence", action="store_true")
     verify.set_defaults(func=cmd_verify)
 
+    protocol_parser = sub.add_parser(
+        "protocol",
+        help="show the verifier protocol, export schemas, or check a contract",
+        epilog=(
+            "The protocol is the machine-readable contract between a verifier "
+            "and the scorecard. Exit codes: 0 ok, 1 contract violates the "
+            "protocol, 2 load error."
+        ),
+    )
+    protocol_parser.add_argument(
+        "--json", action="store_true", help="machine-readable JSON output"
+    )
+    protocol_parser.add_argument(
+        "--schemas",
+        default=None,
+        metavar="DIR",
+        help="write contract/verifier/verdict JSON Schemas to DIR",
+    )
+    protocol_parser.add_argument(
+        "--check",
+        default=None,
+        metavar="CONTRACT",
+        help="check a contract against the protocol instead of printing it",
+    )
+    protocol_parser.set_defaults(func=cmd_protocol)
+
+    coverage_parser = sub.add_parser(
+        "coverage",
+        help="check which declared defect classes a contract covers",
+        epilog=(
+            "Exit codes: 0 report written, 1 at-risk defects with --strict, "
+            "2 contract error."
+        ),
+    )
+    coverage_parser.add_argument("--contract", required=True)
+    coverage_parser.add_argument(
+        "--require",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help="defect tag the contract must cover; repeatable. "
+        "Defaults to the contract's required_defects.",
+    )
+    coverage_parser.add_argument(
+        "--json", action="store_true", help="machine-readable JSON output"
+    )
+    coverage_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 1 if a declared defect is uncovered or only weakly covered",
+    )
+    coverage_parser.set_defaults(func=cmd_coverage)
+
     backtest_parser = sub.add_parser("backtest", help="score a contract against human labels")
     backtest_parser.add_argument("--contract", required=True)
     backtest_parser.add_argument("--trace", required=True)
@@ -609,6 +745,44 @@ def _parser() -> argparse.ArgumentParser:
     failure_zoo.add_argument("--json", default=None, metavar="PATH", help="write JSON results")
     failure_zoo.add_argument("--csv", default=None, metavar="PATH", help="write per-check CSV")
     failure_zoo.set_defaults(func=cmd_benchmark_failure_zoo)
+
+    goodhart = benchmark_sub.add_parser(
+        "goodhart",
+        help=(
+            "measure whether an agent that knows the contract can pass "
+            "without doing the work"
+        ),
+        epilog=(
+            "Runs offline against packaged adversarial fixtures. Exit codes: "
+            "0 thresholds pass, 1 regression below threshold, 2 corpus error."
+        ),
+    )
+    goodhart.add_argument(
+        "--corpus",
+        default=None,
+        metavar="PATH",
+        help="corpus manifest; defaults to the packaged goodhart/corpus.json",
+    )
+    goodhart.add_argument(
+        "--thresholds",
+        default=None,
+        metavar="PATH",
+        help="regression thresholds; defaults to the packaged thresholds.json",
+    )
+    goodhart.add_argument(
+        "--no-thresholds",
+        action="store_true",
+        help="report results without checking regression thresholds",
+    )
+    goodhart.add_argument(
+        "--stdout",
+        choices=["summary", "markdown", "json"],
+        default="summary",
+        help="format printed to stdout",
+    )
+    goodhart.add_argument("--md", default=None, metavar="PATH", help="write Markdown report")
+    goodhart.add_argument("--json", default=None, metavar="PATH", help="write JSON results")
+    goodhart.set_defaults(func=cmd_benchmark_goodhart)
 
     init = sub.add_parser("init", help="scaffold a contract for the current repository")
     init.add_argument("--path", default=".")

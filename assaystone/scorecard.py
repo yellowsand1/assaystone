@@ -130,6 +130,20 @@ def render_scorecard(
         add(f"| `{verifier.name}` | {verifier.layer} | {_money(verifier.cost_usd)} | {verifier.independence} |")
     add("")
 
+    add("## Declared blind spots")
+    add("")
+    add(
+        "A verifier that cannot name what it misses is claiming to be an oracle. "
+        "These are the defect classes each check knows it cannot detect."
+    )
+    add("")
+    for name in sorted(REGISTRY, key=lambda item: (REGISTRY[item].layer, item)):
+        verifier = REGISTRY[name]
+        if verifier.blind_spots:
+            tags = ", ".join(f"`{tag}`" for tag in verifier.blind_spots)
+            add(f"- `{name}`: {tags}")
+    add("")
+
     add("## Read this")
     add("")
     add(
@@ -158,6 +172,10 @@ def render_scorecard(
     add(
         "- Backtesting turns 'add a new check' into a measurable decision: catch rate, "
         "false alarms, and cost before enforcement."
+    )
+    add(
+        "- A low-independence failure does not decide alone. The runner seeks an "
+        "independent confirmation and escalates if none arrives."
     )
     add("")
     return "\n".join(lines) + "\n"

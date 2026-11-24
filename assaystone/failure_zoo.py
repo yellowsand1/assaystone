@@ -102,6 +102,8 @@ class VerifierRow:
 @dataclass
 class FamilySummary:
     name: str
+    category: str = "recall"
+    required_defects: list[str] = field(default_factory=list)
     cases: list[BenchmarkCase] = field(default_factory=list)
     case_outcomes: dict[str, str] = field(default_factory=dict)  # trace_id -> outcome
     caught_by: dict[str, list[str]] = field(default_factory=dict)
@@ -209,6 +211,8 @@ class BenchmarkResult:
             out.append(
                 {
                     "family": family.name,
+                    "category": family.category,
+                    "required_defects": list(family.required_defects),
                     "cases": len(family.cases),
                     "defective": family.defective,
                     "clean": family.clean,
@@ -385,6 +389,28 @@ def _classify(human: str, verifier_outcome: str) -> str:
     return FALSE_ALARM if verifier_outcome == FAIL else CLEAN
 
 
+def _case_outcome(case_results: list[VerifierResult], human: str) -> str:
+    """Collapse per-verifier outcomes into the verdict a contract would give.
+
+    Precedence mirrors the runner: a failure decides, an escalation routes to a
+    human, and only "every check passed" counts as an escape. A case where one
+    check passed and another escalated was not a clean pass.
+    """
+    if human == FAIL:
+        if any(item.outcome == CAUGHT for item in case_results):
+            return CAUGHT
+        if any(item.outcome == ESCALATED for item in case_results):
+            return ESCALATED
+        if any(item.outcome == ESCAPED for item in case_results):
+            return ESCAPED
+        return ESCALATED
+    if any(item.outcome == FALSE_ALARM for item in case_results):
+        return FALSE_ALARM
+    if any(item.outcome == ESCALATED for item in case_results):
+        return ESCALATED
+    return CLEAN
+
+
 def _load_manifest(path: str | Path) -> tuple[dict[str, Any], Path]:
     target = Path(path)
     try:
@@ -518,7 +544,13 @@ def run_benchmark(
             family.get("test_command")
             or ["{python}", "-m", "unittest", "discover", "-s", "tests", "-t", ".", "-v"]
         )
-        summary = FamilySummary(name=name)
+        summary = FamilySummary(
+            name=name,
+            category=str(family.get("category", "recall")),
+            required_defects=[
+                str(tag) for tag in (family.get("required_defects") or [])
+            ],
+        )
         for trace in sorted(traces, key=lambda item: item.id):
             case = BenchmarkCase(
                 family=name,
@@ -558,20 +590,7 @@ def run_benchmark(
             false_alarmed_by = sorted(
                 {item.verifier for item in case_results if item.outcome == FALSE_ALARM}
             )
-            if case.human == FAIL:
-                if caught_by:
-                    summary.case_outcomes[trace.id] = CAUGHT
-                elif any(item.outcome == ESCAPED for item in case_results):
-                    summary.case_outcomes[trace.id] = ESCAPED
-                elif case_results:
-                    summary.case_outcomes[trace.id] = ESCALATED
-            else:
-                if false_alarmed_by:
-                    summary.case_outcomes[trace.id] = FALSE_ALARM
-                elif any(item.outcome == ESCALATED for item in case_results):
-                    summary.case_outcomes[trace.id] = ESCALATED
-                else:
-                    summary.case_outcomes[trace.id] = CLEAN
+            summary.case_outcomes[trace.id] = _case_outcome(case_results, case.human)
             summary.caught_by[trace.id] = caught_by
             summary.false_alarmed_by[trace.id] = false_alarmed_by
         result.families.append(summary)

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .contract import Contract
 from .model import ESCALATE, FAIL, PASS, RunResult, Trace, Verdict
-from .verifiers import REGISTRY, Verifier, VerifyContext
+from .verifiers import REGISTRY, Verifier, VerifyContext, independence_rank
 from .workspace import Workspace
 
 
@@ -14,8 +14,9 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
     started = time.perf_counter()
     verdicts: list[Verdict] = []
     total_cost = 0.0
-    overall = PASS
-    first_failure: str | None = None
+    decisive_failure: str | None = None
+    escalation_reason: str | None = None
+    unconfirmed: list[str] = []
 
     for spec in contract.verifiers:
         if spec.name not in REGISTRY:
@@ -35,8 +36,7 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
             verifier: Verifier = REGISTRY[spec.name]()
 
             if total_cost + verifier.cost_usd > contract.max_verification_cost_usd:
-                overall = ESCALATE
-                first_failure = f"verification budget exceeded before {verifier.name}"
+                escalation_reason = f"verification budget exceeded before {verifier.name}"
                 break
 
             check_started = time.perf_counter()
@@ -55,26 +55,45 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
                     evidence=evidence,
                     cost_usd=verifier.cost_usd,
                     duration_ms=duration_ms,
+                    independence=verifier.independence,
                 )
             )
             total_cost += verifier.cost_usd
 
             if ok is None:
                 if spec.required:
-                    if overall != FAIL:
-                        overall = ESCALATE
-                    if first_failure is None:
-                        first_failure = f"{verifier.name}: {reasons[0] if reasons else 'unresolved'}"
+                    if escalation_reason is None:
+                        escalation_reason = (
+                            f"{verifier.name}: {reasons[0] if reasons else 'unresolved'}"
+                        )
                     if contract.fail_fast:
                         break
                 continue
 
             if ok is False and spec.required:
-                overall = FAIL
-                if first_failure is None:
-                    first_failure = f"{verifier.name}: {reasons[0] if reasons else 'failed'}"
-                if contract.fail_fast:
-                    break
+                reason = f"{verifier.name}: {reasons[0] if reasons else 'failed'}"
+                if independence_rank(verifier.independence) >= 1:
+                    if decisive_failure is None:
+                        decisive_failure = reason
+                    if contract.fail_fast:
+                        break
+                else:
+                    # A low-independence check cannot decide alone. Keep going
+                    # so an independent check can confirm or leave it for review.
+                    unconfirmed.append(reason)
+
+    if decisive_failure is not None:
+        overall = FAIL
+        first_failure = decisive_failure
+    elif unconfirmed:
+        overall = ESCALATE
+        first_failure = f"unconfirmed low-independence failure: {unconfirmed[0]}"
+    elif escalation_reason is not None:
+        overall = ESCALATE
+        first_failure = escalation_reason
+    else:
+        overall = PASS
+        first_failure = None
 
     return RunResult(
         trace_id=trace.id,
@@ -84,4 +103,5 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
         cost_usd=total_cost,
         duration_ms=(time.perf_counter() - started) * 1000,
         first_failure=first_failure,
+        unconfirmed=unconfirmed,
     )

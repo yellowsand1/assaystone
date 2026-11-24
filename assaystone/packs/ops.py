@@ -44,6 +44,9 @@ class OpsJsonValid(Verifier):
     layer = "L0"
     cost_usd = 0.000001
     description = "orders.json and policy.json must be valid JSON."
+    claim = "orders.json and policy.json parse as JSON objects."
+    catches = ("invalid-json",)
+    blind_spots = ("valid JSON carrying the wrong values",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         reasons: list[str] = []
@@ -63,6 +66,9 @@ class AmountConserved(Verifier):
     layer = "L0"
     cost_usd = 0.000010
     description = "Refunded amount stays within [0, order amount]."
+    claim = "Refunded amounts stay within [0, order amount]."
+    catches = ("amount-mismatch",)
+    blind_spots = ("a refund that is internally consistent but unauthorized",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -83,6 +89,9 @@ class NoDoubleRefund(Verifier):
     layer = "L1"
     cost_usd = 0.000020
     description = "Refund ids are unique and the ledger matches refunded_cents."
+    claim = "Refund ids are unique and the ledger matches refunded_cents."
+    catches = ("double-refund",)
+    blind_spots = ("the same refund recorded under two different ids",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -112,6 +121,9 @@ class RefundLimit(Verifier):
     layer = "L1"
     cost_usd = 0.000020
     description = "New refunds must stay within the per-refund policy limit."
+    claim = "Every new refund is within the per-refund policy limit."
+    catches = ("over-limit",)
+    blind_spots = ("a limit expressed in policy but not in amount",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         limit = int(params.get("limit_cents", 10000))
@@ -137,6 +149,9 @@ class StatusConsistent(Verifier):
     layer = "L1"
     cost_usd = 0.000020
     description = "Order status must match the refunded amount."
+    claim = "Each order status matches its refunded amount."
+    catches = ("status-inconsistent",)
+    blind_spots = ("a consistent but wrong status transition",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -164,6 +179,12 @@ class ApprovalRecorded(Verifier):
     layer = "L2"
     cost_usd = 0.000030
     description = "Irreversible tools must have an approved record in evidence."
+    claim = "Every irreversible tool call has an approved record in evidence."
+    catches = ("missing-approval",)
+    blind_spots = (
+        "forged approval records (the evidence channel is written by the agent)",
+        "an approval granted for a different amount or target",
+    )
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         required = set(params.get("require_approval_for", ["refund.create"]))

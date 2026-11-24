@@ -25,6 +25,9 @@ class Contract:
     fail_fast: bool = True
     human_review_cost_usd: float = 6.0
     max_verification_cost_usd: float = 0.05
+    # Defect tags this contract is expected to cover. Coverage is a claim
+    # about a contract, so the requirement has to be stated, not inferred.
+    required_defects: list[str] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: str | Path) -> "Contract":
@@ -49,6 +52,7 @@ class Contract:
             fail_fast=bool(data.get("fail_fast", True)),
             human_review_cost_usd=float(data.get("human_review_cost_usd", 6.0)),
             max_verification_cost_usd=float(data.get("max_verification_cost_usd", 0.05)),
+            required_defects=[str(tag) for tag in data.get("required_defects") or []],
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,6 +62,7 @@ class Contract:
             "fail_fast": self.fail_fast,
             "human_review_cost_usd": self.human_review_cost_usd,
             "max_verification_cost_usd": self.max_verification_cost_usd,
+            "required_defects": list(self.required_defects),
             "verifiers": [
                 {
                     "name": spec.name,
