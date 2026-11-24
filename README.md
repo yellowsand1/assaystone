@@ -539,6 +539,7 @@ examples/third_party_pack/ # a verifier implemented outside the package
 failure_zoo/           # labeled failure corpus (seed)
 docs/why.md            # the longer argument
 docs/protocol.md       # the verifier ABI and the three schemas
+docs/protocol.json     # generated catalog of every conformant verifier
 docs/goodhart.md       # generated resistance report
 docs/report-card.md    # generated contract report card
 docs/case-study-2026-11.md  # 162-session field note

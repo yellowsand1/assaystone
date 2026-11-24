@@ -108,6 +108,35 @@ class GoodhartSuiteTest(unittest.TestCase):
         self.assertIn("thresholds: pass", text)
 
 
+class GoodhartDomainTest(unittest.TestCase):
+    def test_unknown_domain_is_an_error_not_a_perfect_score(self):
+        from assaystone.contract import Contract, VerifierSpec
+
+        contract = Contract(
+            name="unknown-domain",
+            verifiers=[VerifierSpec("tests.pass")],
+            domain="does-not-exist",
+        )
+        with self.assertRaises(ValueError):
+            run_goodhart(contract=contract)
+
+    def test_code_contract_is_scoped_to_code_families(self):
+        from assaystone.contract import Contract
+
+        contract = Contract.load(
+            Path(__file__).resolve().parent.parent
+            / "examples"
+            / "code_agent"
+            / "contracts"
+            / "hardened.json"
+        )
+        report = run_goodhart(contract=contract)
+        self.assertEqual(
+            {row["family"] for row in report.family_rows()},
+            {"mechanical", "semantic"},
+        )
+
+
 class GoodhartThresholdTest(unittest.TestCase):
     def _corpus_without(self, verifier_name: str) -> Path:
         manifest = json.loads(GOODHART_CORPUS.read_text(encoding="utf-8"))

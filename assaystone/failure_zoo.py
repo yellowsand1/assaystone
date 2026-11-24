@@ -34,7 +34,7 @@ CLEAN = "clean"
 ESCALATED = "escalated"
 
 
-class BenchmarkError(Exception):
+class BenchmarkError(ValueError):
     """The corpus or threshold file cannot be used."""
 
 
@@ -555,6 +555,13 @@ def run_benchmark(
         version=str(manifest.get("version", "1")),
     )
     rows: dict[str, VerifierRow] = {}
+
+    if domain_filter is not None and not any(
+        str(family.get("domain") or "") == domain_filter
+        for family in manifest["families"]
+    ):
+        # An empty result would report a 100% resistance over zero cases.
+        raise BenchmarkError(f"no corpus families for domain {domain_filter!r}")
 
     for family in manifest["families"]:
         if (
