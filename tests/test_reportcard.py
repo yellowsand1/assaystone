@@ -88,6 +88,22 @@ class ReportCardTest(unittest.TestCase):
             ["mechanical", "semantic"],
         )
 
+    def test_undeclared_coverage_needs_work(self):
+        from assaystone.contract import VerifierSpec
+
+        card = run_report_card(
+            Contract(
+                name="undeclared",
+                verifiers=[VerifierSpec("tests.pass")],
+                domain="code",
+            )
+        )
+        self.assertFalse(card.ok)
+        self.assertIn("coverage not declared", card.headline)
+        self.assertIn(
+            "coverage is not measurable", card.to_markdown()
+        )
+
     def test_without_traces_the_recall_section_is_absent(self):
         card = run_report_card(Contract.load(CONTRACTS / "hardened.json"))
         self.assertIsNone(card.recall)

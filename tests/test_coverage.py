@@ -74,6 +74,16 @@ class CoverageTest(unittest.TestCase):
         self.assertEqual(report.uncovered, ["regression"])
         self.assertIn("test-tampering", report.not_declared)
 
+    def test_no_declared_defects_is_not_perfect_coverage(self):
+        contract = Contract(
+            name="undeclared",
+            verifiers=[VerifierSpec("tests.pass")],
+        )
+        report = analyze_coverage(contract)
+        self.assertEqual(report.declared, [])
+        self.assertEqual(report.coverage_rate, 0.0)
+        self.assertEqual(report.independent_rate, 0.0)
+
     def test_declared_argument_overrides_contract(self):
         contract = Contract.load(CONTRACTS / "naive.json")
         report = analyze_coverage(contract, declared=["regression"])

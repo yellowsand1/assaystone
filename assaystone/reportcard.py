@@ -32,6 +32,8 @@ class ReportCard:
     def ok(self) -> bool:
         if not self.protocol.ok:
             return False
+        if not self.coverage.declared:
+            return False
         if self.coverage.at_risk:
             return False
         if self.resistance.broken_claims:
@@ -49,8 +51,13 @@ class ReportCard:
                 f"contract does not conform: "
                 f"{len(self.protocol.violations)} violation(s)"
             )
+        coverage = (
+            f"coverage {self.coverage.independent_rate:.0%}"
+            if self.coverage.declared
+            else "coverage not declared"
+        )
         parts = [
-            f"coverage {self.coverage.independent_rate:.0%}",
+            coverage,
             f"resistance {self.resistance.resistance:.0%}",
         ]
         if self.recall is not None:
@@ -118,6 +125,12 @@ class ReportCard:
             f"{self.coverage.independent_rate:.0%} |"
         )
         add(f"| at risk | {len(self.coverage.at_risk)} |")
+        if not self.coverage.declared:
+            add("")
+            add(
+                "No `required_defects` were declared; coverage is not measurable. "
+                "Add the defect classes this contract must cover."
+            )
         if self.coverage.at_risk:
             add("")
             for tag in self.coverage.at_risk:

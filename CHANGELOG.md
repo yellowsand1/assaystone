@@ -42,6 +42,14 @@
   compares several contracts on coverage, recall, resistance, false alarms, cost,
   and a single result. The committed table is
   [docs/leaderboard.md](docs/leaderboard.md).
+- **Onboarding fixes.** `assaystone init` now writes `domain` and a default
+  `required_defects` list, and includes `diff.ci_surface` and
+  `tests.harness_integrity`. A contract that declares no defect classes is no
+  longer reported as 100% coverage: coverage is unmeasurable, and the report card
+  says so.
+- **Second third-party pack.** `examples/third_party_pack/secret_guard/` registers
+  `example.no_new_secrets`, a deterministic added-credential check with declared
+  blind spots.
 - The Goodhart `ops_lineage` family grows to three attacks: forged approval,
   duplicate refund from one step, and an approval for a different amount.
 - **Report card.** `assaystone scorecard` puts protocol conformance, declared

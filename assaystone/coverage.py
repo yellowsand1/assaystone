@@ -39,15 +39,16 @@ class CoverageReport:
 
     @property
     def coverage_rate(self) -> float:
+        # Nothing declared is not perfect coverage; it is no coverage claim.
         if not self.declared:
-            return 1.0
+            return 0.0
         decided = len(set(self.declared) - set(self.at_risk))
         return decided / len(self.declared)
 
     @property
     def independent_rate(self) -> float:
         if not self.declared:
-            return 1.0
+            return 0.0
         return len(set(self.declared) & set(self.independent)) / len(self.declared)
 
     def to_dict(self) -> dict[str, Any]:
