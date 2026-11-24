@@ -38,7 +38,7 @@ class CoverageTest(unittest.TestCase):
     def test_hardened_contract_covers_every_declared_defect(self):
         contract = Contract.load(CONTRACTS / "hardened.json")
         report = analyze_coverage(contract)
-        self.assertEqual(len(report.declared), 8)
+        self.assertEqual(len(report.declared), 9)
         self.assertEqual(report.at_risk, [])
         self.assertAlmostEqual(report.coverage_rate, 1.0)
         self.assertAlmostEqual(report.independent_rate, 1.0)
@@ -47,10 +47,11 @@ class CoverageTest(unittest.TestCase):
     def test_naive_contract_reports_residual_risk(self):
         contract = Contract.load(CONTRACTS / "naive.json")
         report = analyze_coverage(contract)
-        self.assertEqual(len(report.at_risk), 7)
+        self.assertEqual(len(report.at_risk), 8)
         self.assertIn("test-tampering", report.at_risk)
+        self.assertIn("test-support-tampering", report.at_risk)
         self.assertIn("ci-bypass", report.at_risk)
-        self.assertAlmostEqual(report.coverage_rate, 1 / 8)
+        self.assertAlmostEqual(report.coverage_rate, 1 / 9)
 
     def test_low_independence_only_coverage_is_weak(self):
         contract = Contract(

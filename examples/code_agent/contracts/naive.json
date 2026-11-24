@@ -12,6 +12,7 @@
     "debug-print",
     "false-claim",
     "test-harness-hijack",
+    "test-support-tampering",
     "module-shadow",
     "ci-bypass"
   ],

@@ -212,8 +212,10 @@ class InitTest(unittest.TestCase):
             self.assertIn("tests.pass", names)
             self.assertIn("tests.integrity", names)
             self.assertIn("tests.harness_integrity", names)
+            self.assertIn("tests.support_integrity", names)
             self.assertIn("diff.ci_surface", names)
             self.assertIn("regression", contract["required_defects"])
+            self.assertIn("test-support-tampering", contract["required_defects"])
             self.assertEqual(contract["domain"], "code")
             self.assertIsNone(result["warning"])
             with self.assertRaises(FileExistsError):

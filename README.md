@@ -200,12 +200,14 @@ reasons:
 | ops | an approval recorded in evidence but never requested in the trace | caught by `ops.approval_lineage` |
 | ops | two refund rows recorded from one `refund.create` step | caught by `ops.refund_lineage` |
 | ops | approved 4000 cents, refunded 8000 | caught by `ops.approval_lineage` |
+| support | a shared assertion helper made a no-op, test files untouched | caught by `tests.support_integrity` |
 
-Mechanical resistance is **100%**, the ops lineage checks are **100%**, and semantic
-resistance is **0%**. The catalog-wide number is **75%** (6/8), and both escapes
-were already in `tests.pass`'s declared blind spots, so the report counts them as
-declared escapes, not surprises. That split is the point: deterministic checks stop
-mechanical attacks and can enforce an action lineage; they do not specify semantics.
+Mechanical, ops lineage, and support resistance are **100%**; semantic resistance
+is **0%**. The catalog-wide number is **78%** (7/9), and both escapes were already
+in `tests.pass`'s declared blind spots, so the report counts them as declared
+escapes, not surprises. That split is the point: deterministic checks stop
+mechanical attacks and can enforce an action lineage; they do not specify
+semantics.
 
 A contract's report card is scoped to its domain: the code contract is scored
 against the code families (60%), and the ops contract against the ops family

@@ -38,8 +38,8 @@ class ReportCardTest(unittest.TestCase):
         self.assertEqual(card.coverage.at_risk, [])
         self.assertEqual(card.recall.escaped, 0)
         self.assertEqual(card.recall.caught, 4)
-        # A code contract is scored only against code families: 3/5.
-        self.assertAlmostEqual(card.resistance.resistance, 3 / 5)
+        # A code contract is scored only against code families: 4/6.
+        self.assertAlmostEqual(card.resistance.resistance, 4 / 6)
         self.assertTrue(card.ok)
 
     def test_naive_needs_work_and_names_the_risk(self):
@@ -50,9 +50,10 @@ class ReportCardTest(unittest.TestCase):
 
     def test_resistance_is_scoped_to_the_contract_domain(self):
         rows = {row["family"]: row for row in self.hardened.resistance.family_rows()}
-        self.assertEqual(set(rows), {"mechanical", "semantic"})
+        self.assertEqual(set(rows), {"mechanical", "semantic", "support"})
         self.assertAlmostEqual(rows["mechanical"]["resistance"], 1.0)
         self.assertAlmostEqual(rows["semantic"]["resistance"], 0.0)
+        self.assertAlmostEqual(rows["support"]["resistance"], 1.0)
 
     def test_ops_contract_is_scored_only_against_ops_families(self):
         ops = run_report_card(
@@ -85,7 +86,7 @@ class ReportCardTest(unittest.TestCase):
         self.assertEqual(data["recall"]["caught"], 4)
         self.assertEqual(
             [row["family"] for row in data["resistance"]["families"]],
-            ["mechanical", "semantic"],
+            ["mechanical", "semantic", "support"],
         )
 
     def test_undeclared_coverage_needs_work(self):

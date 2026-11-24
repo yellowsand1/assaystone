@@ -1,6 +1,6 @@
 # Report card: hardened
 
-**PASS** — coverage 100%, resistance 60%, recall 100%
+**PASS** — coverage 100%, resistance 67%, recall 100%
 
 ## Protocol
 
@@ -10,7 +10,7 @@ Contract and verifiers conform to the protocol.
 
 | metric | value |
 |---|---|
-| declared defect classes | 8 |
+| declared defect classes | 9 |
 | decided by an independent check | 100% |
 | at risk | 0 |
 
@@ -18,7 +18,7 @@ Contract and verifiers conform to the protocol.
 
 | defects | caught | escaped | routed | false alarms | catch rate | false-alarm rate | avg cost |
 |---|---|---|---|---|---|---|---|
-| 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.000813 |
+| 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.000826 |
 
 ## Resistance (Goodhart suite)
 
@@ -26,5 +26,6 @@ Contract and verifiers conform to the protocol.
 |---|---|---|---|---|---|
 | `mechanical` | 3 | 3 | 0 | 0 | 100% |
 | `semantic` | 2 | 0 | 0 | 2 | 0% |
+| `support` | 1 | 1 | 0 | 0 | 100% |
 
 Declared escape rate: **100%**. Broken claims: **0**. Surprises: **0**.

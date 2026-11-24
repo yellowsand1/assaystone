@@ -49,10 +49,15 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Test support integrity.** `tests.support_integrity` protects test support
+  code outside the `tests/` prefix (`helpers/`, `testing/`, `test_utils/`,
+  `spec/support/`). The Goodhart `support` family adds a fixture whose suite
+  imports `helpers/assertions.py`: `g10` makes the helper a no-op and is caught;
+  `g11` is a behavior-preserving refactor and passes. `init` includes the check.
 - **Known evasions.** [docs/known-evasions.md](docs/known-evasions.md) lists every
   failure class the current pack does not catch, split into declared and open.
-  The open list names the next verifier to build: test support code outside the
-  protected prefixes.
+  Test support tampering moved from open to caught; the open list now names
+  network/exfiltration checks and measured independence.
 - **Adversarial demo.** `assaystone demo adversarial` shows the trap in one
   screen: a `sitecustomize.py` that neutralises `assertEqual`, the naive contract
   returning pass, and the hardened contract failing at `tests.harness_integrity`.

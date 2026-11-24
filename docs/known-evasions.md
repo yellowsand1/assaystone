@@ -17,11 +17,11 @@ Status:
 | Forged `approval.request` step in an agent-written trace | declared | `ops.approval_lineage` |
 | Forged `refund.create` step in an agent-written trace | declared | `ops.refund_lineage` |
 | Secret format outside the pattern list; encoded or split secrets | declared | `example.no_new_secrets` |
-| Test support code outside the protected prefixes | **open** | no built-in check |
+| Test support code outside the protected prefixes | **caught** | `tests.support_integrity`; Goodhart `g10` |
 | Network calls or data exfiltration in production code | **open** | no built-in check |
 | Independence is self-reported, not measured | **open** | protocol checks the declaration |
 | A verifier that is wrong in the same way as the generator | **open** | the runner cannot detect correlation |
-| The corpus is small and self-authored | **open** | n=9 adversarial cases |
+| The corpus is small and self-authored | **open** | n=11 adversarial cases (9 defective) |
 
 ## Semantic drift the suite does not cover
 
@@ -47,14 +47,16 @@ written by the runtime, not by the agent.
 ## Test support code outside the protected prefixes
 
 `tests.integrity` protects the prefixes a contract declares — usually `tests/`.
-A repository with test helpers in `helpers/`, `testing/`, or `test_utils/` has a
-real gap: an agent can weaken the helper and leave every test file untouched.
-`tests.harness_integrity` covers `conftest.py` and runtime hooks, not arbitrary
-helper modules.
+A repository with test helpers in `helpers/`, `testing/`, or `test_utils/` had a
+real gap: an agent could weaken the helper and leave every test file untouched.
 
-This is the most actionable open item in the table. A `tests.support_integrity`
-check with a declared prefix list would close it, and a fixture that edits
-`helpers/assertions.py` would prove it.
+`tests.support_integrity` now protects the declared support prefixes. Goodhart
+`g10` reduces `helpers/assertions.py` to a no-op and leaves `tests/` untouched;
+the suite passes, and the support check fails. `g11` is the control: a
+behavior-preserving refactor passes.
+
+The remaining blind spot is support code outside the declared prefixes, or a
+helper vendored as a dependency. Both are declared by the verifier.
 
 ## Independence is self-reported
 
@@ -69,8 +71,9 @@ declared.
 
 ## The corpus is small and self-authored
 
-The Goodhart suite has nine adversarial cases, all written by the people who
-designed the checks. That is a floor, not a population estimate. The same is true
+The Goodhart suite has eleven cases — nine defective and two controls — all
+written by the people who designed the checks. That is a floor, not a population
+estimate. The same is true
 of the Failure Zoo. Treat every percentage on this site as "on these fixtures",
 and add cases from outside the design team before quoting it as a rate.
 

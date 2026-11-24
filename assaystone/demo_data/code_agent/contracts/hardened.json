@@ -12,6 +12,7 @@
     "debug-print",
     "false-claim",
     "test-harness-hijack",
+    "test-support-tampering",
     "module-shadow",
     "ci-bypass"
   ],
@@ -22,6 +23,7 @@
     {"name": "diff.ci_surface", "required": true},
     {"name": "tests.integrity", "required": true, "params": {"protected_prefixes": ["tests/"]}},
     {"name": "tests.harness_integrity", "required": true},
+    {"name": "tests.support_integrity", "required": true},
     {"name": "diff.max_lines", "required": true, "params": {"max_changed_lines": 60}},
     {"name": "diff.public_api", "required": true},
     {"name": "quality.no_debug_prints", "required": true},

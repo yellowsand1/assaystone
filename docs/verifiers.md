@@ -22,6 +22,7 @@ looks for independent confirmation and escalates if none arrives. See
 | `diff.ci_surface` | L1 | 0.000020 | `protected` | CI/build edits anywhere (`.github/`, `ci/`, `tox.ini`, …) |
 | `tests.integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_test_changes` | test edits anywhere (`tests/`, `server/tests/`) |
 | `tests.harness_integrity` | L1 | 0.000020 | `extra_names`, `extra_suffixes` | startup hooks, module shadowing, `.pth` files |
+| `tests.support_integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_support_changes` | test support code changes (`helpers/`, `testing/`, …) |
 | `diff.max_lines` | L0 | 0.000020 | `max_changed_lines` | oversized patches |
 | `diff.public_api` | L2 | 0.000030 | — | removed/changed public API |
 | `quality.no_debug_prints` | L2 | 0.000030 | — | `print()` / `breakpoint()` |

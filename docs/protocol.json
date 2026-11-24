@@ -447,8 +447,28 @@
       "description": "The full test suite must pass in a fresh workspace.",
       "builtin": true,
       "conformant": true
+    },
+    {
+      "name": "tests.support_integrity",
+      "version": "1",
+      "layer": "L1",
+      "independence": "high",
+      "claim": "No file under the declared test-support paths was added, changed, or deleted.",
+      "catches": [
+        "test-support-tampering"
+      ],
+      "blind_spots": [
+        "support code outside the declared prefixes",
+        "support code vendored as a dependency"
+      ],
+      "cost": {
+        "usd": 2e-05
+      },
+      "description": "Test-support code is part of the oracle and must not change.",
+      "builtin": true,
+      "conformant": true
     }
   ],
-  "conformant": 21,
+  "conformant": 22,
   "nonconformant": []
 }

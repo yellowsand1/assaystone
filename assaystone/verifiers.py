@@ -399,6 +399,45 @@ class TestsPass(Verifier):
         return False, [f"test suite failed (exit {proc.returncode})"], [tail]
 
 
+DEFAULT_SUPPORT_PREFIXES = (
+    "helpers/",
+    "testing/",
+    "test_utils/",
+    "spec/support/",
+)
+
+
+@register
+class TestsSupportIntegrity(Verifier):
+    name = "tests.support_integrity"
+    layer = "L1"
+    cost_usd = 0.00002
+    description = "Test-support code is part of the oracle and must not change."
+    claim = "No file under the declared test-support paths was added, changed, or deleted."
+    catches = ("test-support-tampering",)
+    blind_spots = (
+        "support code outside the declared prefixes",
+        "support code vendored as a dependency",
+    )
+
+    def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
+        if params.get("allow_support_changes", False):
+            return True, [], ["support changes allowed by contract"]
+        prefixes = list(
+            params.get("protected_prefixes") or DEFAULT_SUPPORT_PREFIXES
+        )
+        violations = [
+            f"{path} ({change})"
+            for path, change in ctx.changed()
+            if any(_path_under(path, prefix) for prefix in prefixes)
+        ]
+        return (
+            not violations,
+            violations,
+            [f"checked {len(prefixes)} support prefix(es)"],
+        )
+
+
 # Names that Python or common test runners import automatically. A new file
 # with one of these names can change the meaning of "the tests pass" without
 # touching a single test. This is the cheapest defence against harness hijacks.
