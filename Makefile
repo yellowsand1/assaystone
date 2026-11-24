@@ -1,6 +1,6 @@
 PYTHON ?= $(shell command -v python3.12 2>/dev/null || command -v python3.11 2>/dev/null || command -v python3.10 2>/dev/null || command -v python3)
 
-.PHONY: check-python demo demo-ops demo-audit benchmark benchmark-goodhart scorecard coverage protocol protocol-json growth-snapshot test pytest lint package
+.PHONY: check-python demo demo-ops demo-audit benchmark benchmark-goodhart scorecard leaderboard coverage protocol protocol-json growth-snapshot test pytest lint package
 
 check-python:
 	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else "Assaystone requires Python 3.10+; set PYTHON to a newer interpreter")'
@@ -22,6 +22,9 @@ benchmark-goodhart: check-python
 
 scorecard: check-python
 	$(PYTHON) -m assaystone scorecard --contract examples/code_agent/contracts/hardened.json --trace examples/code_agent/traces --baseline examples/code_agent/baseline --md docs/report-card.md
+
+leaderboard: check-python
+	$(PYTHON) -m assaystone leaderboard --manifest benchmarks/leaderboard.json --md docs/leaderboard.md; test $$? -ne 2
 
 coverage: check-python
 	$(PYTHON) -m assaystone coverage --contract examples/code_agent/contracts/hardened.json

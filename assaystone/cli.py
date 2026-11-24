@@ -31,6 +31,8 @@ from .goodhart import (
 from .hooks.claude_code import install_claude_code
 from .hooks.claude_code import main as claude_code_hook_main
 from .init import init_project
+from .leaderboard import LeaderboardError, run_leaderboard
+from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
 from .protocol import (
@@ -440,6 +442,32 @@ def cmd_protocol(args: argparse.Namespace) -> int:
     else:
         print(render_protocol())
     return 0
+
+
+def cmd_leaderboard(args: argparse.Namespace) -> int:
+    try:
+        board = run_leaderboard(args.manifest)
+    except (LeaderboardError, ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(json.dumps(board.to_dict(), indent=2))
+    elif args.stdout == "summary":
+        print(render_leaderboard(board))
+    else:
+        print(board.to_markdown())
+
+    for label, path, text in (
+        ("markdown", args.md, board.to_markdown()),
+        ("json", args.json, json.dumps(board.to_dict(), indent=2) + "\n"),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+    return 0 if board.ok else 1
 
 
 def cmd_corpus(args: argparse.Namespace) -> int:
@@ -961,6 +989,25 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true", help="overwrite an existing contract")
     init.add_argument("--ci", action="store_true", help="also write a GitHub Actions workflow")
     init.set_defaults(func=cmd_init)
+
+    leaderboard_parser = sub.add_parser(
+        "leaderboard",
+        help="compare several contracts on coverage, recall, resistance, and cost",
+        epilog=(
+            "The manifest lists an entry per contract, with optional traces and "
+            "baseline. Exit codes: 0 every entry passes, 1 at least one needs "
+            "work, 2 manifest error."
+        ),
+    )
+    leaderboard_parser.add_argument("--manifest", required=True, metavar="PATH")
+    leaderboard_parser.add_argument(
+        "--stdout",
+        choices=["markdown", "summary", "json"],
+        default="markdown",
+    )
+    leaderboard_parser.add_argument("--md", default=None, metavar="PATH")
+    leaderboard_parser.add_argument("--json", default=None, metavar="PATH")
+    leaderboard_parser.set_defaults(func=cmd_leaderboard)
 
     corpus_parser = sub.add_parser(
         "corpus",

@@ -29,6 +29,7 @@ Assaystone then measures the verifier set on axes that a single pass rate hides:
 | Does the contract cover what you declared? | coverage | `assaystone coverage` |
 | Can a failing check decide alone? | independence | runner policy |
 | All four, on one page | report card | `assaystone scorecard` |
+| How do several contracts compare? | leaderboard | `assaystone leaderboard` |
 
 It also ships a reference implementation: audit existing Claude Code, Codex CLI,
 and observability traces, then gate CI and runtime with the same contract. Nothing
@@ -198,6 +199,18 @@ assaystone scorecard \
 One page: protocol conformance, declared coverage, recall on labelled traces, and
 resistance by family. The exit code is 0 only when all four pass, so the card can
 be a CI gate. `--md` and `--json` write the same data for a review artifact.
+
+## Leaderboard
+
+`assaystone leaderboard --manifest benchmarks/leaderboard.json` scores several
+contracts side by side: coverage, recall, resistance, false alarms, cost, and one
+result per entry. The generated table is
+[docs/leaderboard.md](docs/leaderboard.md).
+
+The built-in entries show the trade-off the project is about: a short contract can
+have perfect recall and no coverage; a long one can cover every declared class and
+still leak semantics. A leaderboard makes that visible instead of reducing it to a
+single score.
 
 ## External tools
 
@@ -543,6 +556,7 @@ assaystone/coverage.py # declared defects vs. decided coverage vs. residual risk
 assaystone/goodhart.py # adversarial suite: resistance and declared escapes
 assaystone/reportcard.py # conformance + coverage + recall + resistance on one page
 assaystone/corpus.py   # add a labelled trace or transcript to a family
+assaystone/leaderboard.py # compare several contracts on one page
 assaystone/packs/external.py # pytest / ruff adapters (optional, fail closed)
 assaystone/demo_data/  # packaged demos (the wheel can run them)
 assaystone/demo_data/goodhart/ # adversarial corpus: mechanical + semantic
@@ -560,6 +574,7 @@ docs/why.md            # the longer argument
 docs/protocol.md       # the verifier ABI and the three schemas
 docs/protocol.json     # generated catalog of every conformant verifier
 docs/corpus.md         # how to add a labelled case
+docs/leaderboard.md    # generated comparison of built-in contracts
 docs/goodhart.md       # generated resistance report
 docs/report-card.md    # generated contract report card
 docs/case-study-2026-11.md  # 162-session field note

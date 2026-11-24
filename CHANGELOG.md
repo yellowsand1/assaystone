@@ -38,6 +38,10 @@
   transcript into a labelled fixture in an existing family, replays a transcript
   against a baseline, and optionally validates the new case against the current
   pack. See [docs/corpus.md](docs/corpus.md).
+- **Leaderboard.** `assaystone leaderboard --manifest benchmarks/leaderboard.json`
+  compares several contracts on coverage, recall, resistance, false alarms, cost,
+  and a single result. The committed table is
+  [docs/leaderboard.md](docs/leaderboard.md).
 - The Goodhart `ops_lineage` family grows to three attacks: forged approval,
   duplicate refund from one step, and an approval for a different amount.
 - **Report card.** `assaystone scorecard` puts protocol conformance, declared

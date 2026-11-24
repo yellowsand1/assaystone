@@ -25,6 +25,7 @@ class ReportCard:
     protocol: ContractCheck
     coverage: CoverageReport
     resistance: GoodhartReport
+    domain: str = ""
     recall: BacktestSummary | None = None
 
     @property
@@ -63,6 +64,7 @@ class ReportCard:
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
             "contract": self.contract,
+            "domain": self.domain,
             "ok": self.ok,
             "headline": self.headline,
             "protocol": self.protocol.to_dict(),
@@ -178,6 +180,7 @@ def run_report_card(
 ) -> ReportCard:
     return ReportCard(
         contract=contract.name,
+        domain=contract.domain,
         protocol=check_contract(contract),
         coverage=analyze_coverage(contract),
         resistance=run_goodhart(

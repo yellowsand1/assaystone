@@ -5,13 +5,28 @@ The fastest way to help is to bring a real failure case.
 ## Bring a failure case
 
 If an agent produced output that looked acceptable but was not, open an issue with the
-`failure case` template. Redact secrets, attach the trace JSON if you can, and state
-the human verdict and which check should have caught it. Accepted cases go into the
-[Failure Zoo](failure_zoo/README.md) and become regression tests.
+`failure case` template. Redact secrets, state the human verdict and defect tag, and
+say which check should have caught it.
+
+The fastest path is one command:
+
+```bash
+assaystone corpus add \
+  --corpus assaystone/demo_data/goodhart/corpus.json \
+  --family mechanical \
+  --trace ./session.jsonl --format claude-code \
+  --baseline ./repo-before \
+  --label fail --defect test-harness-hijack \
+  --note "what the agent did" --validate
+```
+
+Accepted cases go into the [Failure Zoo](failure_zoo/README.md) or the Goodhart
+corpus and become regression tests. Details: [docs/corpus.md](docs/corpus.md).
 
 ## Add a verifier
 
-A verifier is a small class with a declared layer, cost, and independence.
+A verifier is a small class with a declared claim, catches, blind spots, cost, and
+independence.
 
 ```python
 from assaystone import Verifier, register
@@ -22,6 +37,9 @@ class NoMigrationEdits(Verifier):
     layer = "L1"
     cost_usd = 0.00001
     independence = "high"
+    claim = "No changed file under migrations/ was added, modified, or deleted."
+    catches = ("migration-edit",)
+    blind_spots = ("a migration expressed as a data fixture elsewhere",)
     description = "Agents must not edit migrations."
 
     def check(self, ctx, params):
@@ -32,9 +50,16 @@ class NoMigrationEdits(Verifier):
 Requirements:
 
 - Return `(ok, reasons, evidence)`. `ok=None` means "cannot decide" and escalates.
+- Declare `claim`, `catches`, and `blind_spots`. A verifier that cannot name its
+  blind spots fails `assaystone protocol --check`.
+- Use the shared defect-tag vocabulary in `catches` and `blind_spots`; the benchmark,
+  coverage report, and Goodhart suite match on those tags.
+- `independence` is used by the runner: a `low`-independence failure escalates unless
+  an independent check confirms it. Do not claim `high` unless the check does not
+  share code, context, or data with the generator.
 - Prefer deterministic evidence from artifacts, tool results, or the environment.
 - Declare an honest `cost_usd`; the runner uses it to order checks.
-- Add a test that proves the verifier kills a known defect and passes a clean run.
+- Add a clean case and a defective case. The benchmark is the regression test.
 - Do not use an LLM judge as an oracle.
 
 To ship a verifier as a third-party pack, expose a module that imports your
@@ -45,19 +70,22 @@ To ship a verifier as a third-party pack, expose a module that imports your
 mypack = "mypack.verifiers"
 ```
 
-Assaystone loads installed packs at import time; a broken pack is ignored.
+Assaystone loads installed packs at import time; a broken pack is ignored. A
+complete outside-the-package example lives in
+[examples/third_party_pack](examples/third_party_pack). Validate a published
+manifest with `assaystone protocol --check-manifest manifest.json`.
 
 ## Good first issues
 
 Concrete starting points, roughly smallest first:
 
-- Add a trace JSON schema and an `assaystone schema` command.
+- Add a redacted failure case with `assaystone corpus add`.
+- Add a third-party verifier pack and score it on the leaderboard.
 - Add a Cursor or Windsurf transcript adapter with a redacted fixture.
 - Add an intent-aware `tests.weakened` verifier that compares removed test functions
   and assertions against the pre-image.
-- Add a redacted failure case to the [Failure Zoo](failure_zoo/README.md) corpus.
 - Add a PR comment summary mode for the GitHub Action.
-- Add a chart that tracks verifier recall across releases.
+- Add a chart that tracks recall and resistance across releases.
 
 Open an issue with the proposal before starting; if an issue already exists, comment
 on it. Small PRs with a test and a fixture are easiest to review.
