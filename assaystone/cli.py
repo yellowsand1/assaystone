@@ -11,6 +11,13 @@ from . import __version__, demo
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .contract import Contract
+from .failure_zoo import (
+    DEFAULT_CORPUS,
+    DEFAULT_THRESHOLDS,
+    BenchmarkError,
+    render_summary,
+    run_benchmark,
+)
 from .hooks.claude_code import install_claude_code
 from .hooks.claude_code import main as claude_code_hook_main
 from .init import init_project
@@ -368,6 +375,37 @@ def cmd_mutate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_benchmark_failure_zoo(args: argparse.Namespace) -> int:
+    thresholds = None if args.no_thresholds else (args.thresholds or DEFAULT_THRESHOLDS)
+    try:
+        result = run_benchmark(args.corpus or DEFAULT_CORPUS, thresholds)
+    except BenchmarkError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(result.to_json(), end="")
+    elif args.stdout == "markdown":
+        print(result.to_markdown())
+    elif args.stdout == "csv":
+        print(result.to_csv(), end="")
+    else:
+        print(render_summary(result))
+
+    for label, path, text in (
+        ("markdown", args.md, result.to_markdown()),
+        ("json", args.json, result.to_json()),
+        ("csv", args.csv, result.to_csv()),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+
+    return 0 if result.thresholds_passed else 1
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     try:
         result = init_project(args.path, force=args.force, ci=args.ci)
@@ -533,6 +571,44 @@ def _parser() -> argparse.ArgumentParser:
     mutate.add_argument("--baseline", default=".")
     mutate.add_argument("--max-mutants", type=int, default=18)
     mutate.set_defaults(func=cmd_mutate)
+
+    benchmark = sub.add_parser("benchmark", help="run a reproducible benchmark suite")
+    benchmark_sub = benchmark.add_subparsers(dest="benchmark_name", required=True)
+    failure_zoo = benchmark_sub.add_parser(
+        "failure-zoo",
+        help="score every built-in verifier against the labelled Failure Zoo corpus",
+        epilog=(
+            "Runs offline against packaged fixtures. Exit codes: 0 thresholds pass, "
+            "1 regression below threshold, 2 corpus error."
+        ),
+    )
+    failure_zoo.add_argument(
+        "--corpus",
+        default=None,
+        metavar="PATH",
+        help="corpus manifest; defaults to the packaged failure_zoo/corpus.json",
+    )
+    failure_zoo.add_argument(
+        "--thresholds",
+        default=None,
+        metavar="PATH",
+        help="regression thresholds; defaults to the packaged thresholds.json",
+    )
+    failure_zoo.add_argument(
+        "--no-thresholds",
+        action="store_true",
+        help="report results without checking regression thresholds",
+    )
+    failure_zoo.add_argument(
+        "--stdout",
+        choices=["summary", "markdown", "json", "csv"],
+        default="summary",
+        help="format printed to stdout",
+    )
+    failure_zoo.add_argument("--md", default=None, metavar="PATH", help="write Markdown scorecard")
+    failure_zoo.add_argument("--json", default=None, metavar="PATH", help="write JSON results")
+    failure_zoo.add_argument("--csv", default=None, metavar="PATH", help="write per-check CSV")
+    failure_zoo.set_defaults(func=cmd_benchmark_failure_zoo)
 
     init = sub.add_parser("init", help="scaffold a contract for the current repository")
     init.add_argument("--path", default=".")

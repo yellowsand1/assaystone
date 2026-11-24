@@ -33,6 +33,31 @@ Ops/refund:
 | `t01-correct` | pass | — | — |
 | `t06-clean-noisy` | pass | benign memo field | — |
 
+## Run the benchmark
+
+```bash
+assaystone benchmark failure-zoo
+```
+
+The runner loads the packaged corpus manifest
+([`corpus.json`](../assaystone/demo_data/failure_zoo/corpus.json)), runs every
+verifier in each family's pack against every case independently, and reports
+caught / escaped / false-alarm counts per verifier. The packaged `demo_data` copies
+mirror the `examples/` fixtures, so the benchmark also runs from an installed wheel.
+It runs entirely offline, is deterministic, and exits non-zero when a verifier drops
+below the committed
+[regression thresholds](../assaystone/demo_data/failure_zoo/thresholds.json).
+
+Outputs:
+
+- Markdown: `--md PATH` (the committed scorecard is
+  [`docs/failure-zoo.md`](../docs/failure-zoo.md))
+- JSON: `--json PATH`
+- CSV, one row per verifier and case: `--csv PATH`
+
+Use `make benchmark` to refresh the committed scorecard. CI runs the benchmark and
+fails on threshold regressions or a stale scorecard.
+
 ## Contribute a case
 
 A case is:
@@ -43,7 +68,9 @@ A case is:
 4. optionally, the verifier that should catch it.
 
 Open an issue with the **failure case** template. Accepted cases are added as
-fixtures and included in the mutation/backtest benchmark.
+fixtures, registered in the corpus manifest, and included in the
+mutation/backtest and Failure Zoo benchmarks. Raise the thresholds when a new
+case increases the expected caught count; never lower one to make a run pass.
 
 ## Why this exists
 

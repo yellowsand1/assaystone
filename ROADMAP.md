@@ -16,7 +16,8 @@ run against real agent work.
 
 ## Next — increase proof and contribution surface
 
-- [ ] Public Failure Zoo benchmark runner and release scorecard
+- [x] Public Failure Zoo benchmark runner and release scorecard
+      (`assaystone benchmark failure-zoo`, `docs/failure-zoo.md`)
 - [ ] Intent-aware test weakening detection with clean and defective fixtures
 - [ ] Cursor or Windsurf transcript adapter
 - [ ] PR comment summary mode for the GitHub Action
