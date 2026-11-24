@@ -21,6 +21,16 @@ same contract, and prove the checks work with mutation testing and backtesting.
 
 ## 60-second audit
 
+No transcript yet? Run the bundled failure case — no Python setup required:
+
+```bash
+uvx assaystone demo audit
+```
+
+`uvx` runs Assaystone in a throwaway environment, so it works even when your system
+`python3` is older than 3.10. With Python 3.10+ installed, audit your own newest local
+transcript instead:
+
 ```bash
 pip install assaystone
 assaystone audit --latest claude-code   # or: --latest codex
@@ -29,11 +39,11 @@ assaystone audit --latest claude-code   # or: --latest codex
 Assaystone finds the newest local transcript for the current workspace and audits it.
 Nothing leaves your machine. No API key or runtime dependency is required.
 
-No transcript yet? Run the bundled failure case:
+> macOS note: the system `python3` is often 3.9. `pip install assaystone` then fails
+> with "No matching distribution found" because the package needs 3.10+. Check with
+> `python3 --version`; if it is older, use `uvx` above or install Python 3.12.
 
-```bash
-python3 -m assaystone demo audit
-```
+The bundled demo prints:
 
 ```
 audit-demo-session  changed: pricing/discounts.py, tests/test_discounts.py
@@ -97,6 +107,8 @@ Python 3.10+. No runtime dependencies.
 pip install assaystone
 assaystone demo audit
 ```
+
+No Python 3.10+ yet? `uvx assaystone demo audit` runs the same demo with no setup.
 
 From source for contributors:
 
