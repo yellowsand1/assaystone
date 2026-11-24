@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>The transcript is not the filesystem — Assaystone</title>
+  <meta name="description" content="How Assaystone audits the newest local Claude Code or Codex session in one command — and exactly where transcript replay, patch reconstruction, and path-based test rules go blind.">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="canonical" href="https://yellowsand1.github.io/assaystone/blog/one-command-agent-session-audit/">
+  <meta property="og:type" content="article">
+  <meta property="og:title" content="The transcript is not the filesystem">
+  <meta property="og:description" content="A one-command audit of local agent sessions, and an honest map of where it goes blind.">
+  <meta property="og:url" content="https://yellowsand1.github.io/assaystone/blog/one-command-agent-session-audit/">
+  <meta property="og:image" content="https://yellowsand1.github.io/assaystone/assets/social-preview.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="The transcript is not the filesystem">
+  <meta name="twitter:description" content="How a one-command audit reconstructs an agent session — and where transcript replay stops being evidence.">
+  <meta name="twitter:image" content="https://yellowsand1.github.io/assaystone/assets/social-preview.png">
+  <link rel="icon" href="../../assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../../styles.css">
+  <style>
+    .article-hero { max-width: 1050px; margin: 0 auto; padding: 88px 28px 58px; }
+    .article-hero h1 { max-width: 980px; margin: 22px 0 24px; font-size: clamp(48px, 7vw, 88px); }
+    .article-hero .lede { max-width: 820px; font-size: 21px; }
+    .article-meta { display: flex; flex-wrap: wrap; gap: 12px 25px; margin-top: 26px; color: #747c87; font: 12px var(--mono); }
+    .article-wrap { max-width: 960px; margin: 0 auto; padding: 0 28px 110px; }
+    .article-body { max-width: 760px; margin: 0 auto; color: #303946; font-size: 18px; line-height: 1.78; }
+    .article-body h2 { margin: 68px 0 20px; color: var(--ink); font-size: clamp(34px, 4vw, 48px); line-height: 1.08; letter-spacing: -.035em; scroll-margin-top: 90px; }
+    .article-body h3 { margin: 42px 0 12px; color: var(--ink); font-size: 24px; letter-spacing: -.02em; }
+    .article-body p { margin: 0 0 23px; }
+    .article-body a { color: #7a4d00; font-weight: 700; }
+    .article-body code { padding: 2px 5px; background: #ede5d7; border-radius: 4px; font: 14px var(--mono); overflow-wrap: anywhere; }
+    .article-body pre { margin: 30px 0; padding: 22px; color: #dce5ef; background: var(--ink); border-radius: 12px; overflow-x: auto; }
+    .article-body pre code { padding: 0; color: inherit; background: none; overflow-wrap: normal; }
+    .article-body ul, .article-body ol { margin: 0 0 24px; padding-left: 24px; }
+    .article-body li { margin-bottom: 10px; }
+    .article-body li::marker { color: #9a6200; }
+    .article-abstract { margin: 0 0 46px; padding: 24px 26px; color: #3a4350; background: #fffdf8; border: 1px solid var(--line); border-radius: 12px; font-size: 16.5px; line-height: 1.7; }
+    .article-abstract strong { color: var(--ink); }
+    .metrics.article-metrics { margin: 40px 0 54px; max-width: 900px; }
+    .metrics.article-metrics div { min-height: 135px; }
+    .article-pullquote { margin: 50px 0; padding: 26px 30px; color: #2a210f; background: #f7e8c8; border-left: 5px solid var(--amber); font: 500 26px/1.4 Georgia, serif; }
+    .article-note { margin: 36px 0; padding: 24px 26px; background: #f1eadf; border-radius: 12px; font-size: 16.5px; line-height: 1.7; }
+    .article-note h3 { margin: 0 0 10px; font-size: 19px; }
+    .article-note ul { margin: 0; }
+    .article-note li { margin-bottom: 7px; }
+    .article-table { width: 100%; margin: 30px 0 40px; border-collapse: collapse; font-size: 15px; }
+    .article-table th, .article-table td { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; }
+    .article-table th { color: #6e4a08; background: #f1eadf; font: 700 11px var(--mono); letter-spacing: .04em; text-transform: uppercase; }
+    .article-table td:last-child { font-family: var(--mono); }
+    .article-cta { margin-top: 70px; padding: 38px; color: #eaf0f7; background: var(--ink); border-radius: 16px; }
+    .article-cta h2 { margin-top: 0; color: #fff; }
+    .article-cta p { color: #9fabb9; }
+    .article-back { display: inline-block; margin-bottom: 24px; color: #6c747f; font: 700 12px var(--mono); text-decoration: none; }
+    @media (max-width: 700px) {
+      .article-hero { padding-top: 55px; }
+      .article-body { font-size: 17px; }
+      .article-row { overflow-x: auto; }
+      .article-table { min-width: 620px; }
+      .article-cta { padding: 28px 22px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="../../" aria-label="Assaystone home">
+      <img src="../../assets/logo.svg" alt="" width="34" height="34"><span>Assaystone</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="../../#how">How it works</a>
+      <a href="../../#evidence">Evidence</a>
+      <a href="../../#quickstart">Quickstart</a>
+      <a class="nav-github" href="https://github.com/yellowsand1/assaystone">GitHub <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
+
+  <main>
+    <header class="article-hero">
+      <a class="article-back" href="/assaystone/blog/">← FIELD NOTES</a>
+      <div class="eyebrow"><span class="pulse"></span> Engineering note · November 2026</div>
+      <h1>The transcript is not the filesystem</h1>
+      <p class="lede">How to audit a Codex or Claude Code session in one command — and where that audit goes blind.</p>
+      <div class="article-meta">
+        <span>ASSAYSTONE 0.5.0</span><span>TWO TRANSCRIPT FORMATS</span><span>88 TESTS PASSING</span><span>NO MODEL CALLS</span>
+      </div>
+    </header>
+
+    <article class="article-wrap">
+      <div class="metrics article-metrics" aria-label="Article metrics">
+        <div><strong>1</strong><span>command to audit the newest local session</span></div>
+        <div><strong>2</strong><span>transcript formats normalized into one trace</span></div>
+        <div><strong>88</strong><span>tests passing on the 0.5.0 repository</span></div>
+        <div><strong>0</strong><span>API keys or uploads required</span></div>
+      </div>
+
+      <div class="article-body">
+        <div class="article-abstract">
+          <strong>Assaystone 0.5.0</strong> can audit the newest local Claude Code or Codex CLI session with one command. This post explains the implementation rather than the pitch: how two different transcript formats are normalized, how Codex <code>apply_patch</code> edits are replayed onto a baseline, how the latest session is discovered, why a log of tool calls is not the same thing as the filesystem, and exactly where path-based test-integrity checks and arbitrary shell writes go blind. It includes runnable commands, real output from the bundled demo, and the test evidence behind the claims.
+        </div>
+
+        <p>“Your agent's tests pass. Did it delete the failing test?”</p>
+
+        <p>It sounds like an accusation. Most of the time it is not one. In a corpus of 162 real Claude Code sessions, 28 sessions touched test files, and 27 of those also touched source files. That is ordinary feature work: implementation and tests move together.</p>
+
+        <p>But the question points at a real gap. A green suite proves that the tests which ran passed. It does not prove that the test which mattered still exists, that the agent changed only what it said it changed, or that “all tests pass” was supported by anything the session actually recorded.</p>
+
+        <p>Assaystone 0.5.0 turns that question into a command:</p>
+
+        <pre><code>pip install assaystone==0.5.0
+assaystone audit --latest claude-code   # or: --latest codex</code></pre>
+
+        <p>It finds the newest local transcript for the current workspace, reconstructs the files the session touched, runs a default contract, and prints findings plus a suggested contract. No API key, no hosted control plane, no upload. Exit codes are <code>0</code> clean, <code>1</code> findings, <code>2</code> the input could not be audited.</p>
+
+        <p>The bundled failure case is the fastest way to see the shape of the output:</p>
+
+        <pre><code>python3 -m assaystone demo audit</code></pre>
+
+        <pre><code>Assaystone audit demo — a coding-agent transcript
+Assaystone audit
+baseline: demo transcript
+traces: 1 (0 clean, 1 with findings)
+
+audit-demo-session  changed: pricing/discounts.py, tests/test_discounts.py
+  HIGH     tests.integrity          tests/test_discounts.py (modified)
+
+summary: 0 critical, 1 high, 0 medium, 0 low
+
+suggested contract: assaystone-demo-contract.json
+
+details: assaystone-demo-audit.md</code></pre>
+
+        <p>The demo agent fixed a rounding bug, deleted the one test it still failed, and reported success. A conventional test run saw a green suite. The audit saw the deleted test because it reconstructed the file changes instead of trusting the final message.</p>
+
+        <p>That reconstruction is the interesting engineering. It is also where the limits live.</p>
+
+        <h2 id="what-it-does">1. What the audit actually does</h2>
+
+        <p>The pipeline has three stages.</p>
+
+        <div class="article-row"><table class="article-table">
+          <thead><tr><th>Stage</th><th>Code</th><th>What it produces</th></tr></thead>
+          <tbody>
+            <tr><td>Discover</td><td>assaystone/sessions.py</td><td>The newest transcript whose recorded working directory contains the current directory</td></tr>
+            <tr><td>Reconstruct</td><td>assaystone/audit.py, assaystone/replay.py</td><td>A Trace with steps, tool results, and changed-file artifacts</td></tr>
+            <tr><td>Verify</td><td>assaystone/verifiers.py, assaystone/runner.py</td><td>Findings from a default contract, plus a suggested contract</td></tr>
+          </tbody>
+        </table></div>
+
+        <p>The audit is deliberately usable before you have a contract. <code>build_audit_contract()</code> in <code>assaystone/audit.py</code> scaffolds one from the repository, drops <code>tests.pass</code> unless you pass <code>--run-tests</code>, raises the step budget to 5,000, sets <code>diff.max_lines</code> to 400, and runs with <code>fail_fast=false</code> so every finding is reported rather than only the first.</p>
+
+        <p>It never edits the repository. The only writes are explicit output files (<code>--write-contract</code>, <code>--sarif</code>, <code>--junit</code>) and the Stop hook's local dedupe cache.</p>
+
+        <h2 id="intentions-not-files">2. A transcript records intentions, not files</h2>
+
+        <p>Claude Code and Codex CLI write different JSONL shapes.</p>
+
+        <p>Claude Code entries look like this:</p>
+
+        <pre><code>{"type": "assistant", "sessionId": "abc", "message": {"role": "assistant", "content": [
+  {"type": "text", "text": "I'll inspect the tests."},
+  {"type": "tool_use", "id": "t1", "name": "Read", "input": {"file_path": "tests/test_x.py"}}
+]}}</code></pre>
+
+        <p>Tool results come back as <code>user</code> entries with <code>tool_result</code> blocks. Codex writes a <code>session_meta</code> record followed by <code>response_item</code> records: <code>message</code>, <code>function_call</code>, and <code>function_call_output</code>, with the tool name and JSON-encoded arguments on the call.</p>
+
+        <p>The loader detects the shape rather than trusting the file extension. <code>_looks_like_claude_code()</code> checks for <code>type: user|assistant</code> entries with a <code>message</code>; <code>_looks_like_codex()</code> checks for <code>session_meta</code> or <code>response_item</code> function calls. <code>_normalize_claude_code()</code> and <code>_normalize_codex()</code> convert both into a common message list, and <code>from_messages()</code> in <code>assaystone/adapters/messages.py</code> pairs each call with its result by <code>call_id</code>, producing a <code>Trace</code> of ordered <code>Step</code>s.</p>
+
+        <p>That gives you a clean log. It does not give you the files.</p>
+
+        <h2 id="tool-calls-are-not-enough">3. Why recording only tool calls is not enough</h2>
+
+        <p>A tool-call log is a record of what the harness says the agent asked for. It is not the filesystem. The difference is large enough that it changes the product.</p>
+
+        <p>In the 162-session field audit behind <a href="/assaystone/blog/162-claude-code-sessions/">the published field note</a>:</p>
+
+        <div class="article-row"><table class="article-table">
+          <thead><tr><th>Signal</th><th>Number</th></tr></thead>
+          <tbody>
+            <tr><td>Usable sessions</td><td>162 (from 167 JSONL files, roughly 578 MB)</td></tr>
+            <tr><td>Recorded agent steps</td><td>28,082</td></tr>
+            <tr><td>Steps that were Bash commands</td><td>20,688, about 74%</td></tr>
+            <tr><td>Sessions that wrote files through shell commands</td><td>61</td></tr>
+            <tr><td>Sessions with shell-only writes and no Edit/Write artifacts</td><td>16</td></tr>
+            <tr><td>Sessions that wrote into test-like paths through the shell</td><td>4</td></tr>
+          </tbody>
+        </table></div>
+
+        <p>The shell patterns included <code>cat &gt;</code>, <code>tee</code>, <code>sed -i</code>, <code>patch</code>, <code>perl -pi</code>, and <code>git apply</code>. If a verifier only understands editor tool calls, it misses most of what the agent actually did — not because the agent hid anything, but because the editor is not the only interface.</p>
+
+        <p>Assaystone 0.5.0 has three recovery paths, each with a different trust model:</p>
+
+        <ol>
+          <li><strong>Transcript replay.</strong> <code>Write</code> sets content, <code>Edit</code> applies <code>old_string</code> → <code>new_string</code> (honoring <code>replace_all</code>), <code>MultiEdit</code> applies edits in order, and Codex <code>apply_patch</code> is parsed and applied. This is the default. It works without git, but it only sees tool calls it recognizes.</li>
+          <li><strong><code>--git-repo</code>.</strong> <code>artifacts_from_git()</code> collects tracked changes against <code>HEAD</code> plus untracked, non-ignored files. This sees shell writes, but only inside a git repository, and only for paths git reports.</li>
+          <li><strong>Workspace mode plus a git working-tree merge.</strong> The Claude Code Stop hook reads the current files for touched paths (<code>workspace_artifacts()</code>). When the hook's <code>cwd</code> is the git root, it also merges <code>artifacts_from_git(cwd)</code> so <code>sed</code>, <code>tee</code>, and <code>patch</code> edits become visible to path, syntax, and diff checks.</li>
+        </ol>
+
+        <p>The third path is why the 0.5.0 hook is more useful than transcript replay alone. It is also why the hook's blind spot is precise: if Claude Code was launched from a subdirectory of the repository, <code>is_git_root(cwd)</code> is false, and the merge does not happen. Run the hook from the repository root, or pass <code>--git-repo</code>/<code>--git-preimage</code> explicitly.</p>
+
+        <p>Test evidence is a separate inference problem. <code>evidence.claims</code> only fires when the final message contains a narrow success claim such as “all tests pass”, “tests are green”, or “tests look good”. It then looks for <code>test_exit_code</code> in the trace evidence. That value is inferred only when a step runs a recognized test runner — <code>pytest</code>, <code>python -m pytest</code>/<code>unittest</code>, <code>npm test</code>, <code>pnpm</code>/<code>yarn test</code>, <code>npx jest</code>/<code>vitest</code>, <code>go test</code>, <code>cargo test</code>, Maven/Gradle, <code>jest</code>, <code>vitest</code>, <code>rspec</code>, <code>dotnet test</code>, or <code>ctest</code> — and the output has an unambiguous outcome.</p>
+
+        <p>If the claim exists but no evidence was recorded, the verifier escalates rather than passing:</p>
+
+        <pre><code>REVIEW   evidence.claims   agent claims tests pass but no test evidence was recorded</code></pre>
+
+        <p>That is the right default. A verifier that guesses is worse than one that says it cannot decide.</p>
+
+        <h2 id="codex-patch">4. How Codex <code>apply_patch</code> is reconstructed</h2>
+
+        <p>Codex often does not call a dedicated <code>apply_patch</code> tool. It runs <code>exec_command</code> with a shell here-doc:</p>
+
+        <pre><code>{
+  "type": "function_call",
+  "name": "exec_command",
+  "arguments": "{\"cmd\": \"apply_patch &lt;&lt;'PATCH'\\n*** Begin Patch\\n*** Delete File: tests/test_calc.py\\n*** End Patch\\nPATCH\"}"
+}</code></pre>
+
+        <p><code>audit.py</code> detects that shape in <code>_normalize_codex()</code>: if the tool is <code>exec_command</code> and the command contains a patch, <code>_codex_patch()</code> extracts everything from <code>*** Begin Patch</code> through <code>*** End Patch</code>, renames the step to <code>apply_patch</code>, and stores the patch text.</p>
+
+        <p><code>assaystone/replay.py</code> then parses the patch into sections:</p>
+
+        <ul>
+          <li><code>*** Add File: path</code></li>
+          <li><code>*** Update File: path</code></li>
+          <li><code>*** Delete File: path</code></li>
+          <li><code>*** Move to: path</code></li>
+        </ul>
+
+        <p><code>_apply_patch_sections()</code> applies them in order against a mutable view of the baseline:</p>
+
+        <ul>
+          <li><strong>Add</strong> takes body lines beginning with <code>+</code> (ignoring <code>+++</code>) as the new content.</li>
+          <li><strong>Delete</strong> marks the path deleted.</li>
+          <li><strong>Update</strong> loads the current text, splits the body on <code>@@</code> hunk headers, collects <code>-</code> and context lines as the old block and <code>+</code> and context lines as the new block, and replaces the first exact occurrence.</li>
+          <li><strong>Move</strong> writes the updated text to the destination and deletes the source.</li>
+        </ul>
+
+        <p>Path handling is deliberately conservative. <code>relative_path()</code> rejects absolute paths outside the baseline and any path beginning with <code>..</code>. The test <code>test_codex_patch_cannot_escape_the_baseline</code> asserts that a patch adding <code>../escaped.py</code> produces zero artifacts and does not create a file outside the workspace.</p>
+
+        <p>The tests also pin the two useful cases:</p>
+
+        <ul>
+          <li>A patch deleting <code>tests/test_calc.py</code> produces one artifact with change type <code>deleted</code>, and the audit reports <code>tests.integrity</code>.</li>
+          <li>A patch updating an assertion reconstructs the file as <code>def test_add():\n    assert True\n</code>.</li>
+        </ul>
+
+        <p>The limits are equally concrete:</p>
+
+        <ul>
+          <li>Update matching is exact block replacement. Whitespace drift or a stale context block means the update is skipped silently.</li>
+          <li>Line numbers and fuzzy context matching are not implemented.</li>
+          <li>Added-file content is taken only from <code>+</code> lines; binary files are not handled.</li>
+          <li>The patch must appear in the command string. If Codex changes its invocation wording, <code>_codex_patch()</code> returns <code>None</code> and the step stays an opaque <code>exec_command</code>.</li>
+          <li>The tests use synthetic JSONL written to the current record shape. They do not prove that a future Codex release will keep that shape.</li>
+        </ul>
+
+        <h2 id="latest-session">5. Finding the newest session</h2>
+
+        <p><code>assaystone/sessions.py</code> is small and intentionally boring.</p>
+
+        <pre><code>def find_latest_session(agent, *, cwd=".", root=None) -&gt; SessionSource:
+    ...</code></pre>
+
+        <ul>
+          <li>Default roots: <code>~/.claude/projects</code> for Claude Code and <code>~/.codex/sessions</code> for Codex.</li>
+          <li>Overrides: <code>ASSAYSTONE_CLAUDE_ROOT</code> and <code>ASSAYSTONE_CODEX_ROOT</code>.</li>
+          <li>Candidates: every <code>*.jsonl</code> under the root, recursively, sorted by file mtime descending.</li>
+          <li>Header scan: read up to 40 lines per file, parse JSON, and take <code>payload.cwd</code> (Codex) or <code>cwd</code> (Claude Code).</li>
+          <li>Match rule: the recorded session directory equals the requested directory, or the requested directory is inside it. That is <code>_workspace_match()</code>; it lets you run the command from <code>src/package</code> and still find a session started at the repository root.</li>
+          <li>Result: the first match, or <code>SessionDiscoveryError</code>, which the CLI turns into exit code <code>2</code>.</li>
+        </ul>
+
+        <p><code>assaystone audit --latest codex</code> then sets the baseline to the session's recorded <code>cwd</code> (unless you pass <code>--baseline</code>), sets the format to the agent name, and enables <code>--git-repo</code> automatically when that baseline is a git repository. It prints the chosen transcript path to stderr:</p>
+
+        <pre><code>latest codex session: /path/to/sessions/2026/11/24/session.jsonl</code></pre>
+
+        <p>This is discovery, not indexing. It does not scan transcript bodies for keywords, does not read prompts, and does not upload anything. The trade-off is that “latest” means newest matching file by mtime, not the session with the newest turn. The 40-line header scan and the one-session-per-file layout are assumptions; if your tool stores sessions differently, pass an explicit path or set the root override.</p>
+
+        <h2 id="default-rules">6. What the default rules can and cannot say</h2>
+
+        <p>The audit contract is code-centric. These are the defaults in <code>assaystone/audit.py</code>:</p>
+
+        <div class="article-row"><table class="article-table">
+          <thead><tr><th>Rule</th><th>Severity</th><th>What it actually checks</th></tr></thead>
+          <tbody>
+            <tr><td>diff.syntax</td><td>critical</td><td><code>ast.parse()</code> on changed <code>.py</code> files; deleted files are skipped</td></tr>
+            <tr><td>tests.integrity</td><td>high</td><td>changed paths under configured test prefixes</td></tr>
+            <tr><td>diff.forbidden_paths</td><td>high</td><td>changed paths matching protected CI/config paths</td></tr>
+            <tr><td>evidence.claims</td><td>high</td><td>final-message success claim versus recorded <code>test_exit_code</code></td></tr>
+            <tr><td>diff.public_api</td><td>medium</td><td>removed or changed public functions/classes</td></tr>
+            <tr><td>quality.no_debug_prints</td><td>medium</td><td><code>print()</code> or <code>breakpoint()</code> in changed Python, excluding tests/examples/scripts</td></tr>
+            <tr><td>diff.max_lines</td><td>low</td><td>more than 400 changed lines in the audit contract</td></tr>
+            <tr><td>budget.steps</td><td>low</td><td>more than 5,000 steps</td></tr>
+          </tbody>
+        </table></div>
+
+        <p>The protected test prefixes come from directories that exist in the repository: <code>tests/</code>, <code>test/</code>, and <code>spec/</code>, with <code>tests/</code> as the fallback. <code>_path_under()</code> matches exact prefixes and nested occurrences, so <code>server/tests/test_api.py</code> is covered by <code>tests/</code>.</p>
+
+        <h3>The honest part: <code>tests.integrity</code> is path-based</h3>
+
+        <p><code>tests.integrity</code> flags that a test file was modified or deleted. It does not know why. It cannot tell whether the agent protected the product or protected itself.</p>
+
+        <p>The field audit is the calibration for that sentence. Twenty-eight sessions touched test files. Twenty-seven also touched source. The one test-only session turned out to be a fixture and schema refactor during an upstream bug investigation. Manual review of the five strongest candidates — including four sessions that wrote into test-like paths through shell commands — found zero confirmed test tampering. One added new tests; three wrote temporary probe scripts or delivery notes whose contents happened to mention test paths.</p>
+
+        <div class="article-pullquote">The finding should be read as: test-directory activity happened; review it. Not: the agent cheated.</div>
+
+        <p>There is also a naming blind spot. <code>_detect_protected()</code> only detects <code>tests/</code>, <code>test/</code>, and <code>spec/</code>. A repository that keeps tests in <code>__tests__/</code>, or at the root as <code>test_foo.py</code> with no <code>tests/</code> directory, will not be protected by the default contract. You can fix that with a custom contract's <code>protected_prefixes</code>, but the default does not guess.</p>
+
+        <p><code>diff.public_api</code> has a similar proxy problem. Deleting a test module trips it, because the module's public symbols disappear. That is noise in a test-focused audit; the contract and the hook's ignore rules are where you tune it.</p>
+
+        <h2 id="audit-to-gate">7. From audit to gate</h2>
+
+        <p>The Stop hook is the daily-workflow version of the same audit.</p>
+
+        <pre><code>assaystone hook install claude-code --mode warn</code></pre>
+
+        <p>It merges the hook into <code>.claude/settings.local.json</code> for the project, or <code>~/.claude/settings.json</code> with <code>--user</code>, and is idempotent. The installed command is <code>assaystone hook claude-code</code>.</p>
+
+        <p>The hook reads Claude Code's JSON payload from stdin: <code>transcript_path</code>, <code>cwd</code>, and <code>stop_hook_active</code>. It then:</p>
+
+        <ol>
+          <li>Audits the transcript in workspace mode.</li>
+          <li>If <code>cwd</code> is the git root, merges working-tree changes so shell edits are visible.</li>
+          <li>If the repository has a <code>HEAD</code> commit, builds a temporary pre-image from <code>HEAD</code> for the changed paths, so diff-size and public-API checks still have a baseline.</li>
+          <li>Applies <code>.assaystone/hook.json</code> ignore rules.</li>
+          <li>Prints a compact summary, or nothing if there are no findings.</li>
+        </ol>
+
+        <p>Modes:</p>
+
+        <ul>
+          <li><code>warn</code> (default): exit <code>0</code>; Claude stops normally.</li>
+          <li><code>block</code>: exit <code>2</code> for findings at or above <code>fail_on</code> (default <code>high</code>); Claude sees the message and continues.</li>
+          <li><code>stop_hook_active</code>: exit <code>0</code> to avoid a loop.</li>
+          <li>Audit failure: fail open with a message. A broken hook should not break the session.</li>
+        </ul>
+
+        <p>The hook also dedupes the same finding within a session by hashing the message into a cache under <code>XDG_CACHE_HOME/assaystone/hooks/</code>.</p>
+
+        <p>There is a plugin path too:</p>
+
+        <pre><code>/plugin marketplace add yellowsand1/assaystone
+/plugin install assaystone@assaystone</code></pre>
+
+        <p>The plugin adds <code>/assaystone:audit</code>, <code>/assaystone:setup</code>, and a Stop hook whose shell wrapper exits <code>0</code> if the <code>assaystone</code> CLI is missing. It fails open by design.</p>
+
+        <p>For CI, the same findings can be written as SARIF or JUnit:</p>
+
+        <pre><code>assaystone audit agent-transcripts/ --baseline . \
+  --sarif results.sarif --junit results.xml --fail-on high</code></pre>
+
+        <p>The composite GitHub Action exposes <code>verdict</code>, <code>findings</code>, and <code>traces</code> outputs and runs <code>assaystone verify</code> against a contract.</p>
+
+        <h2 id="limits">8. Limits and blind spots</h2>
+
+        <p>The list matters more than the feature list.</p>
+
+        <ul>
+          <li><strong>The transcript is not ground truth.</strong> Replay sees recognized tool names and argument shapes. Custom tools, renamed tools, truncated tool output, and arbitrary shell side effects can all be invisible.</li>
+          <li><strong>Arbitrary shell writes need git.</strong> <code>sed -i</code>, <code>tee</code>, <code>cat &gt;</code>, <code>patch</code>, and <code>git apply</code> are not reconstructed from the transcript. <code>--git-repo</code> or the hook's working-tree merge is what catches them. Writes to ignored files, files outside the repository, or committed changes can still fall through.</li>
+          <li><strong>A commit changes the baseline.</strong> If the agent committed its own work, <code>--git-preimage</code> builds from <code>HEAD</code>, which is already post-session. Path rules still work; diff-size and public-API checks become less meaningful.</li>
+          <li><strong><code>tests.integrity</code> is a path rule, not an intent detector.</strong> It also depends on the repository using one of the detected directory names.</li>
+          <li><strong><code>diff.syntax</code> is Python-only.</strong> It parses changed <code>.py</code> files. There is no TypeScript, Go, Rust, or Java syntax check in the default contract.</li>
+          <li><strong>Workspace mode weakens diff checks.</strong> <code>--workspace</code> reads current files, so <code>diff.max_lines</code> and <code>diff.public_api</code> are effectively no-ops. <code>--git-preimage</code> and the hook restore a baseline when <code>HEAD</code> exists.</li>
+          <li><strong><code>--run-tests</code> executes repository code.</strong> It runs in a temporary copy, not a sandbox. Audit only repositories you trust.</li>
+          <li><strong>Test evidence inference is heuristic.</strong> It recognizes common runners and structured outcomes; ambiguous output stays unset and escalates. It is not proof that the full suite ran.</li>
+          <li><strong>The field corpus is one user's history with no human labels.</strong> The 162-session numbers are calibration signals, not a prevalence study. Zero confirmed tampering in the five strongest candidates is not zero in the population.</li>
+          <li><strong>This is not a security boundary.</strong> It is a review aid and an acceptance gate. It does not sandbox the agent, enforce filesystem permissions, or prove that no other process changed the tree.</li>
+          <li><strong>No model calls, no semantic understanding.</strong> The rules are deterministic. That is a feature for reproducibility and a limitation for intent.</li>
+        </ul>
+
+        <h2 id="test-evidence">9. Test evidence</h2>
+
+        <p>I ran the suite against the 0.5.0 repository on 2026-11-24 with Python 3.12.13 and pytest 9.2.0:</p>
+
+        <pre><code>python -m pytest -q</code></pre>
+
+        <pre><code>88 passed, 1 warning in 4.16s</code></pre>
+
+        <p>The warning is an expected one from <code>tests/test_jsonl.py</code>: a directory loader intentionally skips an unreadable <code>package.json</code> and emits a <code>RuntimeWarning</code>.</p>
+
+        <p>The tests that carry the claims in this post:</p>
+
+        <ul>
+          <li><code>tests/test_codex.py::CodexTranscriptTest::test_codex_patch_is_replayed_and_test_deletion_is_found</code> — replays a delete patch, asserts artifacts, test evidence, and the <code>tests.integrity</code> finding.</li>
+          <li><code>tests/test_codex.py::CodexTranscriptTest::test_codex_patch_update_reconstructs_the_file</code> — asserts the reconstructed content after an update hunk.</li>
+          <li><code>tests/test_codex.py::CodexTranscriptTest::test_codex_patch_cannot_escape_the_baseline</code> — asserts a <code>../</code> path produces no artifacts and no escaped file.</li>
+          <li><code>tests/test_codex.py::CodexTranscriptTest::test_find_latest_session_matches_recorded_workspace</code> — asserts mtime ordering and workspace matching.</li>
+          <li><code>tests/test_codex.py::CodexTranscriptTest::test_find_latest_claude_session_from_workspace_subdirectory</code> — asserts ancestor matching from a nested directory.</li>
+          <li><code>tests/test_codex.py::CodexTranscriptTest::test_cli_latest_codex</code> — end-to-end <code>--latest codex</code>, exit code <code>1</code>, and the <code>tests.integrity</code> finding.</li>
+          <li><code>tests/test_hook.py::ClaudeCodeHookTest::test_git_working_tree_changes_are_audited</code> — simulates a Bash-only test edit and asserts the hook finds it through the git working tree.</li>
+          <li><code>tests/test_hook.py::ClaudeCodeHookTest::test_block_mode</code>, <code>test_warn_dedupes_same_finding</code>, <code>test_stop_hook_active_prevents_loop</code>, <code>test_missing_transcript_fails_open</code> — the hook's failure and loop behavior.</li>
+        </ul>
+
+        <p>A synthetic end-to-end run of <code>--latest codex</code>, built to the same record shape as the Codex tests, produced:</p>
+
+        <pre><code>latest codex session: /tmp/.../sessions/2026/11/24/session.jsonl
+Assaystone audit
+baseline: .
+traces: 1 (0 clean, 1 with findings)
+
+demo-codex  changed: tests/test_calc.py
+  REVIEW   evidence.claims          agent claims tests pass but no test evidence was recorded
+  HIGH     tests.integrity          tests/test_calc.py (deleted)
+  MEDIUM   diff.public_api          tests/test_calc.py: public module deleted
+
+summary: 0 critical, 2 high, 1 medium, 0 low
+
+suggested contract: rerun with --write-contract .assaystone/contract.json</code></pre>
+
+        <p>That output is a useful example of the design. The deleted test is a high-severity path finding. The success claim escalates because the synthetic session never ran a test command. The public-API rule also fires on the deleted test module, which is the proxy noise described above. All three are deterministic and reviewable; none is a claim about intent.</p>
+
+        <div class="article-note">
+          <h3>What is not verified</h3>
+          <ul>
+            <li>Real current Codex and Claude Code binaries. The fixtures are synthetic, even though they mirror the current record shapes.</li>
+            <li>False-positive and false-negative rates on a labeled, multi-user corpus.</li>
+            <li>Non-Python syntax, binary patches, and tool-name or argument-shape drift.</li>
+            <li>Windows path behavior and very large sessions.</li>
+            <li>Sandboxing. <code>--run-tests</code> executes repository code in a temporary copy, not a sandbox.</li>
+          </ul>
+        </div>
+
+        <h2 id="run-it">10. Run it</h2>
+
+        <pre><code># install and audit the newest session for this workspace
+pip install assaystone==0.5.0
+assaystone audit --latest claude-code
+assaystone audit --latest codex
+
+# audit an explicit transcript
+assaystone audit ~/.claude/projects/&lt;project&gt;/&lt;session&gt;.jsonl --baseline .
+
+# prefer git truth when the changes are real
+assaystone audit session.jsonl --baseline . --git-repo .
+
+# restore a pre-session baseline for diff checks
+assaystone audit session.jsonl --baseline . --git-preimage \
+  --write-contract .assaystone/contract.json
+
+# machine-readable output for CI
+assaystone audit --latest claude-code --json
+assaystone audit agent-transcripts/ --baseline . \
+  --sarif results.sarif --junit results.xml --fail-on high
+
+# run the audit after every Claude Code turn
+assaystone hook install claude-code --mode warn
+assaystone hook install claude-code --mode block</code></pre>
+
+        <p>The contract model is the part worth keeping. Every check returns one of three outcomes: pass when independent evidence supports the property, fail when evidence contradicts it, and escalate when the available checks cannot decide safely. The audit is the entry point; the same contract can gate CI and runtime.</p>
+
+        <p>The honest positioning is not “Assaystone detects cheating.” It is: <strong>Assaystone makes the acceptance boundary explicit, testable, and reviewable.</strong> A path rule can tell you that test files changed. It cannot tell you whether the agent protected the product or protected itself. Knowing the difference is the whole job.</p>
+
+        <p>Further reading: <a href="https://github.com/yellowsand1/assaystone/blob/main/docs/audit.md">audit docs</a>, <a href="https://github.com/yellowsand1/assaystone/blob/main/docs/hooks.md">hook docs</a>, the <a href="/assaystone/blog/162-claude-code-sessions/">162-session field note</a>, the <a href="https://github.com/yellowsand1/assaystone/blob/main/failure_zoo/README.md">Failure Zoo</a>, and the <a href="https://github.com/yellowsand1/assaystone/blob/main/docs/releases/v0.5.0.md">0.5.0 release notes</a>.</p>
+
+        <div class="article-cta">
+          <h2>Audit the run. Not the summary.</h2>
+          <p>Audit your latest Claude Code or Codex session in one command. No API key, hosted control plane, or runtime dependency.</p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="https://github.com/yellowsand1/assaystone">Star on GitHub</a>
+            <a class="button button-secondary" href="/assaystone/#quickstart">Run the quickstart</a>
+          </div>
+        </div>
+      </div>
+    </article>
+  </main>
+
+  <footer>
+    <div class="footer-brand"><img src="../../assets/logo.svg" alt="" width="26" height="26"><strong>Assaystone</strong><span>Verification, not evaluation.</span></div>
+    <div class="footer-links">
+      <a href="https://github.com/yellowsand1/assaystone">GitHub</a>
+      <a href="https://github.com/yellowsand1/assaystone/tree/main/docs">Docs</a>
+      <a href="https://github.com/yellowsand1/assaystone/blob/main/failure_zoo/README.md">Failure Zoo</a>
+      <a href="https://github.com/yellowsand1/assaystone/blob/main/LICENSE">Apache-2.0</a>
+    </div>
+  </footer>
+</body>
+</html>
