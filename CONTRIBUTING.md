@@ -55,7 +55,7 @@ Concrete starting points, roughly smallest first:
 - Add a Cursor or Windsurf transcript adapter with a redacted fixture.
 - Add an intent-aware `tests.weakened` verifier that compares removed test functions
   and assertions against the pre-image.
-- Add a Failure Zoo benchmark runner that prints a Markdown scorecard.
+- Add a redacted failure case to the [Failure Zoo](failure_zoo/README.md) corpus.
 - Add a PR comment summary mode for the GitHub Action.
 - Add a chart that tracks verifier recall across releases.
 
@@ -70,10 +70,11 @@ the framework. Add a test with recorded messages, not a live API call.
 ## Development
 
 ```bash
-make test    # Python 3.10+ is selected automatically when available
-make pytest  # pytest entry point, including plugin collection
+make test       # Python 3.10+ is selected automatically when available
+make pytest     # pytest entry point, including plugin collection
 make lint
 make demo
+make benchmark  # Failure Zoo scorecard; fails on a recall regression
 ```
 
 No runtime dependencies. Python 3.10+.

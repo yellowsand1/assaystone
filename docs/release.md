@@ -17,7 +17,11 @@ make test
 make demo-audit
 make demo
 make demo-ops
+make benchmark
 ```
+
+`make benchmark` fails if verifier recall drops below the committed Failure Zoo
+thresholds. Commit the refreshed `docs/failure-zoo.md` or CI will report it stale.
 
 Build and install the wheel in a clean environment:
 

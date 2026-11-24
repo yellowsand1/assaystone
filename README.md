@@ -78,6 +78,19 @@ Each case names the verifier that should catch it, and each one is a regression 
 for the verifier ladder. The corpus is the seed for a public benchmark —
 [bring a redacted trace](failure_zoo/README.md) and it becomes a fixture.
 
+Run the benchmark offline against the committed corpus:
+
+```bash
+assaystone benchmark failure-zoo
+make benchmark   # also refreshes docs/failure-zoo.md
+```
+
+It runs every built-in verifier independently against each case and reports
+caught / escaped / false-alarm counts per verifier, with a regression threshold so
+verifier recall cannot silently drop. The generated scorecard is committed at
+[docs/failure-zoo.md](docs/failure-zoo.md), and the JSON and CSV forms are available
+with `--json PATH` and `--csv PATH`.
+
 ## Why
 
 Evaluations give you a score. Production needs a verdict: what failed, why, with
@@ -435,8 +448,9 @@ ship today.
 - [x] LangGraph / OpenAI Agents runtime wrappers
 - [x] ops/refund pack
 - [x] git pre-image baseline for post-session diff checks
+- [x] Failure Zoo benchmark and per-verifier release scorecard
 - [ ] data reconciliation and report citation packs
-- [ ] verifier registry and Failure Zoo benchmark
+- [ ] verifier registry
 - [ ] TypeScript port
 
 ## Contributing

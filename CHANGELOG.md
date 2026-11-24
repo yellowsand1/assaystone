@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- `assaystone benchmark failure-zoo` runs every built-in verifier independently
+  against the labelled corpus (code/test, ops/refund, and an audit transcript),
+  reports caught / escaped / false-alarm counts per verifier, and emits deterministic
+  Markdown, JSON, and CSV
+- committed regression thresholds fail the run when verifier recall drops or a
+  verifier disappears from the corpus; `make benchmark` refreshes
+  `docs/failure-zoo.md`
+- CI runs the benchmark and fails when the committed scorecard is stale
+
 ## 0.5.0 — 2026-11-24
 
 - Codex CLI transcript import, including `apply_patch` replay and `exec_command`
