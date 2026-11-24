@@ -26,6 +26,7 @@ from .mutate import run_mutation
 from .replay import git_preimage, is_git_repo
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
 from .runner import run_contract
+from .schema import SchemaError, available_schemas, load_schema, schema_path, validate_document
 from .sessions import SessionDiscoveryError, find_latest_session
 
 
@@ -460,6 +461,37 @@ def cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_schema(args: argparse.Namespace) -> int:
+    if args.command_name == "list":
+        for name in available_schemas():
+            print(name)
+        return 0
+    if args.command_name == "validate":
+        try:
+            document = json.loads(Path(args.document).read_text(encoding="utf-8"))
+        except OSError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        except json.JSONDecodeError as exc:
+            print(f"error: invalid JSON in {args.document}: {exc}", file=sys.stderr)
+            return 2
+        errors = validate_document(document, args.schema)
+        if errors:
+            for error in errors:
+                print(error, file=sys.stderr)
+            return 1
+        print(f"{args.document}: valid {args.schema} document")
+        return 0
+    # default: print the schema itself
+    try:
+        schema = load_schema(args.schema)
+    except SchemaError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(schema, indent=2))
+    return 0
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="assaystone",
@@ -640,6 +672,22 @@ def _parser() -> argparse.ArgumentParser:
     record.add_argument("--agent", default="")
     record.add_argument("--trace-id", default=None)
     record.set_defaults(func=cmd_record)
+
+    schema = sub.add_parser(
+        "schema",
+        help="print or validate Assaystone JSON Schemas",
+        epilog="Exit codes: 0 ok, 1 validation failed, 2 usage/IO error.",
+    )
+    schema_sub = schema.add_subparsers(dest="command_name")
+    schema_sub.add_parser("list", help="list available schema names")
+    for schema_name in available_schemas():
+        show = schema_sub.add_parser(schema_name, help=f"print the {schema_name} JSON Schema")
+        show.set_defaults(command_name="show", schema=schema_name)
+    validate = schema_sub.add_parser("validate", help="validate a document against a schema")
+    validate.add_argument("schema", choices=available_schemas())
+    validate.add_argument("document", help="path to the JSON document to validate")
+    validate.set_defaults(command_name="validate")
+    schema.set_defaults(func=cmd_schema, command_name="show", schema="trace")
 
     return parser
 

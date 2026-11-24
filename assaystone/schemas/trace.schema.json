@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://assaystone.dev/schema/trace.schema.json",
+  "title": "Assaystone Trace",
+  "description": "A single recorded agent trace: the task, the steps taken, the resulting artifacts, and optional human labels.",
+  "type": "object",
+  "required": ["id", "task"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "minLength": 1},
+    "task": {"type": "string"},
+    "agent": {"type": "string"},
+    "input": {"type": "string"},
+    "steps": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/step"}
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/artifact"}
+    },
+    "final_message": {"type": "string"},
+    "evidence": {"type": "object"},
+    "labels": {
+      "anyOf": [
+        {"type": "null"},
+        {"$ref": "#/$defs/label"}
+      ]
+    },
+    "created_at": {"type": "string"}
+  },
+  "$defs": {
+    "step": {
+      "type": "object",
+      "required": ["tool"],
+      "additionalProperties": false,
+      "properties": {
+        "tool": {"type": "string"},
+        "args": {"type": "object"},
+        "result": {"type": "string"},
+        "ok": {"type": "boolean"}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string"},
+        "content": {"type": "string"},
+        "change": {"type": "string", "enum": ["added", "modified", "deleted"]}
+      }
+    },
+    "label": {
+      "type": "object",
+      "required": ["verdict"],
+      "additionalProperties": false,
+      "properties": {
+        "verdict": {"type": "string", "enum": ["pass", "fail"]},
+        "defect": {
+          "anyOf": [
+            {"type": "null"},
+            {"type": "string"}
+          ]
+        },
+        "note": {"type": "string"}
+      }
+    }
+  }
+}
