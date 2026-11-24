@@ -50,6 +50,19 @@ class _LowIndependenceFail(Verifier):
         return False, ["low-independence failure"], []
 
 
+class _AlwaysEscalate(Verifier):
+    name = "test.always_escalate"
+    layer = "L1"
+    cost_usd = 0.000001
+    independence = "high"
+    claim = "Cannot decide; used to test that escalation does not hide a failure."
+    catches = ("never",)
+    blind_spots = ("everything",)
+
+    def check(self, ctx, params):
+        return None, ["cannot decide"], []
+
+
 class _UnknownIndependenceFail(Verifier):
     name = "test.unknown_independence_fail"
     layer = "L1"
@@ -79,6 +92,7 @@ class IndependenceTest(unittest.TestCase):
         for cls in (
             _AlwaysPass,
             _AlwaysFail,
+            _AlwaysEscalate,
             _LowIndependenceFail,
             _UnknownIndependenceFail,
         ):
@@ -88,6 +102,7 @@ class IndependenceTest(unittest.TestCase):
         for name in (
             "test.always_pass",
             "test.always_fail",
+            "test.always_escalate",
             "test.low_independence_fail",
             "test.unknown_independence_fail",
         ):
@@ -128,6 +143,22 @@ class IndependenceTest(unittest.TestCase):
         )
         self.assertEqual(result.verdict, "escalate")
         self.assertEqual(result.verdicts[0].independence, "whatever")
+
+    def test_escalation_does_not_hide_a_later_failure(self):
+        # The escalating check is cheaper, so it runs first. `fail_fast` must
+        # not stop there: a later decisive failure is the better verdict.
+        contract = Contract(
+            name="escalate-then-fail",
+            verifiers=[
+                VerifierSpec("test.always_escalate"),
+                VerifierSpec("test.always_fail"),
+            ],
+            fail_fast=True,
+        )
+        result = run_contract(contract, self.trace, self.baseline)
+        self.assertEqual(result.verdict, "fail")
+        self.assertIn("test.always_fail", result.first_failure)
+        self.assertEqual(len(result.verdicts), 2)
 
     def test_verdict_records_independence(self):
         result = run_contract(

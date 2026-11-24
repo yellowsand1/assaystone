@@ -66,8 +66,9 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
                         escalation_reason = (
                             f"{verifier.name}: {reasons[0] if reasons else 'unresolved'}"
                         )
-                    if contract.fail_fast:
-                        break
+                    # Do not stop on an inconclusive check. `fail_fast` exists
+                    # to skip work after a decisive failure, not to let an
+                    # escalation hide one that a later check can still find.
                 continue
 
             if ok is False and spec.required:
