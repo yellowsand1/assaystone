@@ -77,6 +77,7 @@ class CapabilityManifest:
     registry: str = ""
     registry_fingerprint: str = ""
     manifest_approval: bool = False
+    waivers: bool = False
     source: str = ""
 
     @classmethod
@@ -158,6 +159,7 @@ class CapabilityManifest:
             registry=declared_registry or (registry.source if registry else ""),
             registry_fingerprint=fingerprint,
             manifest_approval=bool(data.get("manifest_approval", False)),
+            waivers=bool(data.get("waivers", False)),
             source=source,
         )
         errors = manifest.validate()
@@ -262,6 +264,7 @@ class CapabilityManifest:
             "lifecycle": self.lifecycle,
             "retention": self.retention,
             "manifest_approval": self.manifest_approval,
+            "waivers": self.waivers,
             "criteria": [
                 {
                     "id": item.id,
@@ -376,6 +379,7 @@ class GateResult:
     manifest_lifecycle: str = ""
     manifest_digest: str = ""
     manifest_approval: dict[str, Any] = field(default_factory=dict)
+    waived: list[dict[str, Any]] = field(default_factory=list)
     prior: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -395,6 +399,7 @@ class GateResult:
             "manifest_lifecycle": self.manifest_lifecycle,
             "manifest_digest": self.manifest_digest,
             "manifest_approval": dict(self.manifest_approval),
+            "waived": list(self.waived),
             "prior": dict(self.prior),
         }
 
@@ -546,6 +551,7 @@ def evaluate_gate(
     trail_path: str | Path | None = None,
     approval_path: str | Path | None = None,
     owner_key: str = "",
+    waivers_path: str | Path | None = None,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -613,7 +619,64 @@ def evaluate_gate(
         for item in gap
         if item["severity"] in GATING_SEVERITIES and stage not in ("design",)
     ]
-    if any(item.outcome == "fail" for item in results):
+    waived: list[dict[str, Any]] = []
+    waived_oracles: set[str] = set()
+    waiver_notes: list[str] = []
+    if manifest.waivers and any(item.outcome == "fail" for item in results):
+        if not owner_key:
+            return GateResult(
+                capability=manifest.capability,
+                stage=stage,
+                outcome="escalate",
+                results=results,
+                missing=missing,
+                reasons=[
+                    "waivers are enabled but no owner key is available "
+                    "(set ASSAYSTONE_OWNER_KEY)"
+                ],
+                gap=gap,
+                strict=strict,
+                manifest_lifecycle=manifest.lifecycle,
+                manifest_digest=manifest_digest(manifest),
+                manifest_approval=approval_info,
+                rollback_required=policy.rollback_required,
+                rollback=policy.rollback,
+                prior=prior,
+            )
+        from .waiver import WaiverError, load_waivers, verify_waivers, waiver_path_for
+
+        path = waivers_path or waiver_path_for(manifest)
+        valid: dict[str, dict[str, Any]] = {}
+        if path is not None and Path(path).exists():
+            try:
+                data = load_waivers(path)
+            except WaiverError as exc:
+                waiver_notes.append(str(exc))
+            else:
+                check = verify_waivers(data, owner_key, manifest)
+                if check.ok:
+                    valid = check.valid
+                else:
+                    waiver_notes.extend(check.errors)
+        for item in results:
+            if item.outcome != "fail":
+                continue
+            bound = [
+                criterion
+                for criterion in manifest.criteria
+                if criterion.oracle == item.oracle
+            ]
+            if bound and all(criterion.id in valid for criterion in bound):
+                for criterion in bound:
+                    waived.append(
+                        {"oracle": item.oracle, **valid[criterion.id]}
+                    )
+                waived_oracles.add(item.oracle)
+    effective_fail = any(
+        item.outcome == "fail" and item.oracle not in waived_oracles
+        for item in results
+    )
+    if effective_fail:
         outcome = "fail"
     elif missing or any(item.outcome == "escalate" for item in results):
         outcome = "escalate"
@@ -623,6 +686,12 @@ def evaluate_gate(
         outcome = "pass"
 
     reasons = [f"{stage} requires: {', '.join(required) or 'nothing'}"]
+    for item in waived:
+        reasons.append(
+            f"waived by {item.get('approved_by')}: `{item['criterion']}` "
+            f"until {item.get('expires_at')}"
+        )
+    reasons.extend(waiver_notes)
     if policy.after:
         reasons.append(f"chained after a recorded {policy.after} pass")
     for oracle_id in missing:
@@ -655,6 +724,7 @@ def evaluate_gate(
         manifest_lifecycle=manifest.lifecycle,
         manifest_digest=manifest_digest(manifest),
         manifest_approval=approval_info,
+        waived=waived,
         prior=prior,
     )
 

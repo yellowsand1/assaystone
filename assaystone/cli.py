@@ -79,6 +79,12 @@ from .scaffold import (
     next_steps,
 )
 from .sessions import SessionDiscoveryError, find_latest_session
+from .waiver import (
+    WaiverError,
+    create_waiver,
+    load_waivers,
+    waiver_path_for,
+)
 
 
 def _display(path: Path) -> str:
@@ -489,6 +495,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_accept(args)
     if args.capability_command == "status":
         return _cmd_capability_status(args)
+    if args.capability_command == "waive":
+        return _cmd_capability_waive(args)
     try:
         manifest = CapabilityManifest.load(
             args.manifest, registry=_registry(args.registry)
@@ -576,6 +584,65 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
     print(
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
+    )
+    return 0
+
+
+def _cmd_capability_waive(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    key = os.environ.get(args.key_env) or ""
+    if not key:
+        print(f"error: set {args.key_env} to sign the waiver", file=sys.stderr)
+        return 2
+    try:
+        entry = create_waiver(
+            manifest,
+            args.criterion,
+            args.reason,
+            args.approver or manifest.owner,
+            key,
+            args.expires,
+        )
+    except WaiverError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    target = Path(args.out) if args.out else waiver_path_for(manifest)
+    if target is None:
+        print("error: the manifest has no source path; pass --out", file=sys.stderr)
+        return 1
+    existing = []
+    if target.exists():
+        try:
+            data = load_waivers(target)
+        except WaiverError:
+            data = {}
+        if (
+            data.get("capability") == manifest.capability
+            and data.get("manifest_digest")
+            == entry["manifest_digest"]
+        ):
+            existing = [
+                item
+                for item in data.get("waivers") or []
+                if item.get("criterion") != entry["criterion"]
+            ]
+    payload = {
+        "version": entry["version"],
+        "capability": entry["capability"],
+        "manifest_digest": entry["manifest_digest"],
+        "waivers": existing + [entry],
+    }
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"waiver: {target} criterion {entry['criterion']} "
+        f"until {entry['expires_at']} by {entry['approved_by']}"
     )
     return 0
 
@@ -677,6 +744,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             trail_path=args.audit,
             approval_path=args.manifest_approval,
             owner_key=os.environ.get(args.owner_key_env) or "",
+            waivers_path=args.waivers,
         )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1489,6 +1557,7 @@ def _parser() -> argparse.ArgumentParser:
     capability_status.add_argument("--trail", default=None, metavar="PATH")
     capability_status.add_argument("--receipt", default=None, metavar="PATH")
     capability_status.add_argument("--approval", default=None, metavar="PATH")
+    capability_status.add_argument("--waivers", default=None, metavar="PATH")
     capability_status.add_argument(
         "--stage",
         default=None,
@@ -1505,6 +1574,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_status.add_argument("--json", action="store_true")
     capability_status.set_defaults(func=cmd_capability)
+
+    capability_waive = capability_sub.add_parser(
+        "waive", help="sign an exception for one criterion"
+    )
+    capability_waive.add_argument("--manifest", required=True, metavar="PATH")
+    capability_waive.add_argument("--criterion", required=True)
+    capability_waive.add_argument("--reason", required=True)
+    capability_waive.add_argument("--expires", required=True, metavar="YYYY-MM-DD")
+    capability_waive.add_argument("--approver", default=None)
+    capability_waive.add_argument("--out", default=None, metavar="PATH")
+    capability_waive.add_argument(
+        "--key-env", default=DEFAULT_OWNER_KEY_ENV
+    )
+    capability_waive.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_waive.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",
@@ -1554,6 +1640,10 @@ def _parser() -> argparse.ArgumentParser:
     gate_parser.add_argument(
         "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV,
         help="environment variable holding the owner key",
+    )
+    gate_parser.add_argument(
+        "--waivers", metavar="PATH", default=None,
+        help="owner-signed criterion waivers",
     )
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)

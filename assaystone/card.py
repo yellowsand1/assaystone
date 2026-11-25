@@ -21,6 +21,7 @@ from .receipt import ReceiptError, load_receipt, verify_receipt
 from .trail import TrailError
 from .trail import read as read_trail
 from .trail import verify as verify_trail
+from .waiver import WaiverError, load_waivers, verify_waivers, waiver_path_for
 
 
 @dataclass
@@ -38,6 +39,7 @@ class StatusCard:
     approval: dict[str, Any] = field(default_factory=dict)
     trail: dict[str, Any] = field(default_factory=dict)
     receipt: dict[str, Any] = field(default_factory=dict)
+    waivers: dict[str, Any] = field(default_factory=dict)
     residual_risks: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -55,6 +57,7 @@ class StatusCard:
             "approval": dict(self.approval),
             "trail": dict(self.trail),
             "receipt": dict(self.receipt),
+            "waivers": dict(self.waivers),
             "residual_risks": list(self.residual_risks),
         }
 
@@ -188,12 +191,48 @@ def _receipt_status(path: str | Path | None, key: str) -> dict[str, Any]:
     }
 
 
+def _waiver_status(
+    manifest: CapabilityManifest,
+    path: str | Path | None,
+    owner_key: str,
+) -> dict[str, Any]:
+    if not manifest.waivers:
+        return {"enabled": False, "valid": [], "errors": []}
+    target = path or waiver_path_for(manifest)
+    info: dict[str, Any] = {
+        "enabled": True,
+        "present": bool(target and Path(target).exists()),
+        "path": str(target) if target else "",
+        "ok": True,
+        "valid": [],
+        "errors": [],
+    }
+    if not info["present"]:
+        return info
+    if not owner_key:
+        info["ok"] = False
+        info["errors"].append("owner key is not available")
+        return info
+    try:
+        data = load_waivers(str(target))
+    except WaiverError as exc:
+        info["ok"] = False
+        info["errors"].append(str(exc))
+        return info
+    check = verify_waivers(data, owner_key, manifest)
+    info["ok"] = check.ok
+    info["valid"] = list(check.valid.values())
+    info["errors"] = list(check.errors)
+    return info
+
+
 def build_card(
     manifest: CapabilityManifest,
     stage: str | None = None,
     trail_path: str | Path | None = None,
     receipt_path: str | Path | None = None,
     approval_path: str | Path | None = None,
+    waivers_path: str | Path | None = None,
     owner_key: str = "",
     receipt_key: str = "",
 ) -> StatusCard:
@@ -226,6 +265,7 @@ def build_card(
     card.approval = _approval_status(manifest, approval_path, owner_key)
     card.trail = _trail_status(manifest, trail_path)
     card.receipt = _receipt_status(receipt_path, receipt_key)
+    card.waivers = _waiver_status(manifest, waivers_path, owner_key)
 
     risks = card.residual_risks
     for item in never:
@@ -255,6 +295,14 @@ def build_card(
     if card.receipt.get("present") and not card.receipt.get("ok"):
         detail = (card.receipt.get("errors") or ["invalid"])[0]
         risks.append(f"receipt does not verify: {detail}")
+    for item in card.waivers.get("valid", []):
+        risks.append(
+            f"criterion `{item['criterion']}` is waived until "
+            f"{item.get('expires_at')} by {item.get('approved_by')}"
+        )
+    if card.waivers.get("present") and not card.waivers.get("ok"):
+        detail = (card.waivers.get("errors") or ["invalid"])[0]
+        risks.append(f"waiver file does not verify: {detail}")
     if (
         card.receipt.get("ok")
         and card.trail.get("ok")
@@ -323,6 +371,21 @@ def render_card(card: StatusCard) -> str:
             f"  valid: {card.receipt.get('outcome')} at commit "
             f"{str(card.receipt.get('commit'))[:12] or '-'}"
         )
+
+    lines.extend(["", "Waivers"])
+    if not card.waivers.get("enabled"):
+        lines.append("  not enabled")
+    elif not card.waivers.get("present"):
+        lines.append("  enabled; no waiver file")
+    elif not card.waivers.get("ok"):
+        detail = (card.waivers.get("errors") or ["invalid"])[0]
+        lines.append(f"  INVALID: {detail}")
+    else:
+        for item in card.waivers.get("valid", []):
+            lines.append(
+                f"  {item['criterion']}: until {item.get('expires_at')} "
+                f"by {item.get('approved_by')}"
+            )
 
     lines.extend(["", "Residual risk"])
     if not card.residual_risks:

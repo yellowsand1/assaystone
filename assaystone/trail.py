@@ -70,6 +70,7 @@ def entry_for(
         "manifest_approval": dict(
             getattr(gate, "manifest_approval", {}) or {}
         ),
+        "waived": list(getattr(gate, "waived", []) or []),
         "prior": dict(getattr(gate, "prior", {}) or {}),
         "oracles": [
             {

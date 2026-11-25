@@ -473,6 +473,39 @@ it ran the gate three times, reverted its own edit, and reported the conflict
 instead of claiming success. The brief is a view of the manifest, not a new
 source of truth.
 
+## Approved exceptions
+
+A strict gate with no exception path gets bypassed. A waiver is the auditable
+alternative: the owner accepts one named criterion, for a stated reason, until a
+date, under the exact manifest digest that was reviewed.
+
+```json
+{"capability": "pricing-change", "waivers": true, "...": "..."}
+```
+
+```bash
+export ASSAYSTONE_OWNER_KEY=...        # the owner's key
+assaystone capability waive --manifest .assaystone/capability.json \
+  --criterion fee-parity --reason "accepted for the migration window" \
+  --expires 2026-12-31 --approver pricing-owner
+```
+
+The waiver is written to `capability.waivers.json`, signed per entry and bound to
+the capability and the manifest digest. The gate applies it only when:
+
+- the entry's signature verifies under the owner key;
+- the waiver has not expired;
+- **every** criterion bound to the failing oracle is waived;
+- the failure is a `fail`, not an `escalate` — a waiver accepts a known failure,
+  it does not resolve uncertainty;
+- the manifest still has the same digest. Changing a criterion invalidates all
+  waivers for it.
+
+A waived oracle is reported in the trail, the receipt, and the status card as an
+active residual risk with the approver and expiry. It never appears as a clean
+pass. If waivers are enabled and a failure occurs without the owner key, the gate
+escalates rather than guessing.
+
 ## The capability card
 
 The gate answers one run; the card answers the operator's question.

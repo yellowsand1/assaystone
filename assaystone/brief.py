@@ -67,6 +67,11 @@ def render_brief(
             lines.append(
                 f"Chained after a recorded `{policy.after}` pass on the trail."
             )
+    if manifest.waivers:
+        lines.append(
+            "- Only the owner can waive a criterion; do not edit "
+            "`capability.waivers.json`."
+        )
     lines.extend(
         [
             "",
