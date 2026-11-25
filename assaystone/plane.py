@@ -201,6 +201,9 @@ class CapabilityManifest:
                 errors.append(
                     f"criterion {criterion.id}: unknown kind {criterion.kind!r}"
                 )
+        cycle = _policy_cycle(self.policies)
+        if cycle:
+            errors.append("policy chain is circular: " + " -> ".join(cycle))
         for stage, policy in self.policies.items():
             if stage not in STAGES:
                 errors.append(f"policy stage {stage!r} is unknown")
@@ -389,6 +392,19 @@ class GateResult:
         }
 
 
+def _policy_cycle(policies: dict[str, StagePolicy]) -> list[str] | None:
+    for start in policies:
+        seen: list[str] = []
+        current = start
+        while current:
+            if current in seen:
+                return seen[seen.index(current) :] + [current]
+            seen.append(current)
+            policy = policies.get(current)
+            current = policy.after if policy else ""
+    return None
+
+
 def _assurance_gap(
     manifest: CapabilityManifest, policy: StagePolicy
 ) -> list[dict[str, Any]]:
@@ -428,7 +444,12 @@ def _chain_check(
         )
     from .trail import TrailError
     from .trail import read as read_trail
+    from .trail import verify as verify_trail
 
+    check = verify_trail(trail_path)
+    if not check.ok:
+        detail = check.errors[0] if check.errors else "unknown error"
+        return f"the trail does not verify: {detail}", {}
     try:
         entries = read_trail(trail_path)
     except TrailError as exc:

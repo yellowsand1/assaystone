@@ -1095,6 +1095,31 @@ class StageChainTest(unittest.TestCase):
         self.assertEqual(production.outcome, "escalate")
         self.assertIn("rules changed", production.reasons[0])
 
+    def test_tampered_trail_cannot_unlock_production(self):
+        manifest = self.manifest()
+        canary = evaluate_gate(manifest, "canary", self.root)
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        entry = json.loads(self.trail.read_text(encoding="utf-8"))
+        entry["actor"] = "someone-else"
+        self.trail.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        production = evaluate_gate(
+            manifest, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "escalate")
+        self.assertIn("does not verify", production.reasons[0])
+
+    def test_circular_policies_are_rejected(self):
+        data = manifest_data(
+            [{"id": "ok", "type": "command", "payload": {"command": ["true"]}}],
+            {
+                "canary": {"require": ["ok"], "after": "production"},
+                "production": {"require": ["ok"], "after": "canary"},
+            },
+        )
+        with self.assertRaises(PlaneError) as caught:
+            CapabilityManifest.from_dict(data)
+        self.assertIn("circular", str(caught.exception))
+
     def test_another_capability_does_not_count(self):
         other = self.manifest(capability="other")
         canary = evaluate_gate(other, "canary", self.root)

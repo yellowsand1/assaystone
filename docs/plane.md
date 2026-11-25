@@ -316,8 +316,11 @@ A stage declares what evidence it needs:
 * `after` chains a stage to a recorded pass of an earlier one. `production`
   with `"after": "canary"` will not run unless the trail holds a passing
   `canary` gate for the same capability and the same manifest digest. No trail,
-  no entry, a later failure, or a changed manifest escalates. The decision chain
-  is evidence, not an assumption that someone ran the previous stage.
+  no entry, a later failure, or a changed manifest escalates. The chain check
+  verifies the trail first: an edited trail cannot unlock the next stage.
+  Circular `after` policies are rejected when the manifest is validated. The
+  decision chain is evidence, not an assumption that someone ran the previous
+  stage.
 
 ### Assurance gap and `--strict`
 
