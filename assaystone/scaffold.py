@@ -263,17 +263,78 @@ def build_manifest(
     return data, detection
 
 
+def _ci_workflow(manifest_rel: str, trail_rel: str, version: str) -> str:
+    return f"""name: assaystone
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # If the manifest's oracles need a toolchain (Maven, JDK, Node), install
+      # it before the gate.
+      - name: Install Assaystone
+        run: python -m pip install "assaystone=={version}"
+      - name: Gate the capability
+        run: |
+          assaystone gate \\
+            --manifest {manifest_rel} \\
+            --stage shadow --root . \\
+            --audit {trail_rel} --actor ci
+          assaystone trail verify {trail_rel}
+      - name: Upload the evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assaystone-evidence
+          path: {trail_rel}
+          if-no-files-found: ignore
+      # To sign the decision, add a repository secret ASSAYSTONE_RECEIPT_KEY,
+      # pass --receipt {trail_rel.rsplit("/", 1)[0]}/receipt.json to `gate`,
+      # verify it with `assaystone receipt verify ... --commit "$GITHUB_SHA"
+      # --outcome pass`, and upload the receipt with the trail.
+      # To require owner approval, set "manifest_approval": true, run
+      # `assaystone capability accept` with the owner key, and keep that key
+      # out of CI.
+"""
+
+
 def init_capability(
     root: str | Path,
     out: str | Path | None = None,
     owner: str | None = None,
     force: bool = False,
+    ci: bool = False,
+    hook: bool = False,
 ) -> tuple[Path, dict[str, Any], Detection]:
     root = Path(root).resolve()
     target = Path(out) if out else root / DEFAULT_OUT
     if target.exists() and not force:
         raise ScaffoldError(f"{target} exists; pass --force to overwrite")
+    manifest_rel = ""
+    workflow = None
+    if ci or hook:
+        try:
+            manifest_rel = target.resolve().relative_to(root).as_posix()
+        except ValueError as exc:
+            raise ScaffoldError(
+                "--ci and --hook need the manifest inside --root"
+            ) from exc
+    if ci:
+        workflow = root / ".github" / "workflows" / "assaystone.yml"
+        if workflow.exists() and not force:
+            raise ScaffoldError(
+                f"{workflow} exists; pass --force to overwrite"
+            )
     data, detection = build_manifest(root, owner=owner or "unassigned")
+    from . import __version__
     from .plane import CapabilityManifest, PlaneError
 
     try:
@@ -282,6 +343,31 @@ def init_capability(
         raise ScaffoldError(f"generated manifest is invalid: {exc}") from exc
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    if ci and workflow is not None:
+        trail_rel = (target.parent / "trail.jsonl").resolve().relative_to(
+            root
+        ).as_posix()
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        workflow.write_text(
+            _ci_workflow(manifest_rel, trail_rel, __version__),
+            encoding="utf-8",
+        )
+    if hook:
+        hook_path = root / ".assaystone" / "hook.json"
+        config: dict[str, Any] = {}
+        if hook_path.exists():
+            try:
+                existing = json.loads(hook_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                existing = {}
+            if isinstance(existing, dict):
+                config = existing
+        config["capability"] = manifest_rel
+        config["stage"] = "shadow"
+        hook_path.parent.mkdir(parents=True, exist_ok=True)
+        hook_path.write_text(
+            json.dumps(config, indent=2) + "\n", encoding="utf-8"
+        )
     return target, data, detection
 
 

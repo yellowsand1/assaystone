@@ -553,7 +553,12 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     try:
         path, data, detection = init_capability(
-            root, out=args.out, owner=args.owner, force=args.force
+            root,
+            out=args.out,
+            owner=args.owner,
+            force=args.force,
+            ci=args.ci,
+            hook=args.hook,
         )
     except ScaffoldError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -568,6 +573,14 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
                     "notes": detection.notes,
                     "manifest": data,
                     "next": steps,
+                    "workflow": str(
+                        root / ".github" / "workflows" / "assaystone.yml"
+                    )
+                    if args.ci
+                    else "",
+                    "hook": str(root / ".assaystone" / "hook.json")
+                    if args.hook
+                    else "",
                 },
                 indent=2,
             )
@@ -578,6 +591,22 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
     print(f"oracles: {', '.join(item['id'] for item in data['oracles'])}")
     for note in detection.notes:
         print(f"note: {note}")
+    if args.ci:
+        print(
+            "wrote "
+            + display_path(
+                root / ".github" / "workflows" / "assaystone.yml", root
+            )
+        )
+    if args.hook:
+        print(
+            "wrote "
+            + display_path(root / ".assaystone" / "hook.json", root)
+        )
+        print(
+            "install the hook: assaystone hook install claude-code "
+            f'--manifest {display_path(path, root)} --mode block'
+        )
     print("next:")
     for step in steps:
         print(f"  - {step}")
@@ -1517,6 +1546,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_init.add_argument("--owner", default=None)
     capability_init.add_argument("--force", action="store_true")
+    capability_init.add_argument(
+        "--ci", action="store_true", help="write a GitHub Actions gate workflow"
+    )
+    capability_init.add_argument(
+        "--hook",
+        action="store_true",
+        help="write .assaystone/hook.json for the Claude Code Stop gate",
+    )
     capability_init.add_argument("--json", action="store_true")
     capability_init.set_defaults(func=cmd_capability)
 
