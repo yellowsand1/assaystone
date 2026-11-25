@@ -145,7 +145,11 @@ Read-only by construction, not by convention:
   no write keyword outside string literals;
 * SQLite is opened with `mode=ro` and `PRAGMA query_only = ON`;
 * MySQL uses `SET SESSION TRANSACTION READ ONLY`, and needs `pymysql` — absent,
-  the oracle escalates instead of skipping;
+  the oracle escalates instead of skipping. The session flag is queryable
+  (`select @@session.transaction_read_only`), so the read-only claim is
+  evidence, not configuration. Validated on MySQL 8.0.31 against a live local
+  server; MySQL returns `DECIMAL` for arithmetic, and comparisons handle it
+  numerically with `tolerance`;
 * results are capped at 1000 rows; a larger result escalates;
 * the database path must stay inside the gate root.
 
@@ -395,4 +399,10 @@ route `escalate` to a required reviewer instead of retrying.
 * A trail is a local file: concurrency is the caller's responsibility (single
   writer, append-only).
 * `mysql` needs `pymysql`; without it the oracle escalates. There is no bundled
-  driver and no auto-install.
+  driver and no auto-install. The optional tests run only when
+  `ASSAYSTONE_TEST_MYSQL_DSN` is set:
+
+  ```bash
+  ASSAYSTONE_TEST_MYSQL_DSN='mysql://user:pass@127.0.0.1:3306/db' \
+    python3 -m unittest discover -s tests -t . -p 'test_mysql_optional.py'
+  ```

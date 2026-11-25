@@ -46,6 +46,12 @@
 - **Assurance gap at the gate.** Every gate reports declared criteria the stage
   does not gate. `--strict` escalates when a critical criterion is ungated; a
   failure still outranks the gap.
+- **MySQL validated on a live server.** The `sql` adapter ran against MySQL
+  8.0.31: the session reports `transaction_read_only = 1`, scalar, row, and CTE
+  expectations pass, and a write is rejected before a connection opens. MySQL
+  returns `DECIMAL` for arithmetic; scalar and row comparisons now treat it as
+  numeric with `tolerance` instead of comparing its string form. Optional tests
+  run when `ASSAYSTONE_TEST_MYSQL_DSN` is set and skip otherwise.
 - **A changed manifest is visible.** Every gate result and trail entry carries
   a `manifest_digest`: the acceptance rules with registry payloads, excluding
   the registry path. On a trail with a previous entry, a changed digest

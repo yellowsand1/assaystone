@@ -13,6 +13,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from decimal import Decimal
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
@@ -376,6 +377,14 @@ class SqlOracleTest(unittest.TestCase):
             self.root,
         )
         self.assertEqual(result.outcome, "escalate")
+
+    def test_decimal_results_compare_numerically(self):
+        from assaystone.oracles import _same_scalar
+
+        self.assertTrue(
+            _same_scalar(Decimal("0.3"), 0.30000000000000004, 1e-9)
+        )
+        self.assertFalse(_same_scalar(Decimal("0.3"), 0.4, 1e-9))
 
     def test_no_expectation_reports_row_count(self):
         result = self.query("select * from orders")

@@ -25,6 +25,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -617,7 +618,8 @@ def _query_rows(
 def _same_scalar(left: Any, right: Any, tolerance: float) -> bool:
     if isinstance(left, bool) or isinstance(right, bool):
         return left is right
-    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+    numeric = (int, float, Decimal)
+    if isinstance(left, numeric) and isinstance(right, numeric):
         return abs(float(left) - float(right)) <= tolerance
     return str(left) == str(right)
 
