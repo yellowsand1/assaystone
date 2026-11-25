@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Acceptance plane: the agent's session becomes gate evidence
+
+- **`transcript` oracle.** The eighth primitive audits what the agent actually
+  did: it runs the session audit over a transcript, trace, or directory and
+  fails when a finding meets `fail_on`. Findings inherit the kernel's
+  provenance rules, so a failure that rests on agent-written testimony arrives
+  as an escalation. `git_preimage` and `workspace` cover pre- and post-session
+  working trees; `run_tests` is opt-in. Transcripts must stay inside the gate
+  root.
+- **Manifest digest and signed approvals.** A gate records the digest of its
+  acceptance rules; a changed manifest escalates against an existing trail until
+  `--accept-manifest-change`. A `human` oracle with `hmac_env` verifies an
+  HMAC-SHA256 signature over the approval list.
+
 ### Acceptance plane: two more primitive families, a registry, and a trail
 
 - **`http`, `sql`, and `shadow` oracles.** The plane now has seven generic

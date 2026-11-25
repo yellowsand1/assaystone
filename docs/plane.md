@@ -4,7 +4,7 @@ A verifier answers "is this artifact acceptable?" for one artifact at one
 moment. A deployment needs more: *who* asked, at *which lifecycle stage*, with
 *which* evidence, *what* was not checked, and *where* the decision was recorded.
 
-The acceptance plane is that layer. Its core is domain-blind: seven generic
+The acceptance plane is that layer. Its core is domain-blind: eight generic
 oracle primitives, a manifest that binds declared criteria to them, lifecycle
 policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
@@ -100,6 +100,7 @@ ran can return `pass` or `fail`.
 | `http` | an endpoint answers as declared | `url`, `method`, `expect_status`, `json_path`, matcher |
 | `sql` | a read-only query returns the expected rows | `driver`, `database`/`dsn_env`, `query`, `expect` |
 | `shadow` | old and new implementations agree on the same input | `old`, `new`, `compare` |
+| `transcript` | the agent's recorded session passes the audit | `transcript`, `baseline`, `fail_on` |
 
 ### `http`
 
@@ -152,6 +153,39 @@ Expectations: `scalar` with `equals`, `rows` with `equals` or a `baseline` JSON
 file, or `empty`. `tolerance` applies to numeric comparisons; `ignore` lists
 columns that are known to differ. No expectation means "the query ran", and the
 evidence says so.
+
+### `transcript`
+
+The other seven primitives look at the repository. This one looks at what the
+agent did:
+
+```json
+{
+  "type": "transcript",
+  "payload": {
+    "transcript": ".assaystone/traces/session.jsonl",
+    "baseline": ".assaystone/preimage",
+    "fail_on": "high"
+  }
+}
+```
+
+It runs the session audit over a transcript, a trace JSON, or a directory, and
+fails when a finding meets `fail_on` (`any`, `high` default, `medium`, `low`, or
+`none` to report without failing). Findings inherit the kernel's provenance
+rules: a check that trusts agent-written testimony arrives as `escalate`, not as
+a decision. A clean session passes and its findings are attached as evidence.
+
+* The transcript and baseline must stay inside the gate root. Copy the session
+  file into the repository before gating; do not point the gate at an
+  arbitrary home directory.
+* `baseline` is the pre-session tree. Use `git_preimage: true` when the changes
+  are uncommitted, or `workspace: true` when the working tree is post-session
+  and the edits were already applied.
+* `run_tests` is off by default; a transcript oracle should not execute the
+  repository's test command unless the manifest says so.
+* This is the bridge to the audit layer, not a replacement for it: the audit
+  rule set is code- and ops-centric, and an unsupported language escalates.
 
 ### `shadow`
 
@@ -320,7 +354,7 @@ Neither mechanism makes a compromised host safe. They make the decision
 ## Adapting a new domain
 
 1. Write the manifest: systems, irreversible actions, criteria, severity.
-2. Bind each criterion to one of the seven primitives. If none fits, that is a
+2. Bind each criterion to one of the eight primitives. If none fits, that is a
    finding about the domain, not a reason to add a code path.
 3. Put shared definitions in a registry and pin their versions.
 4. Declare what each lifecycle stage requires, and which approvals it accepts.

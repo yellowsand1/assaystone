@@ -28,7 +28,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-ORACLE_TYPES = ("command", "file", "git", "human", "http", "sql", "shadow")
+ORACLE_TYPES = (
+    "command",
+    "file",
+    "git",
+    "human",
+    "http",
+    "sql",
+    "shadow",
+    "transcript",
+)
 READ_ONLY_HTTP = ("GET", "HEAD", "OPTIONS")
 SQL_TIMEOUT_SECONDS = 15
 SQL_MAX_ROWS = 1000
@@ -867,6 +876,106 @@ def _shadow(spec: OracleSpec, root: Path) -> OracleResult:
 
 
 # ---------------------------------------------------------------------------
+# transcript: audit what the agent actually did
+# ---------------------------------------------------------------------------
+
+
+def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
+    """Run the session audit over an agent transcript.
+
+    This is the bridge from the runtime layer to the gate: the acceptance
+    decision can depend on the agent's recorded trajectory, not only on the
+    files it left behind. Findings inherit the kernel's provenance rules, so a
+    failure that rests on agent-written testimony arrives as an escalation,
+    not as a decision.
+    """
+    from .audit import (
+        AuditError,
+        audit_traces,
+        build_audit_contract,
+        load_audit_traces,
+    )
+    from .model import ESCALATE
+
+    payload = spec.payload
+    source = payload.get("transcript")
+    if not source:
+        return _result(spec, "escalate", ["transcript payload has no source"])
+    target = _inside(root, str(source))
+    if target is None:
+        return _result(spec, "escalate", ["transcript escapes the root"])
+    if not target.exists():
+        return _result(spec, "escalate", [f"transcript not found: {source}"])
+    baseline = _inside(root, str(payload.get("baseline") or "."))
+    if baseline is None:
+        return _result(spec, "escalate", ["baseline escapes the root"])
+    try:
+        traces = load_audit_traces(
+            target,
+            baseline=baseline,
+            git_repo=root if payload.get("git_preimage") else None,
+            workspace=bool(payload.get("workspace", False)),
+        )
+    except AuditError as exc:
+        return _result(spec, "escalate", [str(exc)])
+    if not traces:
+        return _result(spec, "escalate", ["no traces found in the transcript"])
+    try:
+        contract = build_audit_contract(
+            baseline, run_tests=bool(payload.get("run_tests", False))
+        )
+        report = audit_traces(contract, traces, baseline)
+    except Exception as exc:  # noqa: BLE001 - the audit is untrusted input
+        return _result(spec, "escalate", [f"audit failed: {exc}"])
+    counts = report.severity_counts()
+    findings = report.findings
+    evidence = [
+        f"traces={len(traces)}",
+        f"findings={len(findings)}",
+        "severities="
+        + ",".join(f"{name}:{counts[name]}" for name in counts if counts[name]),
+    ]
+    for finding in findings[:8]:
+        evidence.append(f"{finding.verifier}({finding.severity})")
+    output = canonical_json(
+        {
+            "findings": [
+                {
+                    "verifier": item.verifier,
+                    "severity": item.severity,
+                    "outcome": item.outcome,
+                    "reasons": item.reasons,
+                }
+                for item in findings
+            ]
+        }
+    )
+    rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
+    fail_on = str(payload.get("fail_on") or "high").lower()
+    threshold = 0 if fail_on == "any" else rank.get(fail_on, 3)
+    if fail_on == "none":
+        threshold = len(rank) + 1
+    failing = [
+        item for item in findings if rank.get(item.severity, 2) >= threshold
+    ]
+    if failing:
+        reasons = [
+            f"{item.verifier} ({item.severity}): "
+            f"{item.reasons[0] if item.reasons else 'no reason'}"
+            for item in failing[:3]
+        ]
+        return _result(spec, "fail", reasons, evidence, output)
+    unresolved = [item for item in findings if item.outcome == ESCALATE]
+    if unresolved:
+        reasons = [
+            f"{item.verifier}: {item.reasons[0] if item.reasons else 'unresolved'}"
+            for item in unresolved[:3]
+        ]
+        return _result(spec, "escalate", reasons, evidence, output)
+    return _result(spec, "pass", [], evidence, output)
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -986,6 +1095,8 @@ def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
         outcome = _sql(spec, root)
     elif spec.type == "shadow":
         outcome = _shadow(spec, root)
+    elif spec.type == "transcript":
+        outcome = _transcript(spec, root)
     else:
         return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
     return outcome

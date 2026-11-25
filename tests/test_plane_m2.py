@@ -784,6 +784,65 @@ class RollbackTest(unittest.TestCase):
         )
 
 
+class TranscriptOracleTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name) / "project"
+        shutil.copytree(REPO / "examples" / "audit", self.root)
+
+    def run_audit(self, **extra):
+        payload = {"transcript": "transcript.jsonl", "baseline": "baseline"}
+        payload.update(extra)
+        return run_oracle(spec("transcript", payload), self.root)
+
+    def test_transcript_findings_fail_the_oracle(self):
+        result = self.run_audit()
+        self.assertEqual(result.outcome, "fail", result.evidence)
+        self.assertIn("tests.integrity", " ".join(result.reasons))
+
+    def test_fail_on_none_only_reports(self):
+        result = self.run_audit(fail_on="none")
+        self.assertEqual(result.outcome, "pass", result.reasons)
+        self.assertTrue(any("tests.integrity" in item for item in result.evidence))
+
+    def test_missing_transcript_escalates(self):
+        result = self.run_audit(transcript="absent.jsonl")
+        self.assertEqual(result.outcome, "escalate")
+
+    def test_transcript_cannot_escape_the_root(self):
+        result = self.run_audit(transcript="../transcript.jsonl")
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("escapes", result.reasons[0])
+
+    def test_gate_binds_the_transcript_oracle(self):
+        oracle = {
+            "id": "session",
+            "type": "transcript",
+            "payload": {
+                "transcript": "transcript.jsonl",
+                "baseline": "baseline",
+            },
+        }
+        manifest = CapabilityManifest.from_dict(
+            manifest_data(
+                [oracle],
+                {"shadow": {"require": ["session"]}},
+                criteria=[
+                    {
+                        "id": "no-silent-test-deletion",
+                        "kind": "forbidden_action",
+                        "statement": "The agent did not modify a test file.",
+                        "oracle": "session",
+                        "severity": "critical",
+                    }
+                ],
+            )
+        )
+        result = evaluate_gate(manifest, "shadow", self.root)
+        self.assertEqual(result.outcome, "fail")
+
+
 class ApprovalSignatureTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

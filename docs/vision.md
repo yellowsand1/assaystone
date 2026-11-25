@@ -69,6 +69,17 @@ The same contract runs at the point of action. Irreversible calls require an
 approval lineage, not a boolean in evidence; the runtime records the request
 itself, so the trace can be walked. Shadow mode and escalation are first-class.
 
+### 5. Acceptance plane
+
+The four layers decide one artifact. A deployment asks more: which capability,
+at which lifecycle stage, with which approvals, recorded where, and what happens
+after a pass. The acceptance plane is that layer: capability manifests, eight
+generic oracles (including a `transcript` oracle that audits the agent's actual
+session), a versioned oracle registry, lifecycle gates that report their
+assurance gap, checked rollback evidence, and a hash-chained trail. The
+criterion language is unchanged; the plane is where it meets an owner, a stage,
+and an audit. Reference: [plane.md](plane.md).
+
 ## Domain packs
 
 The core is domain-neutral. A domain pack supplies what changes:
@@ -83,6 +94,10 @@ The core is domain-neutral. A domain pack supplies what changes:
 Code, ops, data, and research ship today. The acceptance IR has the kinds each
 domain needs: `invariant` for arithmetic and ledgers, `evidence` for citations
 and quotes, `forbidden_action` for leaks and unauthorised actions.
+
+The plane applies the same boundary at deployment level: Java, refunds, and
+pricing are manifests, not code paths. Adapting a domain that requires changing
+the core is treated as a design failure, not a feature request.
 
 ## What makes this different
 
@@ -114,3 +129,6 @@ and quotes, `forbidden_action` for leaks and unauthorised actions.
    next proof is external: real stacks and real cases on the scoreboard.
 4. **Statistical honesty.** More controls and confidence intervals; the current
    corpus is a floor, not a population estimate.
+5. **Deployment proof.** The plane runs on a real capability, at a real stage,
+   with a real approval and a trail someone else can verify. The local validation
+   is a start; external use is the test.

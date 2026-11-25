@@ -293,7 +293,8 @@ a contract can cover every declared class and still have no redundancy.
 ## Acceptance plane
 
 A capability manifest binds criteria to generic oracles — `command`, `file`,
-`git`, `human`, `http`, `sql`, `shadow` — and a lifecycle policy:
+`git`, `human`, `http`, `sql`, `shadow`, `transcript` — and a lifecycle
+policy:
 
 ```bash
 assaystone capability init --root . --owner platform-team   # draft a manifest
@@ -669,7 +670,7 @@ assaystone/coverage.py # declared defects vs. decided coverage vs. residual risk
 assaystone/goodhart.py # adversarial suite: resistance and declared escapes
 assaystone/reportcard.py # conformance + coverage + recall + resistance on one page
 assaystone/plane.py    # capability manifests, lifecycle gates, assurance gap
-assaystone/oracles.py  # seven generic primitives + versioned registry
+assaystone/oracles.py  # eight generic primitives + versioned registry
 assaystone/trail.py    # hash-chained gate audit trail
 assaystone/corpus.py   # add a labelled trace or transcript to a family
 assaystone/leaderboard.py # compare several contracts on one page

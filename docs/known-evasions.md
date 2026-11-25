@@ -106,3 +106,13 @@ and add cases from outside the design team before quoting it as a rate.
 
 `assaystone corpus add` exists so that a real trace becomes a fixture in one
 command. The corpus is expected to grow past this page.
+
+## The plane has its own blind spots
+
+The acceptance plane is not exempt. Two attacks are specific to it: an agent can
+edit the manifest that decides its own gate, and it can write an approval record
+that the `human` oracle reads. The first is made visible by a recorded manifest
+digest; the second needs a signed record (`hmac_env`). A local trail proves
+integrity, not authenticity, and truncating its tail leaves a valid chain unless
+the head is anchored externally. These limits are stated in
+[plane.md#self-weakening-and-forged-approvals](plane.md#self-weakening-and-forged-approvals).
