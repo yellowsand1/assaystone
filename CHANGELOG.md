@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.18.0 — 2026-11-25
+
 - **Key revocation.** `capability.revocations.json` lists key ids that must no
   longer be trusted, with a reason. The gate checks owner approvals, waivers, and
   receipts against it and escalates when one was signed by a revoked key, naming
