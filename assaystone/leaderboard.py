@@ -120,6 +120,10 @@ class Leaderboard:
             "- **Cost / run** is the average verification cost per trace when "
             "recall is measured, otherwise the sum of declared check costs."
         )
+        add(
+            "- Rates are point estimates on small samples. Each report card "
+            "reports the 95% Wilson interval and n."
+        )
         add("")
         return "\n".join(lines)
 

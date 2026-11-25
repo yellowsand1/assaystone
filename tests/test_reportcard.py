@@ -77,6 +77,8 @@ class ReportCardTest(unittest.TestCase):
         ):
             self.assertIn(heading, text)
         self.assertIn("**PASS**", text)
+        self.assertIn("Catch rate:", text)
+        self.assertIn("95% CI", text)
         self.assertNotIn(str(Path.cwd()), text)
 
     def test_json_shape(self):

@@ -49,6 +49,9 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Confidence intervals.** Goodhart resistance, catch rate, and false-alarm
+  rate now report a 95% Wilson interval and the sample size. A 17-case corpus
+  no longer reads as a precise population estimate.
 - **Research pack.** The fourth domain ships: `research.citations`,
   `research.sources_exist`, and `research.quotes_verbatim`, with criteria for
   cited claims, existing sources, and verbatim quotes. The Goodhart `research`

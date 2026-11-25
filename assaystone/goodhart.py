@@ -30,6 +30,7 @@ from .failure_zoo import (
     run_benchmark,
 )
 from .model import FAIL
+from .stats import wilson_interval
 from .verifiers import REGISTRY
 
 GOODHART_CORPUS = (
@@ -189,7 +190,20 @@ class GoodhartReport:
             "escaped": self.escaped,
             "false_alarms": self.false_alarms,
             "resistance": round(self.resistance, 6),
+            "resistance_ci95": [
+                round(value, 6)
+                for value in wilson_interval(
+                    len(self.defective_cases) - self.escaped,
+                    len(self.defective_cases),
+                )
+            ],
             "escape_rate": round(self.escape_rate, 6),
+            "escape_rate_ci95": [
+                round(value, 6)
+                for value in wilson_interval(
+                    self.escaped, len(self.defective_cases)
+                )
+            ],
             "declared_escapes": len(self.declared_escapes),
             "surprise_escapes": len(self.surprise_escapes),
             "declared_escape_rate": round(self.declared_escape_rate, 6),
@@ -232,8 +246,11 @@ class GoodhartReport:
             f"{_plural(summary['defective'], 'defective case', 'defective cases')} and "
             f"{_plural(summary['controls'], 'control case', 'control cases')}. "
             f"**Resistance: {self.resistance:.0%}** "
-            f"({summary['caught']} caught, {summary['escalated']} escalated, "
-            f"{summary['escaped']} escaped). False alarms on controls: "
+            f"(95% CI {summary['resistance_ci95'][0]:.0%}–"
+            f"{summary['resistance_ci95'][1]:.0%}, "
+            f"n={len(self.defective_cases)}). "
+            f"{summary['caught']} caught, {summary['escalated']} escalated, "
+            f"{summary['escaped']} escaped. False alarms on controls: "
             f"**{summary['false_alarms']}**."
         )
         add("")

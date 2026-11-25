@@ -176,6 +176,20 @@ class ReportCard:
                 f"${self.recall.avg_cost:.6f} |"
             )
             add("")
+            low, high = self.recall.catch_rate_ci95
+            add(
+                f"Catch rate: **{self.recall.catch_rate:.0%}** "
+                f"(95% CI {low:.0%}–{high:.0%}, "
+                f"n={len(self.recall.defects)})."
+            )
+            if self.recall.cleans:
+                low, high = self.recall.false_alarm_ci95
+                add(
+                    f"False-alarm rate: **{self.recall.false_alarm_rate:.0%}** "
+                    f"(95% CI {low:.0%}–{high:.0%}, "
+                    f"n={len(self.recall.cleans)})."
+                )
+            add("")
 
         add("## Resistance (Goodhart suite)")
         add("")

@@ -4,7 +4,7 @@
 
 Corpus: `goodhart` (version `1`).
 
-13 defective cases and 4 control cases. **Resistance: 85%** (11 caught, 0 escalated, 2 escaped). False alarms on controls: **0**.
+13 defective cases and 4 control cases. **Resistance: 85%** (95% CI 58%–96%, n=13). 11 caught, 0 escalated, 2 escaped. False alarms on controls: **0**.
 
 Of 2 escapes, **2** were already declared as a blind spot and **0** were surprises. Declared escape rate: **100%**.
 

@@ -17,3 +17,4 @@
 - **Resistance** is scoped to the contract's domain. Mechanical and lineage attacks should be 100%; semantic attacks are expected to escape.
 - **Recall** is measured only on the labelled traces supplied to the entry. An entry without traces has no recall column.
 - **Cost / run** is the average verification cost per trace when recall is measured, otherwise the sum of declared check costs.
+- Rates are point estimates on small samples. Each report card reports the 95% Wilson interval and n.

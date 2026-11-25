@@ -100,6 +100,8 @@ class GoodhartSuiteTest(unittest.TestCase):
         text = self.report.to_markdown()
         self.assertIn("# Goodhart suite", text)
         self.assertIn("Resistance: 85%", text)
+        self.assertIn("95% CI", text)
+        self.assertIn("n=13", text)
         self.assertIn("## Resistance by family", text)
         self.assertIn("Declared escape rate", text)
         for case in self.report.cases:

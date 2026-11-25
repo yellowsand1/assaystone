@@ -36,6 +36,9 @@ Assurance gap: **0** of 9 criteria have no independent check.
 |---|---|---|---|---|---|---|---|
 | 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.001159 |
 
+Catch rate: **100%** (95% CI 51%–100%, n=4).
+False-alarm rate: **0%** (95% CI 0%–66%, n=2).
+
 ## Resistance (Goodhart suite)
 
 | family | defective | caught | escalated | escaped | resistance |
