@@ -1,7 +1,7 @@
 """The acceptance plane: capability manifests, generic oracles, and gates.
 
-The core knows only eight oracle primitives: ``command``, ``file``, ``git``,
-``human``, ``http``, ``sql``, ``shadow``, and ``transcript``. A domain — Java/Maven, a refund
+The core knows only nine oracle primitives: ``command``, ``file``, ``git``,
+``human``, ``http``, ``sql``, ``shadow``, ``transcript``, and ``verifier``. A domain — Java/Maven, a refund
 workflow, a pricing pipeline — is a manifest that binds criteria to those
 primitives. Nothing here knows what ``mvn`` is; it is a command payload.
 

@@ -13,6 +13,7 @@ from assaystone import cli
 from assaystone.plane import CapabilityManifest
 from assaystone.scaffold import (
     ScaffoldError,
+    _slug,
     build_manifest,
     detect,
     init_capability,
@@ -157,7 +158,7 @@ class ScaffoldTest(unittest.TestCase):
             init_capability(self.root)
         _, _, _ = init_capability(self.root, force=True)
         loaded = CapabilityManifest.load(target)
-        self.assertEqual(loaded.capability, Path(self.root).name.replace("_", "-"))
+        self.assertEqual(loaded.capability, _slug(Path(self.root).name))
 
     def test_cli_init_json(self):
         self.touch("pom.xml")

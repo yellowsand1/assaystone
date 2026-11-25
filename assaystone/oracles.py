@@ -19,8 +19,10 @@ import math
 import os
 import re
 import shlex
+import shutil
 import sqlite3
 import subprocess
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -38,6 +40,7 @@ ORACLE_TYPES = (
     "sql",
     "shadow",
     "transcript",
+    "verifier",
 )
 READ_ONLY_HTTP = ("GET", "HEAD", "OPTIONS")
 SQL_TIMEOUT_SECONDS = 15
@@ -470,9 +473,49 @@ def _http(spec: OracleSpec, root: Path) -> OracleResult:
                 spec, "fail", [f"json path {json_path!r} is absent"], evidence, text
             )
         evidence.append(f"{json_path}={_tail(str(value), 120)}")
-        matchers = [key for key in ("equals", "contains", "regex") if key in payload]
+        numeric = ("lte", "gte", "lt", "gt")
+        matchers = [
+            key
+            for key in ("equals", "contains", "regex", *numeric)
+            if key in payload
+        ]
         for key in matchers:
             expected_value = payload[key]
+            if key in numeric:
+                if isinstance(value, bool):
+                    return _result(
+                        spec,
+                        "fail",
+                        [f"{json_path} is not numeric for {key}"],
+                        evidence,
+                        text,
+                    )
+                try:
+                    actual = float(value)
+                    bound = float(expected_value)
+                except (TypeError, ValueError):
+                    return _result(
+                        spec,
+                        "fail",
+                        [f"{json_path} is not numeric for {key}"],
+                        evidence,
+                        text,
+                    )
+                bound_ok = {
+                    "lte": actual <= bound,
+                    "gte": actual >= bound,
+                    "lt": actual < bound,
+                    "gt": actual > bound,
+                }[key]
+                if not bound_ok:
+                    return _result(
+                        spec,
+                        "fail",
+                        [f"{json_path} = {actual} not {key} {bound}"],
+                        evidence,
+                        text,
+                    )
+                continue
             if key == "equals" and value != expected_value:
                 return _result(
                     spec,
@@ -999,6 +1042,155 @@ def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
 
 
 # ---------------------------------------------------------------------------
+# verifier: run one check from the verifier ABI over the working tree
+# ---------------------------------------------------------------------------
+
+
+def _verifier(spec: OracleSpec, root: Path) -> OracleResult:
+    """Bind a declared verifier as an oracle, without inventing a new check.
+
+    The working tree is compared with HEAD in a temporary worktree. The
+    verifier keeps its own claim, blind spots, cost, and independence, so the
+    gate result says which check ran and what it admits it cannot see.
+    """
+    from .adapters.messages import artifacts_from_git
+    from .contract import Contract, VerifierSpec
+    from .model import Trace
+    from .runner import run_contract
+    from .verifiers import REGISTRY
+
+    payload = spec.payload
+    name = str(payload.get("name") or "")
+    if name not in REGISTRY:
+        return _result(spec, "escalate", [f"unknown verifier: {name!r}"])
+    verifier = REGISTRY[name]
+    if {"trace", "evidence"} & set(verifier.trusts):
+        return _result(
+            spec,
+            "escalate",
+            [
+                f"{name} trusts trace/evidence; bind the transcript oracle "
+                "instead of running it without a session"
+            ],
+        )
+    if name == "tests.pass" and not payload.get("run_tests"):
+        return _result(
+            spec,
+            "escalate",
+            ["tests.pass executes the test command; set run_tests to opt in"],
+        )
+    try:
+        top = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return _result(spec, "escalate", ["git is not available"])
+    if top.returncode != 0:
+        return _result(
+            spec, "escalate", ["verifier oracle needs a git repository"]
+        )
+    repo = Path(top.stdout.strip()).resolve()
+    artifacts = artifacts_from_git(repo, "HEAD")
+    temporary = Path(tempfile.mkdtemp(prefix="assaystone-oracle-"))
+    tree = temporary / "head"
+    added = False
+    try:
+        add = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "add",
+                "--detach",
+                str(tree),
+                "HEAD",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if add.returncode != 0:
+            return _result(
+                spec,
+                "escalate",
+                [f"cannot materialise HEAD: {add.stderr.strip()[:200]}"],
+            )
+        added = True
+        params = payload.get("params") or {}
+        if not isinstance(params, dict):
+            return _result(spec, "escalate", ["params must be an object"])
+        options: dict[str, Any] = {}
+        if payload.get("test_command"):
+            options["test_command"] = [
+                str(part) for part in payload["test_command"]
+            ]
+        contract = Contract(
+            name=f"oracle:{name}",
+            verifiers=[VerifierSpec(name=name, params=params)],
+            fail_fast=False,
+            max_verification_cost_usd=1.0,
+            **options,
+        )
+        trace = Trace(
+            id=f"gate:{spec.id}",
+            task="acceptance gate",
+            artifacts=artifacts,
+            source="runtime",
+        )
+        result = run_contract(contract, trace, tree)
+    except Exception as exc:  # noqa: BLE001 - a gate must never crash
+        return _result(spec, "escalate", [f"verifier oracle failed: {exc}"])
+    finally:
+        if added:
+            subprocess.run(
+                ["git", "-C", str(repo), "worktree", "remove", "--force", str(tree)],
+                capture_output=True,
+                timeout=60,
+            )
+        shutil.rmtree(temporary, ignore_errors=True)
+
+    evidence = [
+        f"verifier={name}",
+        f"changed={len(artifacts)}",
+        f"independence={verifier.independence}",
+    ]
+    for verdict in result.verdicts:
+        evidence.append(f"{verdict.verifier}:{verdict.outcome}")
+    output = canonical_json(
+        {
+            "verdicts": [
+                {
+                    "verifier": verdict.verifier,
+                    "outcome": verdict.outcome,
+                    "independence": verdict.independence,
+                    "reasons": verdict.reasons,
+                }
+                for verdict in result.verdicts
+            ]
+        }
+    )
+    failed = [item for item in result.verdicts if item.outcome == "fail"]
+    if failed:
+        reasons = [
+            f"{item.verifier}: {item.reasons[0] if item.reasons else 'failed'}"
+            for item in failed[:3]
+        ]
+        return _result(spec, "fail", reasons, evidence, output)
+    escalated = [item for item in result.verdicts if item.outcome == "escalate"]
+    if escalated:
+        reasons = [
+            f"{item.verifier}: {item.reasons[0] if item.reasons else 'unresolved'}"
+            for item in escalated[:3]
+        ]
+        return _result(spec, "escalate", reasons, evidence, output)
+    return _result(spec, "pass", [], evidence, output)
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -1120,6 +1312,8 @@ def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
         outcome = _shadow(spec, root)
     elif spec.type == "transcript":
         outcome = _transcript(spec, root)
+    elif spec.type == "verifier":
+        outcome = _verifier(spec, root)
     else:
         return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
     return outcome

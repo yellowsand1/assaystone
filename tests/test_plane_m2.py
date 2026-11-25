@@ -9,6 +9,7 @@ import os
 import shutil
 import socket
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import threading
@@ -89,6 +90,11 @@ class HttpHandler(BaseHTTPRequestHandler):
             self.end_headers()
         elif self.path == "/boom":
             self._send(500, {"error": "boom"})
+        elif self.path == "/metrics":
+            self._send(
+                200,
+                {"error_rate": 0.004, "p95_ms": 180, "ok": True},
+            )
         else:
             self._send(404, {"error": "not found"})
 
@@ -243,6 +249,34 @@ class HttpOracleTest(unittest.TestCase):
             self.root,
         )
         self.assertEqual(result.outcome, "escalate")
+
+    def test_numeric_thresholds(self):
+        def check(**matcher):
+            return run_oracle(
+                spec("http", {"url": self.url("/metrics"), **matcher}),
+                self.root,
+            )
+
+        self.assertEqual(
+            check(json_path="error_rate", lte=0.01).outcome, "pass"
+        )
+        self.assertEqual(
+            check(json_path="error_rate", lte=0.001).outcome, "fail"
+        )
+        self.assertEqual(check(json_path="p95_ms", gte=100).outcome, "pass")
+        self.assertEqual(check(json_path="p95_ms", lt=200).outcome, "pass")
+        self.assertEqual(check(json_path="p95_ms", gt=500).outcome, "fail")
+
+    def test_numeric_threshold_rejects_non_numeric_values(self):
+        result = run_oracle(
+            spec(
+                "http",
+                {"url": self.url("/metrics"), "json_path": "ok", "lte": 1},
+            ),
+            self.root,
+        )
+        self.assertEqual(result.outcome, "fail")
+        self.assertIn("not numeric", result.reasons[0])
 
     def test_non_http_scheme_escalates(self):
         result = run_oracle(
@@ -870,6 +904,109 @@ class TranscriptOracleTest(unittest.TestCase):
         )
         result = evaluate_gate(manifest, "shadow", self.root)
         self.assertEqual(result.outcome, "fail")
+
+
+class VerifierOracleTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name) / "repo"
+        (self.root / "tests").mkdir(parents=True)
+        (self.root / "app.py").write_text("x = 1\n", encoding="utf-8")
+        (self.root / "tests" / "test_app.py").write_text(
+            "def test_one():\n    assert 1 == 1\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "add", "."], cwd=self.root, check=True
+        )
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.email=a@b.c",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-qm",
+                "init",
+            ],
+            cwd=self.root,
+            check=True,
+        )
+
+    def run_verifier(self, **payload):
+        return run_oracle(
+            spec("verifier", {"name": "tests.integrity", **payload}),
+            self.root,
+        )
+
+    def test_deleted_test_fails(self):
+        (self.root / "tests" / "test_app.py").unlink()
+        result = self.run_verifier()
+        self.assertEqual(result.outcome, "fail", result.reasons)
+        self.assertIn("tests.integrity", result.reasons[0])
+
+    def test_unrelated_change_passes(self):
+        (self.root / "app.py").write_text("x = 2\n", encoding="utf-8")
+        result = self.run_verifier()
+        self.assertEqual(result.outcome, "pass", result.reasons)
+        self.assertIn("changed=1", result.evidence)
+
+    def test_unknown_verifier_escalates(self):
+        result = run_oracle(
+            spec("verifier", {"name": "nope.missing"}), self.root
+        )
+        self.assertEqual(result.outcome, "escalate")
+
+    def test_testimony_trusting_verifier_escalates(self):
+        result = run_oracle(
+            spec("verifier", {"name": "evidence.claims"}), self.root
+        )
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("transcript", result.reasons[0])
+
+    def test_tests_pass_needs_an_explicit_opt_in(self):
+        result = run_oracle(
+            spec("verifier", {"name": "tests.pass"}), self.root
+        )
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("run_tests", result.reasons[0])
+
+    def test_non_git_root_escalates(self):
+        plain = Path(self._tmp.name) / "plain"
+        plain.mkdir()
+        result = run_oracle(
+            spec("verifier", {"name": "tests.integrity"}), plain
+        )
+        self.assertEqual(result.outcome, "escalate")
+
+    def test_gate_binds_the_verifier(self):
+        (self.root / "tests" / "test_app.py").unlink()
+        manifest = CapabilityManifest.from_dict(
+            manifest_data(
+                [
+                    {
+                        "id": "harness",
+                        "type": "verifier",
+                        "payload": {"name": "tests.integrity"},
+                    }
+                ],
+                {"shadow": {"require": ["harness"]}},
+                criteria=[
+                    {
+                        "id": "no-test-deletion",
+                        "kind": "forbidden_action",
+                        "statement": "The agent did not delete a test.",
+                        "oracle": "harness",
+                        "severity": "critical",
+                    }
+                ],
+            )
+        )
+        result = evaluate_gate(manifest, "shadow", self.root)
+        self.assertEqual(result.outcome, "fail")
+        self.assertFalse(result.merge_allowed)
 
 
 class ApprovalSignatureTest(unittest.TestCase):

@@ -4,7 +4,7 @@ A verifier answers "is this artifact acceptable?" for one artifact at one
 moment. A deployment needs more: *who* asked, at *which lifecycle stage*, with
 *which* evidence, *what* was not checked, and *where* the decision was recorded.
 
-The acceptance plane is that layer. Its core is domain-blind: eight generic
+The acceptance plane is that layer. Its core is domain-blind: nine generic
 oracle primitives, a manifest that binds declared criteria to them, lifecycle
 policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
@@ -101,6 +101,7 @@ ran can return `pass` or `fail`.
 | `sql` | a read-only query returns the expected rows | `driver`, `database`/`dsn_env`, `query`, `expect` |
 | `shadow` | old and new implementations agree on the same input | `old`, `new`, `compare` |
 | `transcript` | the agent's recorded session passes the audit | `transcript`, `baseline`, `fail_on` |
+| `verifier` | a declared verifier decides the working-tree diff | `name`, `params`, `test_command` |
 
 ### `http`
 
@@ -126,7 +127,17 @@ ran can return `pass` or `fail`.
   is either reachable or refused; a proxy error page must not read as a verdict.
 * `max_bytes` (default 256 KiB) caps the response; a larger response escalates
   because the declared check cannot be completed.
-* Matchers: `equals`, `contains`, `regex`, applied to the value at `json_path`.
+* Matchers: `equals`, `contains`, `regex`, and the numeric thresholds `lte`,
+  `gte`, `lt`, `gt`, applied to the value at `json_path`. A boolean is not a
+  number: a metric that arrives as `true` fails the threshold instead of
+  comparing as 1.
+* A canary policy can therefore require service metrics directly:
+
+  ```json
+  {"id": "error-rate", "type": "http", "payload": {
+     "url": "https://staging.example.com/metrics",
+     "json_path": "error_rate", "lte": 0.01}}
+  ```
 
 ### `sql`
 
@@ -219,6 +230,33 @@ the same result. `compare.mode` is `text` (whitespace-normalised, optional
 For an intentional behaviour change, assert the new expected output directly
 with a `file`, `sql`, or `command` oracle; shadow is for "nothing should have
 changed".
+
+### `verifier`
+
+A capability can bind a check from the verifier ABI instead of inventing a new
+payload. The gate compares the working tree with `HEAD` in a temporary
+worktree, runs the named check, and returns its verdict:
+
+```json
+{"type": "verifier", "payload": {"name": "tests.integrity", "params": {}}}
+```
+
+* Only checks that trust artifacts run this way. A check that trusts
+  `trace` or `evidence` escalates: without a session it would be guessing.
+  Bind the `transcript` oracle when the decision needs the agent's trajectory.
+* `tests.pass` executes the test command, so it needs `run_tests: true` and an
+  optional `test_command`. Every other check is passive.
+* The gate root must be inside a git repository; the repository top level is
+  the unit of comparison. Without git, the oracle escalates. The check runs in
+  a temporary copy of `HEAD` (heavy directories are excluded), so it costs
+  more than the file-based primitives; use it where the diff itself is the
+  risk.
+* The verifier's declared `claim`, `blind_spots`, and independence travel with
+  the result. This is the same check the Goodhart suite scores, now deciding a
+  deployment stage.
+
+`transcript` and `verifier` answer different questions: *what did the agent do*
+versus *what does the diff contain*. A manifest can require both.
 
 ## Oracle registry
 
@@ -362,7 +400,7 @@ Neither mechanism makes a compromised host safe. They make the decision
 ## Adapting a new domain
 
 1. Write the manifest: systems, irreversible actions, criteria, severity.
-2. Bind each criterion to one of the eight primitives. If none fits, that is a
+2. Bind each criterion to one of the nine primitives. If none fits, that is a
    finding about the domain, not a reason to add a code path.
 3. Put shared definitions in a registry and pin their versions.
 4. Declare what each lifecycle stage requires, and which approvals it accepts.

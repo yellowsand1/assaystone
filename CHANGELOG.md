@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Acceptance plane: bind verifier checks and service metrics
+
+- **`verifier` oracle.** A manifest can bind any check from the verifier ABI —
+  `tests.integrity`, `diff.forbidden_paths`, `quality.no_debug_prints` — against
+  the working-tree diff, using a temporary worktree of `HEAD`. Checks that trust
+  agent testimony escalate (bind `transcript` instead); `tests.pass` needs
+  `run_tests`. The verifier's claim, blind spots, and independence travel with
+  the gate result.
+- **Numeric HTTP thresholds.** `lte`, `gte`, `lt`, and `gt` compare a JSON path
+  against a bound, so a canary policy can require an error rate or a latency
+  directly. A boolean is rejected as a metric rather than compared as 1.
+
 ### Acceptance plane: the agent's session becomes gate evidence
 
 - **`transcript` oracle.** The eighth primitive audits what the agent actually
