@@ -26,6 +26,11 @@ def render_brief(
     lines.append(f"Current lifecycle: {manifest.lifecycle}")
     actions = ", ".join(manifest.irreversible_actions) or "none"
     lines.append(f"Irreversible actions: {actions}")
+    if manifest.manifest_approval:
+        lines.append(
+            "Owner approval: required (the owner signs the manifest digest; "
+            "the gate escalates without it)"
+        )
     lines.append("")
     if task.strip():
         lines.extend(["## Task", "", task.strip(), ""])

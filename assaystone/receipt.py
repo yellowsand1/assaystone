@@ -96,6 +96,7 @@ def create_receipt(
             _git(root, "status", "--porcelain", "--untracked-files=no")
         ),
         "manifest_digest": str(gate.manifest_digest or ""),
+        "manifest_approval": dict(gate.manifest_approval or {}),
         "trail_head": head,
         "trail_entries": entries,
         "actor": actor,

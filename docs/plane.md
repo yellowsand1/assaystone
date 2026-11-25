@@ -473,6 +473,37 @@ it ran the gate three times, reverted its own edit, and reported the conflict
 instead of claiming success. The brief is a view of the manifest, not a new
 source of truth.
 
+## Who approves the criteria
+
+A gate is only as trustworthy as the rules it checks. If the agent can edit the
+manifest, it can remove the criterion it fails. A capability can require the
+owner to sign its manifest digest:
+
+```json
+{"capability": "pricing-change", "manifest_approval": true, "...": "..."}
+```
+
+```bash
+export ASSAYSTONE_OWNER_KEY=...       # held by the owner, not CI and not the agent
+assaystone capability accept --manifest .assaystone/capability.json \
+  --approver pricing-owner
+# writes .assaystone/capability.approval.json
+```
+
+The gate verifies the capability, the digest, and the signature **before it runs
+any oracle**. A missing file, a missing key, a changed manifest, or a bad
+signature escalates. This is a governance decision, not a failed check.
+
+| key | held by | signs |
+|---|---|---|
+| `ASSAYSTONE_OWNER_KEY` | the capability owner | the manifest digest |
+| `ASSAYSTONE_RECEIPT_KEY` | the gate runner (CI) | one gate decision |
+
+Keep them separate. The owner decides what "acceptable" means; CI records that
+the decision was made. HMAC is symmetric in both cases: each proves the signer
+held the key. The approval has no expiry; it is valid while the digest is
+unchanged. A review window is a declared future gap.
+
 ## Self-weakening and forged approvals
 
 Two attacks are specific to a gate that reads its own inputs from the working
@@ -481,8 +512,10 @@ tree. Both have a concrete mechanism, and both have a remaining limit.
 **The agent weakens the manifest.** Deleting a criterion or a required oracle is
 the cheapest way to pass. The trail records `manifest_digest`, and the next gate
 on the same trail escalates when it changes: the edit is visible and needs an
-explicit `--accept-manifest-change`. The limit is the trail itself; keep it
-outside the agent's write access and anchor its head.
+explicit `--accept-manifest-change`. With `manifest_approval: true`, the change
+also invalidates the owner's signature, so accepting the change is an owner
+decision, not a flag anyone can pass. The limit is key custody: the owner key
+must not be available to the agent.
 
 **The agent writes its own approval.** `approvals.json` is a file. If the
 approval system cannot write somewhere the agent cannot, the `human` oracle is
