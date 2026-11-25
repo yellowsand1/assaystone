@@ -11,15 +11,13 @@ forged, or digest-mismatched waiver is not valid.
 """
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .oracles import canonical_json
+from . import keys
 from .plane import CapabilityManifest, manifest_digest
 
 VERSION = 1
@@ -41,12 +39,6 @@ def waiver_path_for(manifest: CapabilityManifest) -> Path | None:
     if not source.is_file():
         return None
     return source.parent / FILENAME
-
-
-def signature(body: dict[str, Any], key: str) -> str:
-    payload = canonical_json(body).encode("utf-8")
-    digest = hmac.new(key.encode("utf-8"), payload, hashlib.sha256).hexdigest()
-    return f"hmac-sha256:{digest}"
 
 
 def _unsigned(entry: dict[str, Any]) -> dict[str, Any]:
@@ -78,14 +70,15 @@ def create_waiver(
     criterion: str,
     reason: str,
     approved_by: str,
-    key: str,
-    expires_at: str,
+    key: str = "",
+    expires_at: str = "",
     at: str | None = None,
+    private_key_path: str | Path | None = None,
 ) -> dict[str, Any]:
     if not manifest.waivers:
         raise WaiverError("the manifest does not declare waivers: true")
-    if not key:
-        raise WaiverError("a waiver needs the owner key")
+    if not key and not private_key_path:
+        raise WaiverError("a waiver needs a signing key")
     if criterion not in {item.id for item in manifest.criteria}:
         raise WaiverError(f"unknown criterion: {criterion!r}")
     if not reason.strip():
@@ -97,7 +90,10 @@ def create_waiver(
     body = _body(
         manifest, criterion, reason.strip(), approved_by, expires_at, at
     )
-    body["signature"] = signature(body, key)
+    try:
+        body["signature"] = keys.sign_body(body, key, private_key_path)
+    except keys.SigningKeyError as exc:
+        raise WaiverError(str(exc)) from exc
     return body
 
 
@@ -122,28 +118,31 @@ class WaiverCheck:
 
 def verify_waivers(
     data: dict[str, Any],
-    key: str,
-    manifest: CapabilityManifest,
+    key: str = "",
+    manifest: CapabilityManifest | None = None,
     today: date | None = None,
+    public_key_path: str | Path | None = None,
 ) -> WaiverCheck:
     errors: list[str] = []
     if data.get("version") != VERSION:
         errors.append(f"unsupported waiver version: {data.get('version')!r}")
-    if data.get("capability") != manifest.capability:
-        errors.append(
-            f"waivers are for {data.get('capability')!r}, "
-            f"not {manifest.capability!r}"
-        )
-    current = manifest_digest(manifest)
-    if data.get("manifest_digest") != current:
-        errors.append("waivers do not match the current manifest digest")
+    if manifest is None:
+        errors.append("no manifest to verify against")
+        manifest = None
+    else:
+        if data.get("capability") != manifest.capability:
+            errors.append(
+                f"waivers are for {data.get('capability')!r}, "
+                f"not {manifest.capability!r}"
+            )
+        current = manifest_digest(manifest)
+        if data.get("manifest_digest") != current:
+            errors.append("waivers do not match the current manifest digest")
     entries = data.get("waivers")
     if not isinstance(entries, list) or not entries:
         errors.append("waiver file has no entries")
         entries = []
-    if not key:
-        errors.append("no owner key available")
-    known = {item.id for item in manifest.criteria}
+    known = {item.id for item in manifest.criteria} if manifest else set()
     valid: dict[str, dict[str, Any]] = {}
     today = today or datetime.now(timezone.utc).date()
     for index, entry in enumerate(entries):
@@ -174,12 +173,14 @@ def verify_waivers(
             )
             continue
         value = str(entry.get("signature") or "")
-        if not key or not value.startswith("hmac-sha256:"):
-            errors.append(f"waiver {criterion}: missing or unknown signature")
-            continue
-        expected = signature(_unsigned(entry), key)
-        if not hmac.compare_digest(value, expected):
-            errors.append(f"waiver {criterion}: signature does not verify")
+        error = keys.verify_body(
+            _unsigned(entry),
+            value,
+            key,
+            public_key_path=public_key_path,
+        )
+        if error:
+            errors.append(f"waiver {criterion}: {error}")
             continue
         valid[criterion] = {
             "criterion": criterion,

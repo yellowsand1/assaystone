@@ -96,6 +96,7 @@ def _approval_status(
     manifest: CapabilityManifest,
     path: str | Path | None,
     owner_key: str,
+    owner_public_key: str | Path | None = None,
 ) -> dict[str, Any]:
     if not manifest.manifest_approval:
         return {"required": False, "ok": True, "errors": []}
@@ -109,15 +110,17 @@ def _approval_status(
     if target is None:
         info["errors"].append("no approval path is known")
         return info
-    if not owner_key:
-        info["errors"].append("owner key is not available")
-        return info
     try:
         data = load_approval(target)
     except ApprovalError as exc:
         info["errors"].append(str(exc))
         return info
-    check = verify_approval(data, owner_key, manifest)
+    check = verify_approval(
+        data,
+        owner_key,
+        manifest,
+        public_key_path=owner_public_key,
+    )
     info.update(check.info)
     info["ok"] = check.ok
     info["errors"] = list(check.errors)
@@ -195,6 +198,7 @@ def _waiver_status(
     manifest: CapabilityManifest,
     path: str | Path | None,
     owner_key: str,
+    owner_public_key: str | Path | None = None,
 ) -> dict[str, Any]:
     if not manifest.waivers:
         return {"enabled": False, "valid": [], "errors": []}
@@ -209,17 +213,18 @@ def _waiver_status(
     }
     if not info["present"]:
         return info
-    if not owner_key:
-        info["ok"] = False
-        info["errors"].append("owner key is not available")
-        return info
     try:
         data = load_waivers(str(target))
     except WaiverError as exc:
         info["ok"] = False
         info["errors"].append(str(exc))
         return info
-    check = verify_waivers(data, owner_key, manifest)
+    check = verify_waivers(
+        data,
+        owner_key,
+        manifest,
+        public_key_path=owner_public_key,
+    )
     info["ok"] = check.ok
     info["valid"] = list(check.valid.values())
     info["errors"] = list(check.errors)
@@ -234,6 +239,7 @@ def build_card(
     approval_path: str | Path | None = None,
     waivers_path: str | Path | None = None,
     owner_key: str = "",
+    owner_public_key: str | Path | None = None,
     receipt_key: str = "",
 ) -> StatusCard:
     current = stage or manifest.lifecycle
@@ -262,10 +268,14 @@ def build_card(
             for name, policy in manifest.policies.items()
         ],
     )
-    card.approval = _approval_status(manifest, approval_path, owner_key)
+    card.approval = _approval_status(
+        manifest, approval_path, owner_key, owner_public_key
+    )
     card.trail = _trail_status(manifest, trail_path)
     card.receipt = _receipt_status(receipt_path, receipt_key)
-    card.waivers = _waiver_status(manifest, waivers_path, owner_key)
+    card.waivers = _waiver_status(
+        manifest, waivers_path, owner_key, owner_public_key
+    )
 
     risks = card.residual_risks
     for item in never:

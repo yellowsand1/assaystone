@@ -509,10 +509,18 @@ date, under the exact manifest digest that was reviewed.
 ```
 
 ```bash
-export ASSAYSTONE_OWNER_KEY=...        # the owner's key
+# HMAC
+export ASSAYSTONE_OWNER_KEY=...
 assaystone capability waive --manifest .assaystone/capability.json \
   --criterion fee-parity --reason "accepted for the migration window" \
   --expires 2026-12-31 --approver pricing-owner
+
+# Ed25519
+assaystone capability waive --manifest .assaystone/capability.json \
+  --criterion fee-parity --reason "accepted for the migration window" \
+  --expires 2026-12-31 --approver pricing-owner \
+  --private-key-file owner.key
+assaystone gate ... --owner-public-key owner.pub
 ```
 
 The waiver is written to `capability.waivers.json`, signed per entry and bound to
@@ -599,9 +607,16 @@ owner to sign its manifest digest:
 ```
 
 ```bash
-export ASSAYSTONE_OWNER_KEY=...       # held by the owner, not CI and not the agent
+# HMAC: the verifier needs the same key.
+export ASSAYSTONE_OWNER_KEY=...
 assaystone capability accept --manifest .assaystone/capability.json \
   --approver pricing-owner
+
+# Ed25519: the owner keeps the private key; CI holds only the public key.
+assaystone key generate --private owner.key --public owner.pub
+assaystone capability accept --manifest .assaystone/capability.json \
+  --approver pricing-owner --private-key-file owner.key
+assaystone gate ... --owner-public-key owner.pub
 # writes .assaystone/capability.approval.json
 ```
 
@@ -611,13 +626,14 @@ signature escalates. This is a governance decision, not a failed check.
 
 | key | held by | signs |
 |---|---|---|
-| `ASSAYSTONE_OWNER_KEY` | the capability owner | the manifest digest |
-| `ASSAYSTONE_RECEIPT_KEY` | the gate runner (CI) | one gate decision |
+| `ASSAYSTONE_OWNER_KEY` (HMAC) or the owner private key (Ed25519) | the capability owner | the manifest digest |
+| `ASSAYSTONE_RECEIPT_KEY` (HMAC) or the gate private key (Ed25519) | the gate runner (CI) | one gate decision |
 
 Keep them separate. The owner decides what "acceptable" means; CI records that
-the decision was made. HMAC is symmetric in both cases: each proves the signer
-held the key. The approval has no expiry; it is valid while the digest is
-unchanged. A review window is a declared future gap.
+the decision was made. HMAC is symmetric; Ed25519 lets CI hold only a public key,
+so it can verify an owner decision without being able to make one. The approval
+has no expiry; it is valid while the digest is unchanged. A review window and
+key revocation are declared future gaps.
 
 ## Self-weakening and forged approvals
 

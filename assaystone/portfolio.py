@@ -111,6 +111,7 @@ def build_portfolio(
     root: str | Path,
     owner_key: str = "",
     receipt_key: str = "",
+    owner_public_key: str | Path | None = None,
 ) -> Portfolio:
     root = Path(root).resolve()
     portfolio = Portfolio(root=root)
@@ -137,6 +138,7 @@ def build_portfolio(
             approval_path=sidecar("capability.approval.json"),
             waivers_path=sidecar("capability.waivers.json"),
             owner_key=owner_key,
+            owner_public_key=owner_public_key,
             receipt_key=receipt_key,
         )
         portfolio.entries.append(

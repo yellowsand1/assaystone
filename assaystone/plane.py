@@ -508,6 +508,7 @@ def _manifest_approval_check(
     manifest: CapabilityManifest,
     approval_path: str | Path | None,
     owner_key: str,
+    owner_public_key: str | Path | None = None,
 ) -> tuple[str, dict[str, Any]]:
     if not manifest.manifest_approval:
         return "", {}
@@ -527,17 +528,16 @@ def _manifest_approval_check(
                 "run capability accept",
                 {},
             )
-    if not owner_key:
-        return (
-            "the manifest requires owner approval but the owner key is not "
-            "available (set ASSAYSTONE_OWNER_KEY)",
-            {},
-        )
     try:
         data = load_approval(path)
     except ApprovalError as exc:
         return str(exc), {}
-    check = verify_approval(data, owner_key, manifest)
+    check = verify_approval(
+        data,
+        owner_key,
+        manifest,
+        public_key_path=owner_public_key,
+    )
     if not check.ok:
         return "; ".join(check.errors), check.info
     return "", check.info
@@ -551,6 +551,7 @@ def evaluate_gate(
     trail_path: str | Path | None = None,
     approval_path: str | Path | None = None,
     owner_key: str = "",
+    owner_public_key: str | Path | None = None,
     waivers_path: str | Path | None = None,
 ) -> GateResult:
     if stage not in STAGES:
@@ -567,7 +568,7 @@ def evaluate_gate(
             manifest_digest=manifest_digest(manifest),
         )
     approval_error, approval_info = _manifest_approval_check(
-        manifest, approval_path, owner_key
+        manifest, approval_path, owner_key, owner_public_key
     )
     if approval_error:
         return GateResult(
@@ -623,7 +624,7 @@ def evaluate_gate(
     waived_oracles: set[str] = set()
     waiver_notes: list[str] = []
     if manifest.waivers and any(item.outcome == "fail" for item in results):
-        if not owner_key:
+        if not owner_key and not owner_public_key:
             return GateResult(
                 capability=manifest.capability,
                 stage=stage,
@@ -631,8 +632,8 @@ def evaluate_gate(
                 results=results,
                 missing=missing,
                 reasons=[
-                    "waivers are enabled but no owner key is available "
-                    "(set ASSAYSTONE_OWNER_KEY)"
+                    "waivers are enabled but no owner key or public key is "
+                    "available"
                 ],
                 gap=gap,
                 strict=strict,
@@ -653,7 +654,12 @@ def evaluate_gate(
             except WaiverError as exc:
                 waiver_notes.append(str(exc))
             else:
-                check = verify_waivers(data, owner_key, manifest)
+                check = verify_waivers(
+                    data,
+                    owner_key,
+                    manifest,
+                    public_key_path=owner_public_key,
+                )
                 if check.ok:
                     valid = check.valid
                 else:
