@@ -26,6 +26,8 @@ jobs:
         run: make demo
       - name: End-to-end demo (ops/runtime)
         run: make demo-ops
+      - name: End-to-end demo (acceptance plane)
+        run: make demo-plane
       - name: Failure Zoo benchmark
         run: python -m assaystone benchmark failure-zoo
 
@@ -74,4 +76,5 @@ jobs:
           /tmp/assaystone-wheel/bin/assaystone demo audit
           /tmp/assaystone-wheel/bin/assaystone demo
           /tmp/assaystone-wheel/bin/assaystone demo ops
+          /tmp/assaystone-wheel/bin/assaystone demo plane --output-dir /tmp/assaystone-demo
           /tmp/assaystone-wheel/bin/assaystone benchmark failure-zoo

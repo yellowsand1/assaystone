@@ -295,6 +295,23 @@ The audit rule: if adapting a domain changed any Python file, the abstraction
 failed. The pricing vertical is the reference — it added `sql`, `shadow`, and
 the trail with no domain-specific code.
 
+## In CI
+
+A gate is a command, so it fits any pipeline:
+
+```yaml
+- run: pip install assaystone
+- run: |
+    assaystone gate --manifest .assaystone/capability.json \
+      --stage canary --root . \
+      --audit .assaystone/trail.jsonl --actor "$GITHUB_ACTOR"
+- run: assaystone trail verify .assaystone/trail.jsonl
+```
+
+Make the trail job artifact immutable and log the head hash; pass it back with
+`--expect HASH` on the next run. Exit codes let the pipeline stop on `fail` and
+route `escalate` to a required reviewer instead of retrying.
+
 ## Limits
 
 * `http` and `sql` perform reads and, with explicit opt-in, a single write.
