@@ -12,6 +12,7 @@ call needs an explicit opt-in in the manifest.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import ipaddress
 import json
 import math
@@ -300,6 +301,24 @@ def _human(spec: OracleSpec, root: Path) -> OracleResult:
     approvals = data.get("approvals") if isinstance(data, dict) else data
     if not isinstance(approvals, list):
         return _result(spec, "escalate", ["approvals must be a list"])
+    signing_env = payload.get("hmac_env")
+    if signing_env:
+        key = os.environ.get(str(signing_env))
+        if not key:
+            return _result(
+                spec,
+                "escalate",
+                [f"missing approval signing key: {signing_env}"],
+            )
+        signature = data.get("signature") if isinstance(data, dict) else None
+        if not signature:
+            return _result(spec, "fail", ["approval record is not signed"])
+        body = canonical_json({"approvals": approvals}).encode("utf-8")
+        expected = hmac.new(key.encode("utf-8"), body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(str(signature).lower(), expected):
+            return _result(
+                spec, "fail", ["approval signature does not verify"]
+            )
     for item in approvals:
         if not isinstance(item, dict) or item.get("action") != action:
             continue

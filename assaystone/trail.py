@@ -66,6 +66,7 @@ def entry_for(
         "manifest_lifecycle": str(
             getattr(gate, "manifest_lifecycle", "") or ""
         ),
+        "manifest_digest": str(getattr(gate, "manifest_digest", "") or ""),
         "oracles": [
             {
                 "id": item.oracle,
@@ -158,6 +159,17 @@ class TrailCheck:
             "head": self.head,
             "errors": list(self.errors),
         }
+
+
+def last_manifest_digest(path: str | Path) -> str:
+    """Digest recorded by the most recent gate on this trail, if any."""
+    try:
+        entries = read(path)
+    except TrailError:
+        return ""
+    if not entries:
+        return ""
+    return str(entries[-1].get("manifest_digest") or "")
 
 
 def verify(path: str | Path, expected_head: str | None = None) -> TrailCheck:

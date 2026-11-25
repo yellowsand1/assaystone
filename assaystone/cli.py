@@ -545,6 +545,19 @@ def cmd_gate(args: argparse.Namespace) -> int:
         return 2
     entry = None
     if args.audit:
+        previous = audit_trail.last_manifest_digest(args.audit)
+        if (
+            previous
+            and previous != result.manifest_digest
+            and not args.accept_manifest_change
+        ):
+            result.outcome = "escalate"
+            result.merge_allowed = False
+            result.deploy_allowed = False
+            result.reasons.append(
+                "manifest changed since the last gate on this trail; review "
+                "the diff and re-run with --accept-manifest-change"
+            )
         actor = (
             args.actor
             or os.environ.get("ASSAYSTONE_ACTOR")
@@ -1237,6 +1250,11 @@ def _parser() -> argparse.ArgumentParser:
         "--audit", metavar="PATH", default=None, help="append to this trail file"
     )
     gate_parser.add_argument("--actor", default=None, help="who ran the gate")
+    gate_parser.add_argument(
+        "--accept-manifest-change",
+        action="store_true",
+        help="record a reviewed manifest change instead of escalating",
+    )
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)
 

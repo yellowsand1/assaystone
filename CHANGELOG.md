@@ -29,6 +29,15 @@
 - **Assurance gap at the gate.** Every gate reports declared criteria the stage
   does not gate. `--strict` escalates when a critical criterion is ungated; a
   failure still outranks the gap.
+- **A changed manifest is visible.** Every gate result and trail entry carries
+  a `manifest_digest`: the acceptance rules with registry payloads, excluding
+  the registry path. On a trail with a previous entry, a changed digest
+  escalates until someone re-runs with `--accept-manifest-change`. An agent can
+  still edit its manifest; it cannot do so silently.
+- **Signed approval records.** A `human` oracle with `hmac_env` verifies an
+  HMAC-SHA256 signature over the approval list. A missing key escalates, an
+  unsigned or altered record fails. Without it, the record is a file and is
+  documented as testimony, not evidence.
 - **`capability init`.** Onboarding for the plane: inspect a repository for
   Maven, Gradle, npm, Python, Go, or Cargo, follow the branch convention it
   already uses, and write a draft `.assaystone/capability.json`. The draft

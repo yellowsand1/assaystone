@@ -1,6 +1,8 @@
 """M2: http, sql, shadow primitives, the oracle registry, and the trail."""
 
 import contextlib
+import hashlib
+import hmac
 import io
 import json
 import os
@@ -20,11 +22,17 @@ from assaystone.oracles import (
     OracleError,
     OracleRegistry,
     OracleSpec,
+    canonical_json,
     check_read_only_sql,
     oracle_fingerprint,
     run_oracle,
 )
-from assaystone.plane import CapabilityManifest, PlaneError, evaluate_gate
+from assaystone.plane import (
+    CapabilityManifest,
+    PlaneError,
+    evaluate_gate,
+    manifest_digest,
+)
 
 REPO = Path(__file__).resolve().parent.parent
 CAPABILITIES = REPO / "examples" / "capability"
@@ -774,6 +782,179 @@ class RollbackTest(unittest.TestCase):
         self.assertIn(
             "rollback", [item["id"] for item in entry["oracles"]]
         )
+
+
+class ApprovalSignatureTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def write_record(self, approvals, key=None):
+        record = {"approvals": approvals}
+        if key is not None:
+            body = canonical_json({"approvals": approvals}).encode("utf-8")
+            record["signature"] = hmac.new(
+                key.encode("utf-8"), body, hashlib.sha256
+            ).hexdigest()
+        (self.root / "approvals.json").write_text(
+            json.dumps(record), encoding="utf-8"
+        )
+
+    def run_signed(self):
+        return run_oracle(
+            spec(
+                "human",
+                {"action": "publish", "hmac_env": "ASSAYSTONE_APPROVAL_KEY"},
+            ),
+            self.root,
+        )
+
+    def test_signed_approval_passes(self):
+        self.write_record(
+            [{"action": "publish", "approved": True}], key="k3y"
+        )
+        with mock.patch.dict(os.environ, {"ASSAYSTONE_APPROVAL_KEY": "k3y"}):
+            result = self.run_signed()
+        self.assertEqual(result.outcome, "pass", result.reasons)
+
+    def test_tampered_approval_fails(self):
+        approvals = [{"action": "publish", "approved": True, "approver": "a"}]
+        self.write_record(approvals, key="k3y")
+        record = json.loads((self.root / "approvals.json").read_text())
+        record["approvals"][0]["approver"] = "someone-else"
+        (self.root / "approvals.json").write_text(json.dumps(record))
+        with mock.patch.dict(os.environ, {"ASSAYSTONE_APPROVAL_KEY": "k3y"}):
+            result = self.run_signed()
+        self.assertEqual(result.outcome, "fail")
+        self.assertIn("signature", result.reasons[0])
+
+    def test_unsigned_record_fails_when_signing_is_required(self):
+        self.write_record([{"action": "publish", "approved": True}])
+        with mock.patch.dict(os.environ, {"ASSAYSTONE_APPROVAL_KEY": "k3y"}):
+            result = self.run_signed()
+        self.assertEqual(result.outcome, "fail")
+        self.assertIn("not signed", result.reasons[0])
+
+    def test_missing_key_escalates(self):
+        self.write_record([{"action": "publish", "approved": True}], key="k3y")
+        with mock.patch.dict(os.environ, {}, clear=True):
+            result = self.run_signed()
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("ASSAYSTONE_APPROVAL_KEY", result.reasons[0])
+
+    def test_unsigned_record_still_works_without_signing(self):
+        self.write_record([{"action": "publish", "approved": True}])
+        result = run_oracle(
+            spec("human", {"action": "publish"}), self.root
+        )
+        self.assertEqual(result.outcome, "pass")
+
+
+class ManifestDigestTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def manifest_path(self):
+        path = self.root / "capability.json"
+        path.write_text(
+            json.dumps(
+                manifest_data(
+                    [
+                        {
+                            "id": "ok",
+                            "type": "command",
+                            "payload": {"command": ["true"]},
+                        }
+                    ],
+                    {"shadow": {"require": ["ok"]}},
+                )
+            ),
+            encoding="utf-8",
+        )
+        return path
+
+    def gate(self, path, audit=False, accept=False):
+        args = [
+            "gate",
+            "--manifest",
+            str(path),
+            "--stage",
+            "shadow",
+            "--root",
+            str(self.root),
+            "--json",
+        ]
+        if audit:
+            args += ["--audit", str(self.root / "trail.jsonl")]
+        if accept:
+            args.append("--accept-manifest-change")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(args)
+        return code, json.loads(out.getvalue())
+
+    def test_digest_is_stable_and_tracks_the_rules(self):
+        first = CapabilityManifest.load(self.manifest_path())
+        second = CapabilityManifest.load(self.manifest_path())
+        self.assertEqual(manifest_digest(first), manifest_digest(second))
+        first.policies["shadow"].require.append("ok")
+        self.assertNotEqual(manifest_digest(first), manifest_digest(second))
+
+    def test_changed_manifest_escalates_against_a_trail(self):
+        path = self.manifest_path()
+        code, result = self.gate(path, audit=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(result["outcome"], "pass")
+        data = json.loads(path.read_text())
+        data["policies"]["shadow"]["require"] = []
+        path.write_text(json.dumps(data), encoding="utf-8")
+        code, result = self.gate(path, audit=True)
+        self.assertEqual(code, 2)
+        self.assertEqual(result["outcome"], "escalate")
+        self.assertTrue(
+            any("manifest changed" in item for item in result["reasons"])
+        )
+        code, result = self.gate(path, audit=True, accept=True)
+        self.assertEqual(code, 0)
+        entries = trail.read(self.root / "trail.jsonl")
+        self.assertEqual(entries[-1]["manifest_digest"], result["manifest_digest"])
+
+    def test_registry_path_does_not_change_the_digest(self):
+        with tempfile.TemporaryDirectory() as one, tempfile.TemporaryDirectory() as two:
+            for base in (one, two):
+                base = Path(base)
+                (base / "oracles.json").write_text(
+                    json.dumps(
+                        {
+                            "version": 1,
+                            "oracles": [
+                                {
+                                    "id": "shared",
+                                    "version": 1,
+                                    "type": "command",
+                                    "payload": {"command": ["true"]},
+                                }
+                            ],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                data = manifest_data(
+                    [{"id": "ok", "ref": "shared"}],
+                    {"shadow": {"require": ["ok"]}},
+                )
+                data["registry"] = "oracles.json"
+                (base / "capability.json").write_text(
+                    json.dumps(data), encoding="utf-8"
+                )
+            one_manifest = CapabilityManifest.load(Path(one) / "capability.json")
+            two_manifest = CapabilityManifest.load(Path(two) / "capability.json")
+            self.assertEqual(
+                manifest_digest(one_manifest), manifest_digest(two_manifest)
+            )
 
 
 class TrailTest(unittest.TestCase):

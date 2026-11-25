@@ -257,6 +257,7 @@ gate reports `fail`, not `escalate`.
  "stage": "shadow", "outcome": "pass", "actor": "qa-bot",
  "merge_allowed": false, "deploy_allowed": false,
  "rollback_required": false, "rollback": "", "manifest_lifecycle": "shadow",
+ "manifest_digest": "sha256:...",
  "oracles": [{"id": "ledger", "type": "sql", "outcome": "pass",
               "digest": "sha256:...", "fingerprint": "sha256:..."}],
  "missing": [], "gap": ["publish-approved"], "strict": false,
@@ -267,6 +268,11 @@ gate reports `fail`, not `escalate`.
   the digest, not the evidence, so long-lived logs do not accumulate query
   results or response bodies.
 * `actor` comes from `--actor`, then `ASSAYSTONE_ACTOR`, then `$USER`.
+* `manifest_digest` is the identity of the acceptance rules themselves: the
+  manifest with its registry payloads, excluding the registry path. On a trail
+  with a previous entry, a changed digest escalates the gate until someone
+  re-runs with `--accept-manifest-change`. An agent can still edit the
+  manifest; it cannot do so silently.
 * `trail verify` recomputes every hash, checks the `prev` links and `seq`
   positions, and reports the head. Editing a field or deleting a middle entry
   breaks the chain.
@@ -280,6 +286,36 @@ Anchor the head hash where the gate writer does not control it — a CI log, a
 signed commit, a transparency log — and pass it to `trail verify --expect HASH`.
 The verifier then detects truncation as well as edits. This is a stated limit,
 not an oversight.
+
+## Self-weakening and forged approvals
+
+Two attacks are specific to a gate that reads its own inputs from the working
+tree. Both have a concrete mechanism, and both have a remaining limit.
+
+**The agent weakens the manifest.** Deleting a criterion or a required oracle is
+the cheapest way to pass. The trail records `manifest_digest`, and the next gate
+on the same trail escalates when it changes: the edit is visible and needs an
+explicit `--accept-manifest-change`. The limit is the trail itself; keep it
+outside the agent's write access and anchor its head.
+
+**The agent writes its own approval.** `approvals.json` is a file. If the
+approval system cannot write somewhere the agent cannot, the `human` oracle is
+testimony, not evidence. For a real deployment, sign the record:
+
+```json
+{"id": "approval", "type": "human",
+ "payload": {"action": "publish", "record": "approvals.json",
+             "hmac_env": "ASSAYSTONE_APPROVAL_KEY"}}
+```
+
+The record is `{"approvals": [...], "signature": "..."}` where the signature is
+HMAC-SHA256 over the canonical JSON of `{"approvals": [...]}` with the key from
+the environment. A missing key escalates; an unsigned or altered record fails.
+Without `hmac_env`, the oracle reads an unsigned file and the documentation
+says so rather than implying a guarantee.
+
+Neither mechanism makes a compromised host safe. They make the decision
+*tamper-evident*: an edit or a forged approval has to be explained.
 
 ## Adapting a new domain
 

@@ -310,6 +310,18 @@ def _oracle_spec(
     )
 
 
+def manifest_digest(manifest: CapabilityManifest) -> str:
+    """Identity of the acceptance rules, stable across machines.
+
+    The registry path is excluded (it can be absolute) but the registry
+    fingerprint stays, so a changed shared oracle changes the digest.
+    """
+    data = manifest.to_dict()
+    data.pop("registry", None)
+    body = canonical_json(data).encode("utf-8")
+    return "sha256:" + hashlib.sha256(body).hexdigest()
+
+
 @dataclass
 class GateResult:
     capability: str
@@ -325,6 +337,7 @@ class GateResult:
     rollback_required: bool = False
     rollback: str = ""
     manifest_lifecycle: str = ""
+    manifest_digest: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -341,6 +354,7 @@ class GateResult:
             "rollback_required": self.rollback_required,
             "rollback": self.rollback,
             "manifest_lifecycle": self.manifest_lifecycle,
+            "manifest_digest": self.manifest_digest,
         }
 
 
@@ -379,6 +393,7 @@ def evaluate_gate(
             reasons=[f"no policy for stage {stage!r}"],
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
+            manifest_digest=manifest_digest(manifest),
         )
     by_id = {item.id: item for item in manifest.oracles}
     required = list(
@@ -439,6 +454,7 @@ def evaluate_gate(
         rollback_required=policy.rollback_required,
         rollback=policy.rollback,
         manifest_lifecycle=manifest.lifecycle,
+        manifest_digest=manifest_digest(manifest),
     )
 
 
