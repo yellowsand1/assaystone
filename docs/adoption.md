@@ -32,6 +32,21 @@ Keep it to five sentences. No deck, no signup, no request for stars.
 | 30–40 | Ask what the tool did not see. This is the part you are there for. |
 | 40–45 | Ask whether they would run it for two weeks and what would have to be true. |
 
+## If they own a deployment
+
+The audit asks "what did the agent do?" The plane asks "should this capability
+ship?" If the person owns a service, spend ten more minutes on their repository:
+
+```bash
+assaystone capability init --root . --owner <their team>
+assaystone gate --manifest .assaystone/capability.json --stage shadow --root . --strict
+```
+
+The first run usually fails on the branch check or escalates on a missing
+approval. That failure is the conversation: which of their irreversible actions
+has no evidence today, and who would have to sign it. Do not fill in approvals
+for them; the draft is theirs to correct.
+
 ## What to collect
 
 - Consent to use a **redacted** trace as a fixture.
