@@ -1,6 +1,6 @@
 """Assaystone — the assay stone for AI agents."""
 
-__version__ = "0.14.0"
+__version__ = "0.15.0"
 
 from . import packs as _packs  # noqa: F401  (registers built-in domain packs)
 from .contract import Contract
