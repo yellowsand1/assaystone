@@ -40,6 +40,8 @@ blind_spots:
   - environment variables set outside the repository
   - globally installed test plugins
   - a hijack hidden in an already-listed dependency
+trusts:
+  - artifacts
 cost:
   usd: 0.00002
 ```
@@ -81,6 +83,21 @@ Blind spots are used twice:
 The reason is structural: a check that shares code, context, or data with the
 generator is correlated with the failure it is supposed to catch. Its failure is
 evidence, not a verdict.
+
+### `trusts`
+
+Which sources the check reads: `baseline`, `artifacts`, `trace`, `evidence`, or
+`workspace`.
+
+`trace` and `evidence` are **testimony**: the agent writes them in a transcript,
+the runtime guard writes them in a guarded session. A trace declares
+`source: agent` or `source: runtime`. When the source is `agent`, a check that
+trusts either testimony is downgraded to `low` independence, whatever it
+declared. A failure found only in the agent's own record then escalates instead
+of deciding.
+
+This is measured independence for the most important source. The next protocol
+change extends the declaration to everything a check reads or executes.
 
 ### `cost`
 

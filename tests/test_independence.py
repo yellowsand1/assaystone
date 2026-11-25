@@ -181,6 +181,7 @@ class IndependenceTest(unittest.TestCase):
             self.assertTrue(
                 cls.blind_spots, f"{name} declares no blind spots"
             )
+            self.assertTrue(cls.trusts, f"{name} declares no trusted sources")
             self.assertIn(
                 cls.independence,
                 {"low", "medium", "high"},

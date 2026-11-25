@@ -114,6 +114,19 @@ VERIFIER_SCHEMA: dict[str, Any] = {
             "items": {"type": "string", "minLength": 1},
             "minItems": 1,
         },
+        "trusts": {
+            "type": "array",
+            "items": {
+                "enum": [
+                    "baseline",
+                    "artifacts",
+                    "trace",
+                    "evidence",
+                    "workspace",
+                ]
+            },
+            "uniqueItems": True,
+        },
         "cost": {
             "type": "object",
             "required": ["usd"],
@@ -176,6 +189,7 @@ def _conforms(cls: type) -> bool:
         cls.claim
         and cls.catches
         and cls.blind_spots
+        and cls.trusts
         and cls.independence in INDEPENDENCE
         and cls.layer in LAYERS
     )
@@ -195,6 +209,7 @@ def describe_verifiers() -> list[dict[str, Any]]:
                 "claim": cls.claim,
                 "catches": list(cls.catches),
                 "blind_spots": list(cls.blind_spots),
+                "trusts": list(cls.trusts),
                 "cost": {"usd": cls.cost_usd},
                 "description": cls.description,
                 "builtin": cls.__module__.startswith("assaystone"),

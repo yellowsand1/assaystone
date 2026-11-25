@@ -46,6 +46,7 @@ class VerifyContext:
 
 
 INDEPENDENCE_LEVELS = {"low": 0, "medium": 1, "high": 2}
+TESTIMONY_SOURCES = frozenset({"trace", "evidence"})
 
 
 def independence_rank(level: str) -> int:
@@ -55,6 +56,18 @@ def independence_rank(level: str) -> int:
     independent it is, its failure alone must not decide the verdict.
     """
     return INDEPENDENCE_LEVELS.get(str(level).strip().lower(), 0)
+
+
+def effective_independence(verifier: "Verifier", trace: Trace) -> str:
+    """Downgrade a check that trusts an agent-written testimony.
+
+    The trace and the evidence channel are written by the agent in a transcript
+    and by the runtime guard in a guarded session. A check that reads either as
+    truth is not independent when the agent wrote it, no matter what it declares.
+    """
+    if trace.source != "runtime" and TESTIMONY_SOURCES & set(verifier.trusts):
+        return "low"
+    return verifier.independence
 
 
 class Verifier:
@@ -73,6 +86,10 @@ class Verifier:
     # blind_spots: defect tags this verifier knows it cannot detect. A verifier
     # that cannot name its blind spots is claiming to be an oracle.
     blind_spots: tuple[str, ...] = ()
+    # Which sources this check trusts. ``trace`` and ``evidence`` are testimony:
+    # the agent writes them in a transcript, the runtime writes them in a guard.
+    # A check that trusts testimony from an agent trace is downgraded to low.
+    trusts: tuple[str, ...] = ("artifacts",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         raise NotImplementedError
@@ -358,6 +375,7 @@ class EvidenceClaims(Verifier):
         "forged evidence (the evidence channel is written by the agent)",
         "silence: no success claim means no check",
     )
+    trusts = ("evidence", "trace")
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         message = ctx.trace.final_message or ""

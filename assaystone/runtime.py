@@ -156,6 +156,7 @@ class GuardSession:
             artifacts=list(self.artifacts),
             evidence=dict(self.evidence),
             final_message=self.final_message,
+            source="runtime",
         )
 
     def call(
@@ -229,6 +230,7 @@ class GuardSession:
             artifacts=list(self.artifacts) + list(artifacts or []),
             evidence=merged_evidence,
             final_message=self.final_message,
+            source="runtime",
         )
         result = run_contract(self.guard.contract, trace, self.guard.baseline)
         self.guard._enforce(result)

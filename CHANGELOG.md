@@ -49,6 +49,11 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Provenance.** Traces declare `source: agent|runtime`; verifiers declare
+  `trusts`. A check that trusts agent-written `trace` or `evidence` is downgraded
+  to low independence, so a failure found only in testimony escalates instead of
+  deciding. `RuntimeGuard` writes runtime traces; the ops fixtures are runtime
+  traces. `Verdict` records both the effective and declared independence.
 - **Product spec.** [docs/vision.md](docs/vision.md) states the four layers
   (acceptance IR, verifier algebra, adversarial scoreboard, runtime), the
   domain-pack boundary, and what the product is not.

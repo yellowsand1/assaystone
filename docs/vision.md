@@ -104,8 +104,9 @@ already has the kinds they need (`invariant`, `evidence`).
 
 ## Roadmap
 
-1. **Measured independence.** Replace the self-declared rank with provenance:
-   what a check reads, what it executes, and whether the agent can modify it.
+1. **Measured independence.** The first provenance rule ships: a check that
+   trusts agent-written `trace` or `evidence` is downgraded to low. The next step
+   is the full source declaration: what a check reads and executes.
 2. **Public scoreboard.** External verifier packs scored on the same corpus, with
    their declared blind spots and false-alarm rates.
 3. **Data and research packs.** Prove the IR is not code-shaped.

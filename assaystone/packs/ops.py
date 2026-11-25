@@ -196,6 +196,7 @@ class ApprovalLineage(Verifier):
         "a forged approval.request step in an agent-written transcript",
         "an approval granted outside the trace and never recorded",
     )
+    trusts = ("trace",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         required = set(params.get("require_approval_for", ["refund.create"]))
@@ -242,6 +243,7 @@ class RefundLineage(Verifier):
         "a forged refund.create step in an agent-written transcript",
         "a refund already present in the baseline ledger",
     )
+    trusts = ("trace", "artifacts")
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -296,6 +298,7 @@ class ApprovalRecorded(Verifier):
         "forged approval records (the evidence channel is written by the agent)",
         "an approval granted for a different amount or target",
     )
+    trusts = ("evidence",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         required = set(params.get("require_approval_for", ["refund.create"]))

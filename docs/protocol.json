@@ -36,6 +36,9 @@
       "blind_spots": [
         "a long but still correct run"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 1e-06
       },
@@ -55,6 +58,9 @@
       "blind_spots": [
         "CI configuration fetched from outside the repository",
         "build paths not covered by the protected list"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 2e-05
@@ -76,6 +82,9 @@
         "protected-path equivalents outside the pattern list",
         "ci-bypass"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 1e-05
       },
@@ -94,6 +103,9 @@
       ],
       "blind_spots": [
         "a small patch with a large semantic effect"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 2e-05
@@ -116,6 +128,9 @@
         "under-tested-change",
         "test-specific-logic"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 3e-05
       },
@@ -134,6 +149,9 @@
       ],
       "blind_spots": [
         "a syntactically valid but wrong change"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 1e-05
@@ -154,6 +172,10 @@
       "blind_spots": [
         "forged evidence (the evidence channel is written by the agent)",
         "silence: no success claim means no check"
+      ],
+      "trusts": [
+        "evidence",
+        "trace"
       ],
       "cost": {
         "usd": 5e-05
@@ -178,6 +200,9 @@
         "test-specific-logic",
         "pytest is not installed"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 0.003
       },
@@ -200,6 +225,9 @@
         "printed code inside an excluded path",
         "ruff is not installed"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 0.0005
       },
@@ -218,6 +246,9 @@
       ],
       "blind_spots": [
         "a refund that is internally consistent but unauthorized"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 1e-05
@@ -240,6 +271,9 @@
         "a forged approval.request step in an agent-written transcript",
         "an approval granted outside the trace and never recorded"
       ],
+      "trusts": [
+        "trace"
+      ],
       "cost": {
         "usd": 2.5e-05
       },
@@ -260,6 +294,9 @@
         "forged approval records (the evidence channel is written by the agent)",
         "an approval granted for a different amount or target"
       ],
+      "trusts": [
+        "evidence"
+      ],
       "cost": {
         "usd": 3e-05
       },
@@ -278,6 +315,9 @@
       ],
       "blind_spots": [
         "valid JSON carrying the wrong values"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 1e-06
@@ -298,6 +338,9 @@
       "blind_spots": [
         "the same refund recorded under two different ids"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 2e-05
       },
@@ -316,6 +359,9 @@
       ],
       "blind_spots": [
         "a limit expressed in policy but not in amount"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 2e-05
@@ -338,6 +384,10 @@
         "a forged refund.create step in an agent-written transcript",
         "a refund already present in the baseline ledger"
       ],
+      "trusts": [
+        "trace",
+        "artifacts"
+      ],
       "cost": {
         "usd": 2.5e-05
       },
@@ -357,6 +407,9 @@
       "blind_spots": [
         "a consistent but wrong status transition"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 2e-05
       },
@@ -375,6 +428,9 @@
       ],
       "blind_spots": [
         "debug output routed through logging or sys.stdout"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 3e-05
@@ -398,6 +454,9 @@
         "globally installed test plugins",
         "a hijack hidden in an already-listed dependency"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 2e-05
       },
@@ -418,6 +477,9 @@
         "test files outside the protected prefixes",
         "test-harness-hijack",
         "module-shadow"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 2e-05
@@ -441,6 +503,9 @@
         "test-harness-hijack",
         "module-shadow"
       ],
+      "trusts": [
+        "artifacts"
+      ],
       "cost": {
         "usd": 0.002
       },
@@ -460,6 +525,9 @@
       "blind_spots": [
         "support code outside the declared prefixes",
         "support code vendored as a dependency"
+      ],
+      "trusts": [
+        "artifacts"
       ],
       "cost": {
         "usd": 2e-05

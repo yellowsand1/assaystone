@@ -14,7 +14,13 @@ from .model import (
     Trace,
     Verdict,
 )
-from .verifiers import REGISTRY, Verifier, VerifyContext, independence_rank
+from .verifiers import (
+    REGISTRY,
+    Verifier,
+    VerifyContext,
+    effective_independence,
+    independence_rank,
+)
 from .workspace import Workspace
 
 
@@ -42,6 +48,7 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
         specs = sorted(contract.verifiers, key=lambda item: REGISTRY[item.name].cost_usd)
         for spec in specs:
             verifier: Verifier = REGISTRY[spec.name]()
+            effective = effective_independence(verifier, trace)
 
             if total_cost + verifier.cost_usd > contract.max_verification_cost_usd:
                 escalation_reason = f"verification budget exceeded before {verifier.name}"
@@ -63,7 +70,8 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
                     evidence=evidence,
                     cost_usd=verifier.cost_usd,
                     duration_ms=duration_ms,
-                    independence=verifier.independence,
+                    independence=effective,
+                    declared_independence=verifier.independence,
                 )
             )
             total_cost += verifier.cost_usd
@@ -81,7 +89,7 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
 
             if ok is False and spec.required:
                 reason = f"{verifier.name}: {reasons[0] if reasons else 'failed'}"
-                if independence_rank(verifier.independence) >= 1:
+                if independence_rank(effective) >= 1:
                     if decisive_failure is None:
                         decisive_failure = reason
                     if contract.fail_fast:

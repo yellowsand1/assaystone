@@ -40,9 +40,13 @@ The runtime path is trustworthy: `RuntimeGuard` writes the `approval.request`
 step itself, before the action. The audit path is not: a transcript can contain a
 fabricated approval step, and the lineage check cannot tell it from a real one.
 
-This is why the blind spots say "a forged approval.request step in an
-agent-written transcript". If you need authenticity, the evidence has to be
-written by the runtime, not by the agent.
+The protocol now carries that distinction. A trace declares `source: agent` or
+`source: runtime`; a check that trusts `trace` or `evidence` is downgraded to
+`low` independence when the source is `agent`. A forged approval found only in
+agent-written testimony therefore escalates instead of deciding.
+
+The check still cannot tell a forged step from a real one. It stops pretending
+it can, which is the honest improvement.
 
 ## Test support code outside the protected prefixes
 

@@ -45,5 +45,6 @@
     "defect": "under-tested-change",
     "note": "added an unrequested ValueError for quantity <= 0; the suite never exercises it"
   },
-  "created_at": "2026-11-24T00:00:00Z"
+  "created_at": "2026-11-24T00:00:00Z",
+  "source": "agent"
 }

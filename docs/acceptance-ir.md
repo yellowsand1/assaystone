@@ -134,5 +134,6 @@ assaystone verify \
 - It enforces `on_unknown` and severity gating.
 - It computes the assurance gap per criterion.
 - It plans at the defect level, so criteria inherit `compose`.
-- It does not measure independence. `independence` is still declared by the
-  verifier; provenance is the next protocol change.
+- It measures independence for testimony: a check that trusts `trace` or
+  `evidence` from an agent-written trace is downgraded to low. Full provenance
+  (what else a check reads or executes) is the next protocol change.

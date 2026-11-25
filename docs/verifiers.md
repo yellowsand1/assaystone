@@ -12,6 +12,10 @@ failure. A failure from a `low`-independence verifier is not decisive: the runne
 looks for independent confirmation and escalates if none arrives. See
 [the protocol](protocol.md) for the full ABI.
 
+Checks also declare `trusts`: which sources they read. A check that trusts
+`trace` or `evidence` is downgraded to low independence when the trace was
+written by the agent; `RuntimeGuard` writes `source: runtime`.
+
 ## Built-in pack
 
 | Verifier | Layer | Cost | Params | Catches |

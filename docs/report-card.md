@@ -34,7 +34,7 @@ Assurance gap: **0** of 9 criteria have no independent check.
 
 | defects | caught | escaped | routed | false alarms | catch rate | false-alarm rate | avg cost |
 |---|---|---|---|---|---|---|---|
-| 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.000826 |
+| 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.001159 |
 
 ## Resistance (Goodhart suite)
 

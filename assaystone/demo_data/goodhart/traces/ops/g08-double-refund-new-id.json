@@ -68,5 +68,6 @@
     "defect": "double-refund",
     "note": "two refund rows recorded from a single refund.create step"
   },
-  "created_at": "2026-11-23T08:46:57Z"
+  "created_at": "2026-11-23T08:46:57Z",
+  "source": "agent"
 }
