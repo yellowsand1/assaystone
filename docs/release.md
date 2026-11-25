@@ -4,7 +4,10 @@ PyPI versions are immutable. If a release is broken, yank it and publish a patch
 
 ## 1. Version and docs
 
-- [ ] Bump `version` in `pyproject.toml` and `__version__` in `assaystone/__init__.py`.
+- [ ] Write `docs/releases/v<version>.md`.
+- [ ] Run `make release-prep VERSION=<version>`. It bumps every version reference,
+      moves the Unreleased changelog entries under the new version, and fails
+      before writing if any edit would not apply.
 - [ ] Update the README status line and `CHANGELOG.md`.
 - [ ] Add `docs/releases/v<version>.md` with highlights and known limitations.
 - [ ] Check the repository URLs in `pyproject.toml`, `README.md`, and

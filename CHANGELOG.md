@@ -2,13 +2,109 @@
 
 ## Unreleased
 
+- **Key revocation.** `capability.revocations.json` lists key ids that must no
+  longer be trusted, with a reason. The gate checks owner approvals, waivers, and
+  receipts against it and escalates when one was signed by a revoked key, naming
+  the artifact and the reason. An unreadable list escalates; a list without
+  reasons is rejected. The status card and registry report revoked artifacts as
+  residual risk.
+- **Branch protection on this repository.** `main` now requires a pull request
+  and the seven CI checks, with administrators included and force pushes
+  disabled. A direct push is rejected by the remote.
+- **The changelog is now checked.** A release-prep test asserts that
+  `CHANGELOG.md` has a section for `__version__` and `docs/releases/v<version>.md`
+  exists, because this file silently drifted for eight releases.
+
+## 0.17.1 — 2026-11-25
+
+- **`receipt verify --commit` resolves refs.** An annotated tag resolves to its
+  commit, so `--commit v0.17.0` means what a reviewer expects.
+- **The receipt report names the scheme.** An ed25519 receipt shows its key id
+  and says the public key verifies it.
+
+## 0.17.0 — 2026-11-25
+
+- **The product's own release is gated at production.** The self-manifest gains
+  `manifest_approval: true`, a `production` policy, and a rollback oracle. The
+  release workflow verifies the owner approval, runs tests/lint/benchmark and the
+  rollback check, signs an Ed25519 release receipt with a key held in a GitHub
+  secret, verifies it with the committed public key, and uploads the evidence.
+  A failing gate stops the release before the build.
+- **Lifecycle-aware status and registry.** A future stage without evidence is
+  information, not a current defect.
+
+## 0.16.0 — 2026-11-25
+
+- **Key ids.** Ed25519 approvals, waivers, and receipts carry the SHA-256
+  fingerprint of the signing public key inside the signed body. Verification
+  rejects a substituted public key; `key fingerprint` prints the id.
+
+## 0.15.0 — 2026-11-25
+
+- **Ed25519 owner approvals and waivers.** `capability accept` and
+  `capability waive` accept `--private-key-file`; the gate, status card, and
+  registry verify with `--owner-public-key`. CI can verify the owner without
+  holding the owner's key.
+
+## 0.14.0 — 2026-11-25
+
+- **Ed25519 receipts.** With the optional `cryptography` extra,
+  `gate --receipt-key-file` signs with a private key and
+  `receipt verify --public-key` verifies with only the public key. `key generate`
+  writes a `0600` private key.
+
+## 0.13.1 — 2026-11-25
+
+- **Portfolio strictness fix.** A criterion gated only at a later stage is not
+  a critical defect at the current lifecycle. Strict mode now requires every
+  declared stage to have a passing decision and every critical criterion to be
+  gated somewhere.
+- **Incident trial.** The real Maven module went through canary → production →
+  a caught API break → rollback → an incident gate requiring API parity, a clean
+  worktree, a reverse-applicable commit, and two signed approvals.
+
+## 0.13.0 — 2026-11-25
+
+- **One-command onboarding.** `capability init --ci --hook` writes the draft
+  manifest, a runnable GitHub Actions gate, and `.assaystone/hook.json`.
+- **The capability registry.** `capability list --root .` scans nested
+  `.assaystone/` directories and prints one row per capability; `--strict` exits
+  `1` on any critical risk.
+
+## 0.12.0 — 2026-11-25
+
+- **Owner-signed waivers.** `waivers: true` plus `capability waive` records a
+  time-boxed exception for one criterion, bound to the manifest digest. The gate
+  applies it only when every criterion on the failing oracle is waived, the
+  failure is `fail` rather than `escalate`, and the signature verifies. A waived
+  oracle is residual risk in the trail, receipt, and card — never a clean pass.
+
+## 0.11.0 — 2026-11-25
+
+- **The Stop hook runs the capability gate.** `hook install claude-code
+  --manifest ... --stage shadow` writes `.assaystone/hook.json`; at Stop the
+  hook evaluates the manifest on the working tree, and `block` mode refuses the
+  stop on a failure. The hook never loads the owner or receipt keys.
+- **`capability status`.** One read-only card per capability: coverage, the
+  current stage's critical gap, stage policies, owner approval, trail and last
+  outcome per stage, receipt verification, and a residual-risk list.
+
+## 0.10.0 — 2026-11-25
+
 - **Signed gate receipts.** `gate --receipt` writes an HMAC-SHA256 receipt bound
   to the commit, the manifest digest, the trail head, and every oracle digest.
   `receipt verify` checks it offline and fails on any changed field, wrong key,
   or a commit/manifest/outcome mismatch. The gate refuses to sign a broken trail
-  and refuses to write a receipt without a key. The Action takes a `receipt`
-  input and the CI job verifies the result. The trust model is symmetric: the
-  receipt proves the signer held the key, not public verifiability.
+  and refuses to write a receipt without a key.
+- **Owner approval of the acceptance criteria.** `manifest_approval: true`
+  requires the owner to sign the manifest digest via `capability accept`. The
+  owner key and the receipt key are separate: who defines acceptance and who
+  records the decision are different signers.
+- **The product gates itself.** `.assaystone/capability.json` declares tests,
+  lint, and Failure Zoo freshness; CI runs the gate, writes the trail, signs a
+  receipt, verifies both, and uploads the evidence.
+- The Action gains `receipt`, `receipt-key-env`, `manifest-approval`, and
+  `owner-key-env`.
 
 ## 0.9.0 — 2026-11-25
 
