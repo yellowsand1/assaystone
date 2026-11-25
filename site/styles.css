@@ -249,6 +249,7 @@ footer { display: flex; align-items: center; justify-content: space-between; max
   .hero-visual { max-width: 760px; margin-top: 10px; }
   .floating-card { right: 12px; }
   .defect-grid { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr 1fr; }
   .evidence-section { grid-template-columns: 1fr; gap: 45px; }
   .quickstart-card { grid-template-columns: 1fr; gap: 40px; }
 }
