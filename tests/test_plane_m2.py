@@ -1009,6 +1009,152 @@ class VerifierOracleTest(unittest.TestCase):
         self.assertFalse(result.merge_allowed)
 
 
+class StageChainTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.marker = self.root / "ok"
+        self.marker.write_text("1\n", encoding="utf-8")
+        self.trail = self.root / "trail.jsonl"
+
+    def manifest(self, capability="chain", command=None):
+        command = command or (
+            "import sys; "
+            "sys.exit(0 if open('ok').read().strip() == '1' else 1)"
+        )
+        data = manifest_data(
+            [
+                {
+                    "id": "ok",
+                    "type": "command",
+                    "payload": {"command": [sys.executable, "-c", command]},
+                },
+                {
+                    "id": "approval",
+                    "type": "command",
+                    "payload": {"command": ["true"]},
+                },
+            ],
+            {
+                "canary": {"require": ["ok"], "allow_merge": True},
+                "production": {
+                    "require": ["ok"],
+                    "approvals": ["approval"],
+                    "allow_merge": True,
+                    "allow_deploy": True,
+                    "after": "canary",
+                },
+            },
+        )
+        data["capability"] = capability
+        return CapabilityManifest.from_dict(data)
+
+    def test_missing_trail_escalates(self):
+        result = evaluate_gate(self.manifest(), "production", self.root)
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("recorded canary", result.reasons[0])
+        self.assertFalse(result.deploy_allowed)
+
+    def test_recorded_canary_pass_unlocks_production(self):
+        manifest = self.manifest()
+        canary = evaluate_gate(manifest, "canary", self.root)
+        self.assertEqual(canary.outcome, "pass")
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        production = evaluate_gate(
+            manifest, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "pass", production.reasons)
+        self.assertTrue(production.deploy_allowed)
+        self.assertEqual(production.prior["stage"], "canary")
+        self.assertEqual(production.prior["seq"], 0)
+
+    def test_failed_canary_blocks_production(self):
+        manifest = self.manifest()
+        self.marker.write_text("0\n", encoding="utf-8")
+        canary = evaluate_gate(manifest, "canary", self.root)
+        self.assertEqual(canary.outcome, "fail")
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        self.marker.write_text("1\n", encoding="utf-8")
+        production = evaluate_gate(
+            manifest, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "escalate")
+        self.assertIn("did not pass", production.reasons[0])
+
+    def test_changed_manifest_blocks_the_chain(self):
+        first = self.manifest()
+        canary = evaluate_gate(first, "canary", self.root)
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        changed = self.manifest(
+            command="import sys; sys.exit(0 if open('ok').read().strip() == '1' else 2)"
+        )
+        production = evaluate_gate(
+            changed, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "escalate")
+        self.assertIn("rules changed", production.reasons[0])
+
+    def test_another_capability_does_not_count(self):
+        other = self.manifest(capability="other")
+        canary = evaluate_gate(other, "canary", self.root)
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        production = evaluate_gate(
+            self.manifest(), "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "escalate")
+        self.assertIn("no recorded canary", production.reasons[0])
+
+    def test_invalid_after_is_rejected(self):
+        data = manifest_data(
+            [{"id": "ok", "type": "command", "payload": {"command": ["true"]}}],
+            {
+                "canary": {"require": ["ok"]},
+                "production": {"require": ["ok"], "after": "nope"},
+            },
+        )
+        with self.assertRaises(PlaneError):
+            CapabilityManifest.from_dict(data)
+        data["policies"]["production"]["after"] = "production"
+        with self.assertRaises(PlaneError):
+            CapabilityManifest.from_dict(data)
+        data["policies"]["production"]["after"] = "shadow"
+        with self.assertRaises(PlaneError):
+            CapabilityManifest.from_dict(data)
+
+    def test_cli_chain_round_trip(self):
+        manifest = self.manifest()
+        path = self.root / "capability.json"
+        path.write_text(json.dumps(manifest.to_dict()), encoding="utf-8")
+        base = [
+            "gate",
+            "--manifest",
+            str(path),
+            "--root",
+            str(self.root),
+            "--audit",
+            str(self.trail),
+            "--json",
+        ]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main([*base, "--stage", "production"])
+        self.assertEqual(code, 2)
+        self.assertEqual(json.loads(out.getvalue())["outcome"], "escalate")
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main([*base, "--stage", "canary"])
+        self.assertEqual(code, 0)
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main([*base, "--stage", "production"])
+        self.assertEqual(code, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["outcome"], "pass")
+        self.assertEqual(payload["prior"]["stage"], "canary")
+
+
 class StaticGapTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

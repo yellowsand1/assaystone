@@ -334,6 +334,17 @@ def run_plane(output_dir: str | Path = ".") -> str:
         trail_path = Path(output_dir) / "plane-demo-trail.jsonl"
         trail_path.unlink(missing_ok=True)
         entry = audit_trail.append(trail_path, canary, actor="demo")
+        production = evaluate_gate(
+            manifest, "production", work, trail_path=trail_path
+        )
+        lines += [
+            "production, chained to the canary entry:",
+            f"  {production.outcome}  "
+            f"deploy_allowed={production.deploy_allowed}  "
+            f"prior={production.prior.get('stage')}#"
+            f"{production.prior.get('seq')}",
+            "",
+        ]
         check = audit_trail.verify(trail_path)
         lines += [
             f"trail: {trail_path.name} entry {entry['seq']}, chain intact",

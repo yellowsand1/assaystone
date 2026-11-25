@@ -566,14 +566,20 @@ def cmd_gate(args: argparse.Namespace) -> int:
         return 2
     try:
         result = evaluate_gate(
-            manifest, args.stage, args.root, strict=args.strict
+            manifest,
+            args.stage,
+            args.root,
+            strict=args.strict,
+            trail_path=args.audit,
         )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     entry = None
     if args.audit:
-        previous = audit_trail.last_manifest_digest(args.audit)
+        previous = audit_trail.last_manifest_digest(
+            args.audit, result.capability
+        )
         if (
             previous
             and previous != result.manifest_digest

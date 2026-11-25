@@ -49,6 +49,7 @@ class StagePolicy:
     allow_deploy: bool = False
     rollback_required: bool = False
     rollback: str = ""
+    after: str = ""
 
 
 @dataclass
@@ -120,6 +121,7 @@ class CapabilityManifest:
                 allow_deploy=bool(value.get("allow_deploy", False)),
                 rollback_required=bool(value.get("rollback_required", False)),
                 rollback=str(value.get("rollback") or ""),
+                after=str(value.get("after") or ""),
             )
             for name, value in (data.get("policies") or {}).items()
         }
@@ -214,6 +216,17 @@ class CapabilityManifest:
                 errors.append(
                     f"policy {stage}: rollback_required needs a rollback oracle"
                 )
+            if policy.after:
+                if policy.after not in STAGES:
+                    errors.append(
+                        f"policy {stage}: unknown previous stage {policy.after!r}"
+                    )
+                elif policy.after == stage:
+                    errors.append(f"policy {stage}: after cannot be itself")
+                elif policy.after not in self.policies:
+                    errors.append(
+                        f"policy {stage}: after {policy.after!r} has no policy"
+                    )
         return errors
 
     def uncovered_criteria(self) -> list[ManifestCriterion]:
@@ -271,6 +284,7 @@ class CapabilityManifest:
                     "allow_deploy": policy.allow_deploy,
                     "rollback_required": policy.rollback_required,
                     "rollback": policy.rollback,
+                    "after": policy.after,
                 }
                 for name, policy in sorted(self.policies.items())
             },
@@ -353,6 +367,7 @@ class GateResult:
     rollback: str = ""
     manifest_lifecycle: str = ""
     manifest_digest: str = ""
+    prior: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -370,6 +385,7 @@ class GateResult:
             "rollback": self.rollback,
             "manifest_lifecycle": self.manifest_lifecycle,
             "manifest_digest": self.manifest_digest,
+            "prior": dict(self.prior),
         }
 
 
@@ -391,11 +407,76 @@ def _assurance_gap(
     ]
 
 
+def _chain_check(
+    manifest: CapabilityManifest,
+    stage: str,
+    policy: StagePolicy,
+    trail_path: str | Path | None,
+) -> tuple[str, dict[str, Any]]:
+    """A stage can require a recorded pass of an earlier stage on the trail.
+
+    The chain is scoped to the capability and compared against the current
+    manifest digest, so a pass under different acceptance rules does not count.
+    """
+    if not policy.after:
+        return "", {}
+    if trail_path is None:
+        return (
+            f"{stage} requires a recorded {policy.after} pass; pass the trail "
+            "with --audit",
+            {},
+        )
+    from .trail import TrailError
+    from .trail import read as read_trail
+
+    try:
+        entries = read_trail(trail_path)
+    except TrailError as exc:
+        return f"cannot read the trail: {exc}", {}
+    prior = None
+    for entry in entries:
+        if (
+            entry.get("capability") == manifest.capability
+            and entry.get("stage") == policy.after
+        ):
+            prior = entry
+    if prior is None:
+        return (
+            f"no recorded {policy.after} gate for {manifest.capability}",
+            {},
+        )
+    info = {
+        "stage": policy.after,
+        "seq": prior.get("seq"),
+        "hash": prior.get("hash"),
+        "outcome": prior.get("outcome"),
+    }
+    if prior.get("outcome") != "pass":
+        return (
+            f"the last {policy.after} gate did not pass: "
+            f"{prior.get('outcome')!r}",
+            info,
+        )
+    if not prior.get("manifest_digest"):
+        return (
+            f"the {policy.after} entry has no manifest digest; cannot chain",
+            info,
+        )
+    if prior.get("manifest_digest") != manifest_digest(manifest):
+        return (
+            f"acceptance rules changed since {policy.after}; "
+            "re-run that stage first",
+            info,
+        )
+    return "", info
+
+
 def evaluate_gate(
     manifest: CapabilityManifest,
     stage: str,
     root: str | Path,
     strict: bool = False,
+    trail_path: str | Path | None = None,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -409,6 +490,21 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+        )
+    chain_error, prior = _chain_check(manifest, stage, policy, trail_path)
+    if chain_error:
+        return GateResult(
+            capability=manifest.capability,
+            stage=stage,
+            outcome="escalate",
+            reasons=[chain_error],
+            gap=_assurance_gap(manifest, policy),
+            strict=strict,
+            manifest_lifecycle=manifest.lifecycle,
+            manifest_digest=manifest_digest(manifest),
+            rollback_required=policy.rollback_required,
+            rollback=policy.rollback,
+            prior=prior,
         )
     by_id = {item.id: item for item in manifest.oracles}
     required = list(
@@ -441,6 +537,8 @@ def evaluate_gate(
         outcome = "pass"
 
     reasons = [f"{stage} requires: {', '.join(required) or 'nothing'}"]
+    if policy.after:
+        reasons.append(f"chained after a recorded {policy.after} pass")
     for oracle_id in missing:
         reasons.append(f"missing oracle: {oracle_id}")
     if gap:
@@ -470,6 +568,7 @@ def evaluate_gate(
         rollback=policy.rollback,
         manifest_lifecycle=manifest.lifecycle,
         manifest_digest=manifest_digest(manifest),
+        prior=prior,
     )
 
 

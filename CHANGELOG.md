@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-No changes yet.
+- **Chained lifecycle stages.** A policy can require a recorded pass of an
+  earlier stage: `"production": {"after": "canary"}`. The gate reads the trail,
+  takes the most recent entry for the same capability and stage, and escalates
+  when that entry is missing, did not pass, or was decided under a different
+  manifest digest. The trail records the chained entry (`prior`). CI must carry
+  the same trail artifact between stages.
 
 ## 0.6.0 — 2026-11-25
 
