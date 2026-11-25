@@ -103,6 +103,7 @@ def create_receipt(
         "manifest_digest": str(gate.manifest_digest or ""),
         "manifest_approval": dict(gate.manifest_approval or {}),
         "waived": list(gate.waived or []),
+        "revoked": list(gate.revoked or []),
         "trail_head": head,
         "trail_entries": entries,
         "actor": actor,

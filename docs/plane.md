@@ -457,12 +457,34 @@ write the private key from a secret to a `0600` file for the gate step and remov
 it afterwards; keep the public key in the repository or a policy store. HMAC
 remains the default and needs no extra.
 
+### Revoking a key
+
+A key id is only useful if a lost key can be retired. `capability.revocations.json`
+sits next to the manifest:
+
+```json
+{
+  "version": 1,
+  "revoked": [
+    {"key_id": "sha256:4588...", "reason": "laptop lost", "at": "2026-11-25"}
+  ]
+}
+```
+
+Every owner approval, waiver, and receipt key id is checked against the list. A
+listed key does not make the past decision false; it makes it unable to stand:
+the gate **escalates** and says which artifact and which reason, so a human
+re-decides under a current key. An unreadable list escalates as well. The list's
+own integrity comes from repository review — commit it before or with the key
+rotation. A revocation list with no reasons is rejected.
+
 Ed25519 artifacts carry a **key id** — the SHA-256 fingerprint of the public key
 — inside the signed body. Verification checks it whenever the public key is
 supplied, so a key substitution fails even if the signature is otherwise valid.
 `assaystone key fingerprint --public owner.pub` prints it, and `key generate`
-shows it. To rotate, publish a new key id; old artifacts keep the old id. There
-is no revocation list or identity system yet, and the docs say so.
+shows it. To rotate, publish a new key id; old artifacts keep the old id. A
+revoked id is refused by the gate (see above). There is no identity system and
+no expiry, and the docs say so.
 
 ## A Java public API oracle
 

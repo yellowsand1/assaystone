@@ -716,6 +716,7 @@ def _cmd_capability_status(args: argparse.Namespace) -> int:
         approval_path=args.approval,
         owner_key=os.environ.get(args.owner_key_env) or "",
         owner_public_key=args.owner_public_key,
+        revocations_path=args.revocations,
         receipt_key=os.environ.get(args.receipt_key_env) or "",
     )
     if args.json:
@@ -806,6 +807,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             owner_key=os.environ.get(args.owner_key_env) or "",
             owner_public_key=args.owner_public_key,
             waivers_path=args.waivers,
+            revocations_path=args.revocations,
         )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1684,6 +1686,9 @@ def _parser() -> argparse.ArgumentParser:
     capability_status.add_argument("--approval", default=None, metavar="PATH")
     capability_status.add_argument("--waivers", default=None, metavar="PATH")
     capability_status.add_argument(
+        "--revocations", default=None, metavar="PATH"
+    )
+    capability_status.add_argument(
         "--stage",
         default=None,
         choices=["design", "shadow", "canary", "production", "incident", "retired"],
@@ -1802,6 +1807,10 @@ def _parser() -> argparse.ArgumentParser:
     gate_parser.add_argument(
         "--waivers", metavar="PATH", default=None,
         help="owner-signed criterion waivers",
+    )
+    gate_parser.add_argument(
+        "--revocations", metavar="PATH", default=None,
+        help="keys that must no longer be trusted",
     )
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)

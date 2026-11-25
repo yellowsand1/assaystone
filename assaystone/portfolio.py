@@ -92,6 +92,10 @@ def _critical(card: StatusCard) -> list[str]:
         issues.append("receipt does not verify")
     if card.waivers.get("present") and not card.waivers.get("ok"):
         issues.append("waiver file does not verify")
+    if card.revocations.get("revoked_artifacts"):
+        issues.append("an artifact was signed by a revoked key")
+    if card.revocations.get("present") and not card.revocations.get("ok"):
+        issues.append("the revocation list does not read")
     if not card.trail.get("present"):
         issues.append("no trail evidence")
     else:
@@ -146,6 +150,7 @@ def build_portfolio(
             receipt_path=sidecar("receipt.json"),
             approval_path=sidecar("capability.approval.json"),
             waivers_path=sidecar("capability.waivers.json"),
+            revocations_path=sidecar("capability.revocations.json"),
             owner_key=owner_key,
             owner_public_key=owner_public_key,
             receipt_key=receipt_key,

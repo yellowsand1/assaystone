@@ -71,6 +71,7 @@ def entry_for(
             getattr(gate, "manifest_approval", {}) or {}
         ),
         "waived": list(getattr(gate, "waived", []) or []),
+        "revoked": list(getattr(gate, "revoked", []) or []),
         "prior": dict(getattr(gate, "prior", {}) or {}),
         "oracles": [
             {
