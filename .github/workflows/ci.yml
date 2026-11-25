@@ -59,11 +59,11 @@ jobs:
           python -m assaystone gate \
             --manifest .assaystone/capability.json \
             --stage shadow --root . \
-            --audit .assaystone/self-trail.jsonl \
-            --receipt .assaystone/self-receipt.json \
+            --audit .assaystone/trail.jsonl \
+            --receipt .assaystone/receipt.json \
             --actor ci
-          python -m assaystone trail verify .assaystone/self-trail.jsonl
-          python -m assaystone receipt verify .assaystone/self-receipt.json \
+          python -m assaystone trail verify .assaystone/trail.jsonl
+          python -m assaystone receipt verify .assaystone/receipt.json \
             --commit "$(git rev-parse HEAD)" --outcome pass
       - name: Capability status
         env:
@@ -74,18 +74,22 @@ jobs:
             echo '```'
             python -m assaystone capability status \
               --manifest .assaystone/capability.json \
-              --trail .assaystone/self-trail.jsonl \
-              --receipt .assaystone/self-receipt.json \
+              --trail .assaystone/trail.jsonl \
+              --receipt .assaystone/receipt.json \
               --stage shadow
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Capability portfolio
+        env:
+          ASSAYSTONE_RECEIPT_KEY: ci-self-gate
+        run: python -m assaystone capability list --root . --strict
       - name: Upload the gate evidence
         uses: actions/upload-artifact@v4
         with:
           name: assaystone-self-gate
           path: |
-            .assaystone/self-trail.jsonl
-            .assaystone/self-receipt.json
+            .assaystone/trail.jsonl
+            .assaystone/receipt.json
 
   package:
     runs-on: ubuntu-latest

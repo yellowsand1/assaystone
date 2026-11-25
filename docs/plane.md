@@ -516,6 +516,41 @@ active residual risk with the approver and expiry. It never appears as a clean
 pass. If waivers are enabled and a failure occurs without the owner key, the gate
 escalates rather than guessing.
 
+## The registry
+
+A capability is a directory, not only a file:
+
+```text
+.assaystone/
+  capability.json
+  trail.jsonl
+  receipt.json
+  capability.approval.json
+  capability.waivers.json
+```
+
+Any nested `.assaystone` directory is another capability. The registry scans the
+workspace and prints one row per capability:
+
+```bash
+assaystone capability list --root . --strict
+```
+
+```text
+capability    owner   risk  lifecycle  criteria  last             approval  receipt  critical
+pricing       growth  high  shadow     4/4       shadow:pass      ok        ok       0
+refunds       support high  shadow     3/3       canary:pass      ok        -        0
+```
+
+`--strict` exits `1` when any capability has a critical risk: no trail, a
+declared stage with no recorded gate, a last gate that did not pass, an ungated
+critical criterion, an invalid approval, receipt, or waiver, or an invalid
+manifest. `--json` returns the same data.
+
+The registry is read-only and creates no second source of truth: every cell comes
+from the capability card. It is how a team answers "where do we stand?" without
+opening each repository.
+
 ## The capability card
 
 The gate answers one run; the card answers the operator's question.
