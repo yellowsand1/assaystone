@@ -9,12 +9,83 @@ from typing import Any
 
 DEFAULT_TEST_COMMAND = [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-t", ".", "-v"]
 
+CRITERION_KINDS = (
+    "precondition",
+    "invariant",
+    "postcondition",
+    "forbidden_action",
+    "evidence",
+)
+SEVERITIES = ("critical", "high", "medium", "low")
+ON_UNKNOWN = ("escalate", "fail")
+
 
 @dataclass
 class VerifierSpec:
     name: str
     required: bool = True
     params: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class Criterion:
+    """One acceptance criterion, independent of how it is checked.
+
+    The statement is for a human. The defect is the shared tag that binds it to
+    verifiers, the benchmark, and coverage. A criterion with no verifier is a
+    declared requirement with no check: that is the assurance gap, not a bug.
+    """
+
+    id: str
+    kind: str
+    statement: str
+    defect: str
+    verifiers: list[str] = field(default_factory=list)
+    severity: str = "high"
+    on_unknown: str = "escalate"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Criterion":
+        if not isinstance(data, dict):
+            raise ValueError("criterion must be an object")
+        for required in ("id", "kind", "statement", "defect"):
+            if required not in data:
+                raise ValueError(f"criterion is missing {required}")
+        cid = str(data["id"]).strip()
+        kind = str(data["kind"]).strip()
+        statement = str(data["statement"]).strip()
+        defect = str(data["defect"]).strip()
+        if not cid or not statement or not defect:
+            raise ValueError("criterion id, statement, and defect must be non-empty")
+        if kind not in CRITERION_KINDS:
+            raise ValueError(f"criterion {cid}: unknown kind {kind!r}")
+        severity = str(data.get("severity") or "high").strip()
+        if severity not in SEVERITIES:
+            raise ValueError(f"criterion {cid}: unknown severity {severity!r}")
+        on_unknown = str(data.get("on_unknown") or "escalate").strip()
+        if on_unknown not in ON_UNKNOWN:
+            raise ValueError(f"criterion {cid}: unknown on_unknown {on_unknown!r}")
+        verifiers = [str(name) for name in data.get("verifiers") or []]
+        return cls(
+            id=cid,
+            kind=kind,
+            statement=statement,
+            defect=defect,
+            verifiers=verifiers,
+            severity=severity,
+            on_unknown=on_unknown,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "statement": self.statement,
+            "defect": self.defect,
+            "verifiers": list(self.verifiers),
+            "severity": self.severity,
+            "on_unknown": self.on_unknown,
+        }
 
 
 @dataclass
@@ -31,6 +102,10 @@ class Contract:
     # Optional domain label ("code", "ops", ...). A benchmark only applies a
     # contract's verifiers to corpus families in the same domain.
     domain: str = ""
+    # Human-readable acceptance criteria. Optional in v1, but the criteria are
+    # what make a contract legible to a domain expert rather than only to an
+    # engineer who knows the verifier names.
+    criteria: list[Criterion] = field(default_factory=list)
 
     @classmethod
     def load(cls, path: str | Path) -> "Contract":
@@ -48,6 +123,14 @@ class Contract:
         ]
         if not specs:
             raise ValueError(f"contract has no verifiers: {source}")
+        raw_criteria = data.get("criteria") or []
+        if not isinstance(raw_criteria, list):
+            raise ValueError(f"criteria must be a list: {source}")
+        criteria = [Criterion.from_dict(item) for item in raw_criteria]
+        required = [str(tag) for tag in data.get("required_defects") or []]
+        if not required and criteria:
+            # A criterion is a requirement; the defect tag is its identity.
+            required = list(dict.fromkeys(item.defect for item in criteria))
         return cls(
             name=data.get("name", "contract"),
             verifiers=specs,
@@ -55,12 +138,13 @@ class Contract:
             fail_fast=bool(data.get("fail_fast", True)),
             human_review_cost_usd=float(data.get("human_review_cost_usd", 6.0)),
             max_verification_cost_usd=float(data.get("max_verification_cost_usd", 0.05)),
-            required_defects=[str(tag) for tag in data.get("required_defects") or []],
+            required_defects=required,
             domain=str(data.get("domain") or ""),
+            criteria=criteria,
         )
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "name": self.name,
             "test_command": self.test_command,
             "fail_fast": self.fail_fast,
@@ -77,3 +161,6 @@ class Contract:
                 for spec in self.verifiers
             ],
         }
+        if self.criteria:
+            out["criteria"] = [item.to_dict() for item in self.criteria]
+        return out

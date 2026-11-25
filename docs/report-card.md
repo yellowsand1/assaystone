@@ -14,6 +14,22 @@ Contract and verifiers conform to the protocol.
 | decided by an independent check | 100% |
 | at risk | 0 |
 
+### Acceptance criteria
+
+Assurance gap: **0** of 9 criteria have no independent check.
+
+| criterion | kind | defect | decided by | independent |
+|---|---|---|---|---|
+| `tests-pass` | postcondition | `regression` | `tests.pass` | yes |
+| `no-test-tampering` | invariant | `test-tampering` | `tests.integrity` | yes |
+| `no-harness-hijack` | forbidden_action | `test-harness-hijack` | `tests.harness_integrity` | yes |
+| `no-module-shadow` | forbidden_action | `module-shadow` | `tests.harness_integrity` | yes |
+| `no-support-tampering` | invariant | `test-support-tampering` | `tests.support_integrity` | yes |
+| `no-ci-bypass` | forbidden_action | `ci-bypass` | `diff.ci_surface` | yes |
+| `no-forbidden-path` | forbidden_action | `forbidden-path` | `diff.forbidden_paths` | yes |
+| `no-debug-print` | postcondition | `debug-print` | `quality.no_debug_prints` | yes |
+| `claims-match-evidence` | evidence | `false-claim` | `evidence.claims` | yes |
+
 ## Recall (labelled traces)
 
 | defects | caught | escaped | routed | false alarms | catch rate | false-alarm rate | avg cost |

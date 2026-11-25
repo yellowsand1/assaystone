@@ -30,8 +30,13 @@ class CoverageReport:
     uncovered: list[str] = field(default_factory=list)
     not_declared: dict[str, list[str]] = field(default_factory=dict)
     blind_spots: dict[str, list[str]] = field(default_factory=dict)
+    criteria: list[dict[str, Any]] = field(default_factory=list)
     estimated_cost_usd: float = 0.0
     max_cost_usd: float = 0.0
+
+    @property
+    def assurance_gap(self) -> list[str]:
+        return [row["id"] for row in self.criteria if row["assurance_gap"]]
 
     @property
     def at_risk(self) -> list[str]:
@@ -71,6 +76,8 @@ class CoverageReport:
             "blind_spots": {
                 name: list(tags) for name, tags in sorted(self.blind_spots.items())
             },
+            "criteria": [dict(row) for row in self.criteria],
+            "assurance_gap": self.assurance_gap,
             "coverage_rate": round(self.coverage_rate, 6),
             "independent_rate": round(self.independent_rate, 6),
             "estimated_cost_usd": round(self.estimated_cost_usd, 8),
@@ -107,6 +114,40 @@ def analyze_coverage(
             else:
                 low.setdefault(tag, []).append(cls.name)
 
+    contract_names = {spec.name for spec in contract.verifiers}
+    criteria_rows: list[dict[str, Any]] = []
+    for criterion in contract.criteria:
+        if criterion.verifiers:
+            bound = [
+                name
+                for name in criterion.verifiers
+                if name in contract_names and name in REGISTRY
+            ]
+        else:
+            bound = sorted(
+                name
+                for name in contract_names
+                if name in REGISTRY
+                and criterion.defect in REGISTRY[name].catches
+            )
+        independent_checks = [
+            name
+            for name in bound
+            if independence_rank(REGISTRY[name].independence) >= 1
+        ]
+        criteria_rows.append(
+            {
+                "id": criterion.id,
+                "kind": criterion.kind,
+                "statement": criterion.statement,
+                "defect": criterion.defect,
+                "severity": criterion.severity,
+                "covered_by": sorted(bound),
+                "independent": bool(independent_checks),
+                "assurance_gap": not independent_checks,
+            }
+        )
+
     return CoverageReport(
         contract=contract.name,
         declared=tags,
@@ -126,6 +167,7 @@ def analyze_coverage(
             if tag not in declared_set
         },
         blind_spots=blind,
+        criteria=criteria_rows,
         estimated_cost_usd=cost,
         max_cost_usd=contract.max_verification_cost_usd,
     )
@@ -154,6 +196,24 @@ def render_coverage(report: CoverageReport) -> str:
         f"(budget ${report.max_cost_usd:.6f})."
     )
     add("")
+
+    if report.criteria:
+        add("## Acceptance criteria")
+        add("")
+        add(
+            f"Assurance gap: **{len(report.assurance_gap)}** of "
+            f"{len(report.criteria)} criteria have no independent check."
+        )
+        add("")
+        add("| criterion | kind | statement | covered by | independent |")
+        add("|---|---|---|---|---|")
+        for row in report.criteria:
+            names = ", ".join(f"`{name}`" for name in row["covered_by"]) or "—"
+            add(
+                f"| `{row['id']}` | {row['kind']} | {row['statement']} | "
+                f"{names} | {'yes' if row['independent'] else 'no'} |"
+            )
+        add("")
 
     if report.declared:
         add("| defect | covered by | independent |")

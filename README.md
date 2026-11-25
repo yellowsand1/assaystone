@@ -239,6 +239,23 @@ have perfect recall and no coverage; a long one can cover every declared class a
 still leak semantics. A leaderboard makes that visible instead of reducing it to a
 single score.
 
+## Acceptance IR
+
+A contract is not a list of checks. It is a statement of what "acceptable" means:
+
+| kind | the question |
+|---|---|
+| `precondition` | what must be true before the run? |
+| `invariant` | what must never change? |
+| `postcondition` | what must be true after? |
+| `forbidden_action` | what must never happen? |
+| `evidence` | what must be shown? |
+
+Each criterion binds to checks through a defect tag. A criterion with no check is
+an **assurance gap**, not a bug: the requirement is declared, and the tool says it
+cannot decide it. The same language describes code, actions, data, and research.
+Spec: [docs/acceptance-ir.md](docs/acceptance-ir.md).
+
 ## Plan a contract
 
 `assaystone compose` turns "these defect classes matter" into the cheapest set of
@@ -612,6 +629,7 @@ examples/third_party_pack/ # a verifier implemented outside the package
 failure_zoo/           # labeled failure corpus (seed)
 docs/why.md            # the longer argument
 docs/protocol.md       # the verifier ABI and the three schemas
+docs/acceptance-ir.md  # the criterion language above the verifiers
 docs/protocol.json     # generated catalog of every conformant verifier
 docs/corpus.md         # how to add a labelled case
 docs/adoption.md       # the 45-minute design-partner script

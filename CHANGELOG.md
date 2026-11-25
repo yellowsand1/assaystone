@@ -49,6 +49,12 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Acceptance IR.** Contracts can carry typed `criteria` (precondition,
+  invariant, postcondition, forbidden_action, evidence) with a statement, a
+  defect tag, an optional verifier binding, severity, and `on_unknown`. Coverage
+  reports the **assurance gap**: declared criteria that no independent check can
+  decide. The IR is backward compatible; `required_defects` is derived from the
+  criteria when omitted. Spec: [docs/acceptance-ir.md](docs/acceptance-ir.md).
 - **Test support integrity.** `tests.support_integrity` protects test support
   code outside the `tests/` prefix (`helpers/`, `testing/`, `test_utils/`,
   `spec/support/`). The Goodhart `support` family adds a fixture whose suite

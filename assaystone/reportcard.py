@@ -64,6 +64,8 @@ class ReportCard:
             parts.append(f"recall {self.recall.catch_rate:.0%}")
         if self.coverage.at_risk:
             parts.append(f"{len(self.coverage.at_risk)} at risk")
+        if self.coverage.assurance_gap:
+            parts.append(f"{len(self.coverage.assurance_gap)} assurance gap(s)")
         if self.resistance.broken_claims:
             parts.append(f"{len(self.resistance.broken_claims)} broken claim(s)")
         return ", ".join(parts)
@@ -139,6 +141,24 @@ class ReportCard:
                 else:
                     add(f"- `{tag}`: only low-independence checks claim it")
         add("")
+
+        if self.coverage.criteria:
+            add("### Acceptance criteria")
+            add("")
+            add(
+                f"Assurance gap: **{len(self.coverage.assurance_gap)}** of "
+                f"{len(self.coverage.criteria)} criteria have no independent check."
+            )
+            add("")
+            add("| criterion | kind | defect | decided by | independent |")
+            add("|---|---|---|---|---|")
+            for row in self.coverage.criteria:
+                names = ", ".join(f"`{name}`" for name in row["covered_by"]) or "—"
+                add(
+                    f"| `{row['id']}` | {row['kind']} | `{row['defect']}` | "
+                    f"{names} | {'yes' if row['independent'] else 'no'} |"
+                )
+            add("")
 
         if self.recall is not None:
             add("## Recall (labelled traces)")

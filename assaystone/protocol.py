@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from . import packs as _packs  # noqa: F401 - registers built-in domain packs
-from .contract import Contract
+from .contract import CRITERION_KINDS, ON_UNKNOWN, SEVERITIES, Contract
 from .verifiers import REGISTRY
 
 PROTOCOL_VERSION = "1"
@@ -40,6 +40,10 @@ CONTRACT_SCHEMA: dict[str, Any] = {
             "uniqueItems": True,
         },
         "domain": {"type": "string"},
+        "criteria": {
+            "type": "array",
+            "items": {"$ref": "#/$defs/criterion"},
+        },
         "verifiers": {
             "type": "array",
             "minItems": 1,
@@ -47,6 +51,24 @@ CONTRACT_SCHEMA: dict[str, Any] = {
         },
     },
     "$defs": {
+        "criterion": {
+            "type": "object",
+            "required": ["id", "kind", "statement", "defect"],
+            "additionalProperties": False,
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "kind": {"enum": list(CRITERION_KINDS)},
+                "statement": {"type": "string", "minLength": 1},
+                "defect": {"type": "string", "minLength": 1},
+                "verifiers": {
+                    "type": "array",
+                    "items": {"type": "string", "minLength": 1},
+                    "uniqueItems": True,
+                },
+                "severity": {"enum": list(SEVERITIES)},
+                "on_unknown": {"enum": list(ON_UNKNOWN)},
+            },
+        },
         "verifierSpec": {
             "type": "object",
             "required": ["name"],
@@ -272,6 +294,44 @@ def check_contract(contract: Contract) -> ContractCheck:
         seen.add(spec.name)
         if spec.name not in REGISTRY:
             violations.append(f"unknown verifier: {spec.name}")
+
+    contract_names = {spec.name for spec in contract.verifiers}
+    seen_criteria: set[str] = set()
+    for criterion in contract.criteria:
+        if criterion.id in seen_criteria:
+            violations.append(f"duplicate criterion id: {criterion.id}")
+        seen_criteria.add(criterion.id)
+        if criterion.kind not in CRITERION_KINDS:
+            violations.append(
+                f"criterion {criterion.id}: unknown kind {criterion.kind!r}"
+            )
+        if criterion.severity not in SEVERITIES:
+            violations.append(
+                f"criterion {criterion.id}: unknown severity "
+                f"{criterion.severity!r}"
+            )
+        if criterion.on_unknown not in ON_UNKNOWN:
+            violations.append(
+                f"criterion {criterion.id}: unknown on_unknown "
+                f"{criterion.on_unknown!r}"
+            )
+        if not criterion.statement.strip():
+            violations.append(f"criterion {criterion.id}: empty statement")
+        if criterion.defect not in contract.required_defects:
+            violations.append(
+                f"criterion {criterion.id}: defect {criterion.defect!r} "
+                "is not in required_defects"
+            )
+        for name in criterion.verifiers:
+            if name not in REGISTRY:
+                violations.append(
+                    f"criterion {criterion.id}: unknown verifier {name!r}"
+                )
+            elif name not in contract_names:
+                violations.append(
+                    f"criterion {criterion.id}: {name!r} is not in the "
+                    "contract's verifiers"
+                )
 
     if len(set(contract.required_defects)) != len(contract.required_defects):
         violations.append("required_defects contains duplicates")
