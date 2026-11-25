@@ -532,6 +532,23 @@ def test_agent_run(assaystone):
 
 Failures become PR annotations; a Markdown summary is written to the job summary.
 
+The same action gates a capability when you pass `manifest` instead of
+`contract`/`traces`:
+
+```yaml
+- uses: yellowsand1/assaystone@v0.7.0
+  with:
+    manifest: .assaystone/capability.json
+    stage: canary
+    root: .
+    audit: .assaystone/trail.jsonl
+    actor: ${{ github.actor }}
+```
+
+It sets `verdict` and `findings` outputs, writes the oracle table to the step
+summary, and exits non-zero on `fail` or `escalate`. When a stage declares
+`after`, carry the same trail artifact from the earlier stage.
+
 ### Framework adapters
 
 - Claude Code and Codex CLI transcript import

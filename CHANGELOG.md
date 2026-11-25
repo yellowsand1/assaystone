@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-No changes yet.
+- **The GitHub Action gates a capability.** Pass `manifest` + `stage` (and
+  optionally `root`, `audit`, `actor`, `strict`) instead of `contract` +
+  `traces`. The action writes the oracle table to the job summary, sets
+  `verdict` and `findings`, and exits non-zero on `fail` or `escalate`. A CI job
+  now exercises the action against the pricing fixture.
 
 ## 0.7.0 — 2026-11-25
 

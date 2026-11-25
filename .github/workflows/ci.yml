@@ -78,3 +78,23 @@ jobs:
           /tmp/assaystone-wheel/bin/assaystone demo ops
           /tmp/assaystone-wheel/bin/assaystone demo plane --output-dir /tmp/assaystone-demo
           /tmp/assaystone-wheel/bin/assaystone benchmark failure-zoo
+
+  action-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        id: gate
+        with:
+          install: "."
+          manifest: examples/capability/pricing.json
+          stage: shadow
+          root: examples/capability/pricing_project
+          audit: /tmp/assaystone-action-trail.jsonl
+          actor: ci
+      - name: Gate outputs, step summary, and trail
+        run: |
+          test "${{ steps.gate.outputs.verdict }}" = "pass"
+          test "${{ steps.gate.outputs.findings }}" = "0"
+          assaystone trail verify /tmp/assaystone-action-trail.jsonl
+          grep -q "Assaystone gate: pass" "$GITHUB_STEP_SUMMARY"
