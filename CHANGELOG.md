@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.6.0 — 2026-11-25
+
 ### Acceptance plane: bind verifier checks and service metrics
 
 - **`verifier` oracle.** A manifest can bind any check from the verifier ABI —
