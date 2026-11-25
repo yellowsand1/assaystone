@@ -49,6 +49,10 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Two-domain adaptation.** The plane runs a synthetic Java change (compile,
+  class artifact, feature branch) and a support refund (ledger JSON, policy
+  limit, manager approval) from manifests only; `plane.py` is unchanged.
+  `java_local.json` uses `javac` so the gate runs without a Maven download.
 - **Acceptance plane (preview).** Capability manifests bind criteria to four
   generic oracle primitives (`command`, `file`, `git`, `human`) and lifecycle
   policies. `assaystone capability validate` and `assaystone gate` evaluate a

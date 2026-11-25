@@ -1,0 +1,6 @@
+{
+  "orders": [
+    {"id": "O-1", "amount_cents": 12000, "refunded_cents": 4000, "status": "partially_refunded"}
+  ],
+  "policy": {"refund_limit_cents": 10000}
+}

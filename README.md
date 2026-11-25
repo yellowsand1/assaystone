@@ -296,7 +296,11 @@ assaystone gate --manifest examples/capability/java.json --stage shadow --root .
 
 `shadow` can pass but cannot merge; `canary` and `production` add approvals.
 The core does not know Maven: `mvn -q -DskipTests compile` is a command payload.
-The Java manifest is the first template, not a special code path.
+
+Two templates ship: `java.json` (Maven) and `java_local.json` (`javac`, used by
+the tests). `support.json` is a second domain — a refund request with a policy
+limit and a manager approval — running on the **same core** with a different
+manifest. A new domain is a manifest, not a new code path.
 
 ## External tools
 
