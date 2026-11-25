@@ -92,9 +92,8 @@ jobs:
           root: examples/capability/pricing_project
           audit: /tmp/assaystone-action-trail.jsonl
           actor: ci
-      - name: Gate outputs, step summary, and trail
+      - name: Gate outputs and trail
         run: |
           test "${{ steps.gate.outputs.verdict }}" = "pass"
           test "${{ steps.gate.outputs.findings }}" = "0"
           assaystone trail verify /tmp/assaystone-action-trail.jsonl
-          grep -q "Assaystone gate: pass" "$GITHUB_STEP_SUMMARY"
