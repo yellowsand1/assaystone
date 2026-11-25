@@ -57,6 +57,14 @@ inputs:
     description: Environment variable holding the receipt key.
     required: false
     default: "ASSAYSTONE_RECEIPT_KEY"
+  manifest-approval:
+    description: Path to the owner approval for the manifest digest.
+    required: false
+    default: ""
+  owner-key-env:
+    description: Environment variable holding the owner key.
+    required: false
+    default: "ASSAYSTONE_OWNER_KEY"
   baseline:
     description: Path to the baseline repository (verify mode).
     required: false
@@ -121,6 +129,12 @@ runs:
             argv+=(
               --receipt "${{ inputs.receipt }}"
               --receipt-key-env "${{ inputs.receipt-key-env }}"
+            )
+          fi
+          if [ -n "${{ inputs.manifest-approval }}" ]; then
+            argv+=(
+              --manifest-approval "${{ inputs.manifest-approval }}"
+              --owner-key-env "${{ inputs.owner-key-env }}"
             )
           fi
           report="$RUNNER_TEMP/assaystone-gate.json"

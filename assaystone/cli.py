@@ -9,6 +9,12 @@ from pathlib import Path
 
 from . import __version__, demo
 from . import trail as audit_trail
+from .approval import (
+    DEFAULT_OWNER_KEY_ENV,
+    ApprovalError,
+    approval_path_for,
+    create_approval,
+)
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .brief import render_brief
@@ -478,6 +484,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_init(args)
     if args.capability_command == "brief":
         return _cmd_capability_brief(args)
+    if args.capability_command == "accept":
+        return _cmd_capability_accept(args)
     try:
         manifest = CapabilityManifest.load(
             args.manifest, registry=_registry(args.registry)
@@ -501,6 +509,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
                 f"  registry={manifest.registry} "
                 f"fingerprint={manifest.registry_fingerprint}"
             )
+        if manifest.manifest_approval:
+            print("  owner approval: required (capability.approval.json)")
         uncovered = manifest.uncovered_criteria()
         total = len(manifest.criteria)
         print(f"  criteria gated by some stage: {total - len(uncovered)}/{total}")
@@ -567,6 +577,38 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_capability_accept(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    key = os.environ.get(args.key_env) or ""
+    if not key:
+        print(f"error: set {args.key_env} to sign the approval", file=sys.stderr)
+        return 2
+    try:
+        approval = create_approval(
+            manifest, args.approver or manifest.owner, key
+        )
+    except ApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    target = Path(args.out) if args.out else approval_path_for(manifest)
+    if target is None:
+        print("error: the manifest has no source path; pass --out", file=sys.stderr)
+        return 1
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(approval, indent=2) + "\n", encoding="utf-8")
+    print(
+        f"approval: {target} by {approval['approved_by']} "
+        f"manifest {approval['manifest_digest'][:23]}..."
+    )
+    return 0
+
+
 def _cmd_capability_brief(args: argparse.Namespace) -> int:
     try:
         manifest = CapabilityManifest.load(
@@ -606,6 +648,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
             args.root,
             strict=args.strict,
             trail_path=args.audit,
+            approval_path=args.manifest_approval,
+            owner_key=os.environ.get(args.owner_key_env) or "",
         )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1378,6 +1422,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_brief.set_defaults(func=cmd_capability)
 
+    capability_accept = capability_sub.add_parser(
+        "accept", help="sign the manifest digest as its owner"
+    )
+    capability_accept.add_argument("--manifest", required=True, metavar="PATH")
+    capability_accept.add_argument("--out", default=None, metavar="PATH")
+    capability_accept.add_argument("--approver", default=None)
+    capability_accept.add_argument(
+        "--key-env", default=DEFAULT_OWNER_KEY_ENV
+    )
+    capability_accept.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_accept.set_defaults(func=cmd_capability)
+
     gate_parser = sub.add_parser(
         "gate",
         help="evaluate a capability at a lifecycle stage",
@@ -1418,6 +1476,14 @@ def _parser() -> argparse.ArgumentParser:
     gate_parser.add_argument(
         "--receipt-key-env", default=DEFAULT_KEY_ENV,
         help="environment variable holding the receipt key",
+    )
+    gate_parser.add_argument(
+        "--manifest-approval", metavar="PATH", default=None,
+        help="owner approval for the manifest digest",
+    )
+    gate_parser.add_argument(
+        "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV,
+        help="environment variable holding the owner key",
     )
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)

@@ -67,6 +67,9 @@ def entry_for(
             getattr(gate, "manifest_lifecycle", "") or ""
         ),
         "manifest_digest": str(getattr(gate, "manifest_digest", "") or ""),
+        "manifest_approval": dict(
+            getattr(gate, "manifest_approval", {}) or {}
+        ),
         "prior": dict(getattr(gate, "prior", {}) or {}),
         "oracles": [
             {

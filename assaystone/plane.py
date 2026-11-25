@@ -76,6 +76,8 @@ class CapabilityManifest:
     retention: str = ""
     registry: str = ""
     registry_fingerprint: str = ""
+    manifest_approval: bool = False
+    source: str = ""
 
     @classmethod
     def load(
@@ -95,7 +97,7 @@ class CapabilityManifest:
                 registry = OracleRegistry.load(file_path.parent / data["registry"])
             except OracleError as exc:
                 raise PlaneError(str(exc)) from exc
-        return cls.from_dict(data, source=str(path), registry=registry)
+        return cls.from_dict(data, source=str(file_path), registry=registry)
 
     @classmethod
     def from_dict(
@@ -155,6 +157,8 @@ class CapabilityManifest:
             retention=str(data.get("retention") or ""),
             registry=declared_registry or (registry.source if registry else ""),
             registry_fingerprint=fingerprint,
+            manifest_approval=bool(data.get("manifest_approval", False)),
+            source=source,
         )
         errors = manifest.validate()
         if errors:
@@ -257,6 +261,7 @@ class CapabilityManifest:
             "risk": self.risk,
             "lifecycle": self.lifecycle,
             "retention": self.retention,
+            "manifest_approval": self.manifest_approval,
             "criteria": [
                 {
                     "id": item.id,
@@ -370,6 +375,7 @@ class GateResult:
     rollback: str = ""
     manifest_lifecycle: str = ""
     manifest_digest: str = ""
+    manifest_approval: dict[str, Any] = field(default_factory=dict)
     prior: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -388,6 +394,7 @@ class GateResult:
             "rollback": self.rollback,
             "manifest_lifecycle": self.manifest_lifecycle,
             "manifest_digest": self.manifest_digest,
+            "manifest_approval": dict(self.manifest_approval),
             "prior": dict(self.prior),
         }
 
@@ -492,12 +499,53 @@ def _chain_check(
     return "", info
 
 
+def _manifest_approval_check(
+    manifest: CapabilityManifest,
+    approval_path: str | Path | None,
+    owner_key: str,
+) -> tuple[str, dict[str, Any]]:
+    if not manifest.manifest_approval:
+        return "", {}
+    from .approval import (
+        ApprovalError,
+        approval_path_for,
+        load_approval,
+        verify_approval,
+    )
+
+    path = approval_path
+    if path is None:
+        path = approval_path_for(manifest)
+        if path is None:
+            return (
+                "the manifest requires owner approval but has no path; "
+                "run capability accept",
+                {},
+            )
+    if not owner_key:
+        return (
+            "the manifest requires owner approval but the owner key is not "
+            "available (set ASSAYSTONE_OWNER_KEY)",
+            {},
+        )
+    try:
+        data = load_approval(path)
+    except ApprovalError as exc:
+        return str(exc), {}
+    check = verify_approval(data, owner_key, manifest)
+    if not check.ok:
+        return "; ".join(check.errors), check.info
+    return "", check.info
+
+
 def evaluate_gate(
     manifest: CapabilityManifest,
     stage: str,
     root: str | Path,
     strict: bool = False,
     trail_path: str | Path | None = None,
+    approval_path: str | Path | None = None,
+    owner_key: str = "",
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -511,6 +559,23 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+        )
+    approval_error, approval_info = _manifest_approval_check(
+        manifest, approval_path, owner_key
+    )
+    if approval_error:
+        return GateResult(
+            capability=manifest.capability,
+            stage=stage,
+            outcome="escalate",
+            reasons=[approval_error],
+            gap=_assurance_gap(manifest, policy),
+            strict=strict,
+            manifest_lifecycle=manifest.lifecycle,
+            manifest_digest=manifest_digest(manifest),
+            manifest_approval=approval_info,
+            rollback_required=policy.rollback_required,
+            rollback=policy.rollback,
         )
     chain_error, prior = _chain_check(manifest, stage, policy, trail_path)
     if chain_error:
@@ -589,6 +654,7 @@ def evaluate_gate(
         rollback=policy.rollback,
         manifest_lifecycle=manifest.lifecycle,
         manifest_digest=manifest_digest(manifest),
+        manifest_approval=approval_info,
         prior=prior,
     )
 
