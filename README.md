@@ -340,7 +340,9 @@ trail head; `receipt verify` checks it offline and fails on any changed field.
 With `manifest_approval: true`, the owner signs the manifest digest
 (`capability accept`), and the gate escalates without a valid approval.
 `capability status` turns the manifest, trail, receipt, and approval into one
-card with an explicit residual-risk list.
+card with an explicit residual-risk list. An owner can sign a time-boxed,
+digest-bound waiver for one criterion; it is reported as residual risk, never as
+a clean pass.
 `capability validate --strict` fails when a critical criterion is gated by no
 stage at all. `gate` appends to a hash-chained trail: actor, stage, outcome,
 missing oracles, the assurance gap, and a digest of every oracle it ran. `trail verify` detects

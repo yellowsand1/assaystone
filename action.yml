@@ -65,6 +65,10 @@ inputs:
     description: Environment variable holding the owner key.
     required: false
     default: "ASSAYSTONE_OWNER_KEY"
+  waivers:
+    description: Path to owner-signed criterion waivers.
+    required: false
+    default: ""
   baseline:
     description: Path to the baseline repository (verify mode).
     required: false
@@ -136,6 +140,9 @@ runs:
               --manifest-approval "${{ inputs.manifest-approval }}"
               --owner-key-env "${{ inputs.owner-key-env }}"
             )
+          fi
+          if [ -n "${{ inputs.waivers }}" ]; then
+            argv+=(--waivers "${{ inputs.waivers }}")
           fi
           report="$RUNNER_TEMP/assaystone-gate.json"
           code=0
