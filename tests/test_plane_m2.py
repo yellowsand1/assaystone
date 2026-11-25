@@ -864,6 +864,44 @@ class TranscriptOracleTest(unittest.TestCase):
         )
         self.assertEqual(allowed.outcome, "pass")
 
+    def test_ignore_excludes_gate_tooling(self):
+        (self.root / "baseline" / "app.py").write_text(
+            "x = 1\n", encoding="utf-8"
+        )
+        (self.root / "tool.json").write_text(
+            json.dumps(
+                {
+                    "id": "tool",
+                    "task": "x",
+                    "steps": [],
+                    "artifacts": [
+                        {
+                            "path": ".assaystone/tool.py",
+                            "content": "print('debug')\n",
+                            "change": "added",
+                        },
+                        {
+                            "path": "app.py",
+                            "content": "x = 1\n",
+                            "change": "added",
+                        },
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        without = self.run_audit(transcript="tool.json", baseline=".")
+        self.assertTrue(
+            any("quality.no_debug_prints" in item for item in without.evidence)
+        )
+        with_ignore = self.run_audit(
+            transcript="tool.json", baseline=".", ignore=[".assaystone/"]
+        )
+        self.assertFalse(
+            any("quality.no_debug_prints" in item for item in with_ignore.evidence)
+        )
+        self.assertIn("ignored=1", " ".join(with_ignore.evidence))
+
     def test_unknown_fail_on_escalates(self):
         result = self.run_audit(fail_on="hgih")
         self.assertEqual(result.outcome, "escalate")

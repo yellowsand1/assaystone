@@ -11,6 +11,7 @@ call needs an explicit opt-in in the manifest.
 """
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import hmac
 import ipaddress
@@ -925,6 +926,16 @@ def _shadow(spec: OracleSpec, root: Path) -> OracleResult:
 # ---------------------------------------------------------------------------
 
 
+def _matches_ignore(path: str, patterns: list[str]) -> bool:
+    for pattern in patterns:
+        if pattern.endswith("/"):
+            if path == pattern.rstrip("/") or path.startswith(pattern):
+                return True
+        elif path == pattern or fnmatch.fnmatch(path, pattern):
+            return True
+    return False
+
+
 def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
     """Run the session audit over an agent transcript.
 
@@ -965,6 +976,17 @@ def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
         return _result(spec, "escalate", [str(exc)])
     if not traces:
         return _result(spec, "escalate", ["no traces found in the transcript"])
+    ignore = [str(item) for item in payload.get("ignore") or []]
+    ignored = 0
+    if ignore:
+        for trace in traces:
+            kept = []
+            for artifact in trace.artifacts:
+                if _matches_ignore(artifact.path, ignore):
+                    ignored += 1
+                else:
+                    kept.append(artifact)
+            trace.artifacts = kept
     try:
         contract = build_audit_contract(
             baseline, run_tests=bool(payload.get("run_tests", False))
@@ -981,6 +1003,8 @@ def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
         "severities="
         + ",".join(f"{name}:{counts[name]}" for name in counts if counts[name]),
     ]
+    if ignored:
+        evidence.append(f"ignored={ignored}")
     for finding in findings[:8]:
         evidence.append(f"{finding.verifier}({finding.severity})")
     output = canonical_json(

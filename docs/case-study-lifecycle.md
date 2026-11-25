@@ -67,6 +67,40 @@ The promotion used a documentation-only commit. Rollback was a real
 - `javap` against the pre-change commit reports the same public API;
 - a shadow gate on the rolled-back tree passes and is recorded in the trail.
 
+## The same run with a real agent
+
+The lifecycle run above was authored by us. The same gate was then pointed at a
+change made by a real coding agent in a fresh clone.
+
+The task was narrow: rename a public accessor pair on a DTO and keep the module
+compiling. The agent reported success and said the build was verified. Both
+statements were true:
+
+```text
+agent:    "已完成修改并验证通过" (done, build verified)
+gate:     fail
+build     pass
+artifact  pass
+api       fail   removed ... getOauthUnitValue(); setOauthUnitValue(...)
+```
+
+Compilation passed because every internal caller was updated (there were none).
+The public API was still broken. The agent did what it was asked and reported it
+correctly; the acceptance criterion it had no reason to know about is what
+failed.
+
+The session audit added one honest limit and exposed one bug:
+
+- Before the `ignore` option, it treated the gate's own untracked
+  `.assaystone/api_diff.py` as agent output and flagged its `print()` calls.
+  Tooling that lives in the repository is not a change under review.
+- With `ignore: [".assaystone/"]`, the only finding left is
+  `diff.language_coverage`: none of the audit checks understand Java, so the
+  session oracle escalates. The API oracle is the one that decides.
+
+That division is deliberate: the session layer says "I cannot decide this
+language", not "pass".
+
 ## A second domain, same plane
 
 The same commands ran against a pricing project with two different defects:
@@ -116,9 +150,16 @@ seconds, not minutes, and it is the difference between "the build is green" and
 
 ## What the trial exposed
 
-Only one missing piece: a Java public-API oracle is not something most teams
-have. The trial had to write one. It now ships as an example payload and is
-documented in [plane.md](plane.md).
+1. **A Java public-API oracle is not something most teams have.** The trial had
+   to write one. It now ships as
+   [`examples/capability/java_api_diff.py`](../examples/capability/java_api_diff.py).
+2. **Gate tooling looked like agent output.** With a real agent session, the
+   untracked `.assaystone/` directory was included in the artifacts and its
+   `print()` calls became a false finding. The transcript oracle now accepts
+   `ignore` (paths or globs), and the session was audited with
+   `.assaystone/` excluded.
+3. **The session oracle cannot decide an unsupported language.** It escalates;
+   the API oracle decides. That is the honest division, not a gap to paper over.
 
 Two things worked without changes:
 
@@ -126,8 +167,8 @@ Two things worked without changes:
 - the chain blocked production after an escalated canary, then allowed it after a
   fresh canary pass.
 
-No core change was needed. That is the result the design was aiming for, and the
-reason the next step is a design-partner run, not another primitive.
+No change to the gate core was needed for the agent run. The fixes were
+connectors: an example Java oracle and an exclusion for the gate's own files.
 
 ## Reproduce it
 

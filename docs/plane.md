@@ -199,6 +199,9 @@ a decision. A clean session passes and its findings are attached as evidence.
   and the edits were already applied.
 * `run_tests` is off by default; a transcript oracle should not execute the
   repository's test command unless the manifest says so.
+* `ignore` lists paths or globs excluded from the session artifacts, for
+  example `[".assaystone/"]`. The gate's own tooling and config are not a change
+  under review; without this, an untracked helper script can become a finding.
 * A session with no artifacts escalates: there is nothing to diff, and a
   read-only session must not read as a clean change. Set
   `allow_empty_artifacts: true` only when the criterion is genuinely about the
