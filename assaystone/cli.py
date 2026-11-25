@@ -18,6 +18,7 @@ from .approval import (
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .brief import render_brief
+from .card import build_card, render_card
 from .compose import compose, render_plan
 from .contract import Contract
 from .corpus import CorpusError, add_case, case_outcome
@@ -486,6 +487,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_brief(args)
     if args.capability_command == "accept":
         return _cmd_capability_accept(args)
+    if args.capability_command == "status":
+        return _cmd_capability_status(args)
     try:
         manifest = CapabilityManifest.load(
             args.manifest, registry=_registry(args.registry)
@@ -574,6 +577,30 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_status(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    card = build_card(
+        manifest,
+        stage=args.stage,
+        trail_path=args.trail,
+        receipt_path=args.receipt,
+        approval_path=args.approval,
+        owner_key=os.environ.get(args.owner_key_env) or "",
+        receipt_key=os.environ.get(args.receipt_key_env) or "",
+    )
+    if args.json:
+        print(json.dumps(card.to_dict(), indent=2))
+    else:
+        print(render_card(card))
     return 0
 
 
@@ -1454,6 +1481,30 @@ def _parser() -> argparse.ArgumentParser:
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
     )
     capability_accept.set_defaults(func=cmd_capability)
+
+    capability_status = capability_sub.add_parser(
+        "status", help="summarize the current state of acceptance"
+    )
+    capability_status.add_argument("--manifest", required=True, metavar="PATH")
+    capability_status.add_argument("--trail", default=None, metavar="PATH")
+    capability_status.add_argument("--receipt", default=None, metavar="PATH")
+    capability_status.add_argument("--approval", default=None, metavar="PATH")
+    capability_status.add_argument(
+        "--stage",
+        default=None,
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
+    capability_status.add_argument(
+        "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV
+    )
+    capability_status.add_argument(
+        "--receipt-key-env", default=DEFAULT_KEY_ENV
+    )
+    capability_status.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_status.add_argument("--json", action="store_true")
+    capability_status.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",

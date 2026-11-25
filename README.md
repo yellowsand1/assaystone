@@ -339,6 +339,8 @@ A signed receipt binds the decision to the commit, the manifest digest, and the
 trail head; `receipt verify` checks it offline and fails on any changed field.
 With `manifest_approval: true`, the owner signs the manifest digest
 (`capability accept`), and the gate escalates without a valid approval.
+`capability status` turns the manifest, trail, receipt, and approval into one
+card with an explicit residual-risk list.
 `capability validate --strict` fails when a critical criterion is gated by no
 stage at all. `gate` appends to a hash-chained trail: actor, stage, outcome,
 missing oracles, the assurance gap, and a digest of every oracle it ran. `trail verify` detects
