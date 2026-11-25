@@ -861,6 +861,8 @@ def cmd_demo(args: argparse.Namespace) -> int:
         print(demo.run_audit(output_dir))
     elif args.pack == "adversarial":
         print(demo.run_adversarial(output_dir))
+    elif args.pack == "plane":
+        print(demo.run_plane(output_dir))
     else:
         print(demo.run_code(output_dir))
     return 0
@@ -878,7 +880,7 @@ def _parser() -> argparse.ArgumentParser:
     demo_parser.add_argument(
         "pack",
         nargs="?",
-        choices=["code", "ops", "audit", "adversarial"],
+        choices=["code", "ops", "audit", "adversarial", "plane"],
         default="code",
     )
     demo_parser.add_argument("--output-dir", default=".")

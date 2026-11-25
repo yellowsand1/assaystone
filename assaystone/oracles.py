@@ -738,14 +738,16 @@ def _first_json_diff(left: Any, right: Any, path: str = "") -> str:
         return ""
     if isinstance(left, list) and isinstance(right, list):
         if len(left) != len(right):
-            return f"{path or '[]'}: length {len(left)} != {len(right)}"
+            label = path.rstrip(".") or "[]"
+            return f"{label}: length {len(left)} != {len(right)}"
         for index, (a, b) in enumerate(zip(left, right, strict=False)):
             diff = _first_json_diff(a, b, f"{path}{index}.")
             if diff:
                 return diff
         return ""
     if left != right:
-        return f"{path or 'value'}: {left!r} != {right!r}"
+        label = path.rstrip(".") or "value"
+        return f"{label}: {left!r} != {right!r}"
     return ""
 
 

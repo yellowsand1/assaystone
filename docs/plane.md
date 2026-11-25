@@ -18,6 +18,8 @@ assaystone gate --manifest examples/capability/pricing.json --stage canary \
 assaystone trail verify .assaystone/trail.jsonl --expect sha256:...
 ```
 
+See it in one screen: `assaystone demo plane`.
+
 ## Start from a draft
 
 ```bash

@@ -35,6 +35,11 @@
   declares no approvals and no rollback claim, because inventing either would
   be the unchecked assertion this project argues against. Detection lives in
   `scaffold.py`, outside the plane.
+- **`assaystone demo plane`.** One screen for the plane: a pricing change
+  passes `shadow` with a declared gap, a wire-format change that keeps the unit
+  tests green fails at `parity`, `canary` escalates without approval and passes
+  with it, and the trail detects an edited outcome. The demo copies its fixture
+  to a temporary directory and leaves only the trail behind.
 - **Fail closed under bad payloads.** A malformed timeout, an invalid regex, a
   non-UTF-8 artifact, or any other primitive error becomes `escalate` with the
   exception name; the gate never crashes. `trail append` refuses to extend a

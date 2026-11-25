@@ -98,12 +98,18 @@ The rest of the loop:
 ```bash
 python3 -m assaystone demo        # code/test verifier pack
 python3 -m assaystone demo ops    # runtime gate + ops/refund pack
+python3 -m assaystone demo plane  # acceptance plane: pass, fail, approval, trail
 ```
 
 The code demo compares a naive contract (`tests + syntax`) with a hardened one:
 **1/4 vs 4/4** defects caught, and mutation testing raises verifier recall from
 **67% to 94%**. The ops demo catches **0/4 vs 4/4** bad refunds, and the runtime gate
 blocks a denied approval and an over-limit refund.
+
+The plane demo runs one pricing change through the lifecycle in one screen: the
+`shadow` oracle passes, a refactor that keeps the tests green but changes the
+wire format fails at `parity`, `canary` escalates without the owner's approval,
+passes with it, and the audit trail detects an edited decision.
 
 ## What a passing test suite misses
 
