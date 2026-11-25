@@ -36,6 +36,7 @@ from .leaderboard import LeaderboardError, run_leaderboard
 from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
+from .plane import CapabilityManifest, PlaneError, evaluate_gate, render_gate
 from .protocol import (
     check_contract,
     check_manifest,
@@ -443,6 +444,48 @@ def cmd_protocol(args: argparse.Namespace) -> int:
     else:
         print(render_protocol())
     return 0
+
+
+def cmd_capability(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(args.manifest)
+    except PlaneError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(manifest.to_dict(), indent=2))
+    else:
+        print(f"capability {manifest.capability}: ok")
+        print(
+            f"  owner={manifest.owner} risk={manifest.risk} "
+            f"lifecycle={manifest.lifecycle}"
+        )
+        print(
+            f"  oracles={len(manifest.oracles)} "
+            f"criteria={len(manifest.criteria)} "
+            f"policies={len(manifest.policies)}"
+        )
+    return 0
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(args.manifest)
+    except PlaneError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        result = evaluate_gate(manifest, args.stage, args.root)
+    except PlaneError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_gate(result))
+    if result.outcome == "pass":
+        return 0
+    return 1 if result.outcome == "fail" else 2
 
 
 def cmd_leaderboard(args: argparse.Namespace) -> int:
@@ -1033,6 +1076,39 @@ def _parser() -> argparse.ArgumentParser:
     init.add_argument("--force", action="store_true", help="overwrite an existing contract")
     init.add_argument("--ci", action="store_true", help="also write a GitHub Actions workflow")
     init.set_defaults(func=cmd_init)
+
+    capability_parser = sub.add_parser(
+        "capability",
+        help="validate a capability manifest",
+    )
+    capability_sub = capability_parser.add_subparsers(
+        dest="capability_command", required=True
+    )
+    capability_validate = capability_sub.add_parser(
+        "validate", help="check a capability manifest"
+    )
+    capability_validate.add_argument("--manifest", required=True, metavar="PATH")
+    capability_validate.add_argument("--json", action="store_true")
+    capability_validate.set_defaults(func=cmd_capability)
+
+    gate_parser = sub.add_parser(
+        "gate",
+        help="evaluate a capability at a lifecycle stage",
+        epilog=(
+            "Exit codes: 0 pass, 1 fail, 2 escalate or manifest error. The "
+            "command runs the oracles declared in the manifest; only run "
+            "manifests you trust."
+        ),
+    )
+    gate_parser.add_argument("--manifest", required=True, metavar="PATH")
+    gate_parser.add_argument(
+        "--stage",
+        required=True,
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
+    gate_parser.add_argument("--root", default=".")
+    gate_parser.add_argument("--json", action="store_true")
+    gate_parser.set_defaults(func=cmd_gate)
 
     compose_parser = sub.add_parser(
         "compose",

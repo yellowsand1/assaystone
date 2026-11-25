@@ -284,6 +284,20 @@ It reports the selected checks, the cost against the budget, classes that no che
 decides, and classes that rest on a single check. The last list is the useful one:
 a contract can cover every declared class and still have no redundancy.
 
+## Capability gates (preview)
+
+A capability manifest binds criteria to four generic oracles — `command`,
+`file`, `git`, `human` — and a lifecycle policy:
+
+```bash
+assaystone capability validate --manifest examples/capability/java.json
+assaystone gate --manifest examples/capability/java.json --stage shadow --root .
+```
+
+`shadow` can pass but cannot merge; `canary` and `production` add approvals.
+The core does not know Maven: `mvn -q -DskipTests compile` is a command payload.
+The Java manifest is the first template, not a special code path.
+
 ## External tools
 
 The protocol is not limited to the built-in pack. `external.pytest` and

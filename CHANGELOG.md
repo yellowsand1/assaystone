@@ -49,6 +49,12 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Acceptance plane (preview).** Capability manifests bind criteria to four
+  generic oracle primitives (`command`, `file`, `git`, `human`) and lifecycle
+  policies. `assaystone capability validate` and `assaystone gate` evaluate a
+  capability at `shadow`, `canary`, or `production`; `shadow` cannot merge and
+  `production` requires approvals. The core is domain-blind;
+  `examples/capability/java.json` is the first template.
 - **Language coverage.** `diff.language_coverage` escalates when a changed
   source file is in a language the contract does not support. Real Java sessions
   no longer audit as "clean"; they become "needs a human" until a Java pack
