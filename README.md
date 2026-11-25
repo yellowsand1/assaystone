@@ -257,6 +257,19 @@ cannot decide it. A critical or high criterion with no check escalates the run
 instead of passing it. The same language describes code, actions, data, and
 research. Spec: [docs/acceptance-ir.md](docs/acceptance-ir.md).
 
+## Domain packs
+
+The core is domain-neutral; the packs supply what changes. Three ship today:
+
+| domain | example criteria | checks |
+|---|---|---|
+| code | tests pass; no test, runtime, or support tampering; no CI bypass | `tests.*`, `diff.*` |
+| ops | refunds within policy; approval lineage; totals conserved | `ops.*` |
+| data | report schema; row totals equal the total; no PII added | `data.*` |
+
+The same `precondition` / `invariant` / `postcondition` / `forbidden_action` /
+`evidence` language describes all three. A research pack is next.
+
 ## Plan a contract
 
 `assaystone compose` turns "these defect classes matter" into the cheapest set of

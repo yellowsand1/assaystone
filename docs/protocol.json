@@ -47,6 +47,76 @@
       "conformant": true
     },
     {
+      "name": "data.no_pii",
+      "version": "1",
+      "layer": "L1",
+      "independence": "high",
+      "claim": "No changed file adds an email address or phone number.",
+      "catches": [
+        "pii-leak"
+      ],
+      "blind_spots": [
+        "encoded or split PII",
+        "PII in a format outside the patterns",
+        "PII already present in the baseline"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "Changed files must not add an email address or phone number.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
+      "name": "data.schema",
+      "version": "1",
+      "layer": "L0",
+      "independence": "high",
+      "claim": "report.json has currency, total_cents, and rows with category and amount_cents.",
+      "catches": [
+        "schema-invalid"
+      ],
+      "blind_spots": [
+        "a schema-valid report with wrong values",
+        "fields outside the declared list"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "report.json has the required fields and row shape.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
+      "name": "data.totals",
+      "version": "1",
+      "layer": "L0",
+      "independence": "high",
+      "claim": "The sum of report rows equals total_cents.",
+      "catches": [
+        "totals-mismatch"
+      ],
+      "blind_spots": [
+        "a consistent report computed from the wrong source",
+        "rounding differences outside the tolerance"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "The sum of row amounts equals total_cents.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
       "name": "diff.ci_surface",
       "version": "1",
       "layer": "L1",
@@ -537,6 +607,6 @@
       "conformant": true
     }
   ],
-  "conformant": 22,
+  "conformant": 25,
   "nonconformant": []
 }

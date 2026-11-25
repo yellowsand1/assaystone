@@ -41,12 +41,13 @@ class LeaderboardTest(unittest.TestCase):
         cls.board = run_leaderboard(REPO / "benchmarks" / "leaderboard.json")
         cls.by_name = {entry.name: entry for entry in cls.board.entries}
 
-    def test_builtin_manifest_compares_four_contracts(self):
-        self.assertEqual(len(self.board.entries), 4)
+    def test_builtin_manifest_compares_contracts(self):
+        self.assertEqual(len(self.board.entries), 5)
         self.assertTrue(self.by_name["code/hardened"].card.ok)
         self.assertFalse(self.by_name["code/naive"].card.ok)
         self.assertTrue(self.by_name["ops/hardened"].card.ok)
         self.assertFalse(self.by_name["ops/amount-only"].card.ok)
+        self.assertTrue(self.by_name["data/hardened"].card.ok)
 
     def test_markdown_has_every_entry_and_the_tradeoff(self):
         text = self.board.to_markdown()
@@ -58,7 +59,7 @@ class LeaderboardTest(unittest.TestCase):
 
     def test_json_shape(self):
         data = json.loads(json.dumps(self.board.to_dict()))
-        self.assertEqual(len(data["entries"]), 4)
+        self.assertEqual(len(data["entries"]), 5)
         self.assertEqual(data["entries"][0]["domain"], "code")
         self.assertIn("coverage", data["entries"][0]["card"])
 

@@ -54,6 +54,19 @@ Importing `assaystone` registers the ops pack. It reads `orders.json` and
 
 See `examples/ops_agent/` for the contracts, traces, and runtime demo.
 
+## Data pack
+
+Importing `assaystone` registers the data pack. It reads `report.json` from the
+workspace and is the third domain: the acceptance language is unchanged.
+
+| Verifier | Layer | Cost | Catches |
+|---|---|---|---|
+| `data.schema` | L0 | 0.000005 | a report missing required fields or row keys |
+| `data.totals` | L0 | 0.000005 | rows that do not sum to `total_cents` |
+| `data.no_pii` | L1 | 0.000005 | an added email address or phone number |
+
+See `assaystone/demo_data/data_agent/` for the baseline, traces, and contract.
+
 ## External pack
 
 These adapters reuse installed tools without making them a runtime dependency. If

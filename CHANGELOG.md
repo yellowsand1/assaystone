@@ -49,6 +49,11 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Data pack.** A third domain ships: `data.schema`, `data.totals`, and
+  `data.no_pii`, with a contract whose criteria are schema validity, conserved
+  totals, and no PII. The Goodhart `data` family adds a totals mismatch, a PII
+  leak, and a clean control. The leaderboard gains a data entry. The acceptance
+  language is unchanged across code, ops, and data.
 - **Provenance.** Traces declare `source: agent|runtime`; verifiers declare
   `trusts`. A check that trusts agent-written `trace` or `evidence` is downgraded
   to low independence, so a failure found only in testimony escalates instead of

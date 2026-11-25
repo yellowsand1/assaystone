@@ -24,6 +24,12 @@
       "contract": "../examples/ops_agent/contracts/hardened.json",
       "traces": "../examples/ops_agent/traces",
       "baseline": "../examples/ops_agent/baseline"
+    },
+    {
+      "name": "data/hardened",
+      "contract": "../assaystone/demo_data/data_agent/contracts/hardened.json",
+      "traces": "../assaystone/demo_data/data_agent/traces",
+      "baseline": "../assaystone/demo_data/data_agent/baseline"
     }
   ]
 }

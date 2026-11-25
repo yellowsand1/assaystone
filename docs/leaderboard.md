@@ -8,6 +8,7 @@
 | `code/hardened` | code | ok | 100% | 0 | 100% | 0 | 67% | 0 | $0.001159 | PASS |
 | `ops/amount-only` | ops | ok | 0% | 6 | 0% | 4 | 0% | 0 | $0.000011 | NEEDS WORK |
 | `ops/hardened` | ops | ok | 100% | 0 | 100% | 0 | 100% | 0 | $0.000096 | PASS |
+| `data/hardened` | data | ok | 100% | 0 | 100% | 0 | 100% | 0 | $0.000013 | PASS |
 
 ## How to read this
 

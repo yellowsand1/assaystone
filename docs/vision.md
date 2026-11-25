@@ -80,8 +80,8 @@ The core is domain-neutral. A domain pack supplies what changes:
 | decision | oracles: tests, differential replay, policies, human labels |
 | reversibility | which actions can be undone, and how |
 
-Code and ops ship today. Data and research are the next packs; the acceptance IR
-already has the kinds they need (`invariant`, `evidence`).
+Code, ops, and data ship today. Research is the next pack; the acceptance IR
+already has the kinds it needs (`invariant`, `evidence`).
 
 ## What makes this different
 
