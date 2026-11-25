@@ -53,6 +53,7 @@ from .plane import (
     evaluate_gate,
     render_gate,
 )
+from .portfolio import build_portfolio, render_portfolio
 from .protocol import (
     check_contract,
     check_manifest,
@@ -497,6 +498,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_status(args)
     if args.capability_command == "waive":
         return _cmd_capability_waive(args)
+    if args.capability_command == "list":
+        return _cmd_capability_list(args)
     try:
         manifest = CapabilityManifest.load(
             args.manifest, registry=_registry(args.registry)
@@ -614,6 +617,21 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_list(args: argparse.Namespace) -> int:
+    portfolio = build_portfolio(
+        args.root,
+        owner_key=os.environ.get(args.owner_key_env) or "",
+        receipt_key=os.environ.get(args.receipt_key_env) or "",
+    )
+    if args.json:
+        print(json.dumps(portfolio.to_dict(), indent=2))
+    else:
+        print(render_portfolio(portfolio))
+    if args.strict and portfolio.critical_count():
+        return 1
     return 0
 
 
@@ -1628,6 +1646,22 @@ def _parser() -> argparse.ArgumentParser:
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
     )
     capability_waive.set_defaults(func=cmd_capability)
+
+    capability_list = capability_sub.add_parser(
+        "list", help="list capabilities and their evidence in a workspace"
+    )
+    capability_list.add_argument("--root", default=".")
+    capability_list.add_argument(
+        "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV
+    )
+    capability_list.add_argument(
+        "--receipt-key-env", default=DEFAULT_KEY_ENV
+    )
+    capability_list.add_argument("--json", action="store_true")
+    capability_list.add_argument(
+        "--strict", action="store_true", help="fail on any critical risk"
+    )
+    capability_list.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",
