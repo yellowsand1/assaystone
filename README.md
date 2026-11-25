@@ -343,7 +343,11 @@ With `manifest_approval: true`, the owner signs the manifest digest
 stage at all. `gate` appends to a hash-chained trail: actor, stage, outcome,
 missing oracles, the assurance gap, and a digest of every oracle it ran. `trail verify` detects
 edits and deleted entries; pass `--expect HASH` with an externally anchored head
-to detect truncation as well. Case study: [a green build, a broken API, a blocked promotion, and a verified
+to detect truncation as well. Assaystone gates itself: `.assaystone/capability.json` declares this repository's
+acceptance criteria, and CI runs the same gate, writes the trail, signs the
+receipt, and uploads both as evidence.
+
+Case study: [a green build, a broken API, a blocked promotion, and a verified
 rollback](docs/case-study-lifecycle.md). Reference: [docs/plane.md](docs/plane.md).
 
 ## External tools

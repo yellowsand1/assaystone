@@ -52,6 +52,26 @@ jobs:
         run: |
           python -m assaystone benchmark failure-zoo --md /tmp/failure-zoo.md
           diff -u docs/failure-zoo.md /tmp/failure-zoo.md
+      - name: Gate this repository
+        env:
+          ASSAYSTONE_RECEIPT_KEY: ci-self-gate
+        run: |
+          python -m assaystone gate \
+            --manifest .assaystone/capability.json \
+            --stage shadow --root . \
+            --audit .assaystone/self-trail.jsonl \
+            --receipt .assaystone/self-receipt.json \
+            --actor ci
+          python -m assaystone trail verify .assaystone/self-trail.jsonl
+          python -m assaystone receipt verify .assaystone/self-receipt.json \
+            --commit "$(git rev-parse HEAD)" --outcome pass
+      - name: Upload the gate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: assaystone-self-gate
+          path: |
+            .assaystone/self-trail.jsonl
+            .assaystone/self-receipt.json
 
   package:
     runs-on: ubuntu-latest
