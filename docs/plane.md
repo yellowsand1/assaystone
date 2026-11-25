@@ -605,6 +605,38 @@ The registry is read-only and creates no second source of truth: every cell come
 from the capability card. It is how a team answers "where do we stand?" without
 opening each repository.
 
+## Reviewing a change to the criteria
+
+An owner approval is bound to a digest, so any edit forces a new review. The
+reviewer needs to see what changed, not a JSON diff:
+
+```bash
+assaystone capability diff --manifest .assaystone/capability.json \
+  --old ../previous/capability.json
+```
+
+```text
+- this change removes or lowers assurance
+
+criteria removed:
+  - ledger-conserved (critical)
+
+criteria changed:
+  ~ tests-pass: severity: 'critical' -> 'medium'
+
+oracles removed: ledger
+
+policies:
+  ~ production: require={'added': [], 'removed': ['ledger']},
+                rollback_required={'before': True, 'after': False}
+```
+
+`--json` returns the same structure. A change that removes a criterion, an
+oracle, a stage, an approval, a rollback, or lowers a risk rating is flagged as
+**weakening**. Additions and tightened requirements are shown but not flagged.
+The diff never decides anything; it tells the owner what they are being asked to
+re-approve.
+
 ## The capability card
 
 The gate answers one run; the card answers the operator's question.
