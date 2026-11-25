@@ -18,6 +18,7 @@ DEFAULT_REQUIRED_DEFECTS = (
     "module-shadow",
     "ci-bypass",
     "forbidden-path",
+    "unverified-language",
     "debug-print",
     "false-claim",
 )
@@ -74,6 +75,7 @@ def build_contract(root: str | Path) -> tuple[dict[str, Any], str | None]:
         {"name": "tests.support_integrity", "required": True},
         {"name": "diff.max_lines", "required": True, "params": {"max_changed_lines": 300}},
         {"name": "diff.public_api", "required": True},
+        {"name": "diff.language_coverage", "required": True},
         {"name": "quality.no_debug_prints", "required": True},
         {"name": "evidence.claims", "required": True},
     ]

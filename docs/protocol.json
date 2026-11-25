@@ -163,6 +163,29 @@
       "conformant": true
     },
     {
+      "name": "diff.language_coverage",
+      "version": "1",
+      "layer": "L2",
+      "independence": "high",
+      "claim": "No changed source file is in a language outside the declared supported set.",
+      "catches": [
+        "unverified-language"
+      ],
+      "blind_spots": [
+        "a supported language with an incomplete check",
+        "configuration and data files"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "Every changed source file is in a language some check can evaluate.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
       "name": "diff.max_lines",
       "version": "1",
       "layer": "L0",
@@ -678,6 +701,6 @@
       "conformant": true
     }
   ],
-  "conformant": 28,
+  "conformant": 29,
   "nonconformant": []
 }

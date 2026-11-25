@@ -4,8 +4,8 @@
 
 | entry | domain | protocol | coverage | at risk | recall | escaped | resistance | false alarms | cost / run | result |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `code/naive` | code | ok | 11% | 8 | 25% | 3 | 0% | 0 | $0.002010 | NEEDS WORK |
-| `code/hardened` | code | ok | 100% | 0 | 100% | 0 | 67% | 0 | $0.001159 | PASS |
+| `code/naive` | code | ok | 10% | 9 | 25% | 3 | 0% | 0 | $0.002010 | NEEDS WORK |
+| `code/hardened` | code | ok | 100% | 0 | 100% | 0 | 67% | 0 | $0.001164 | PASS |
 | `ops/amount-only` | ops | ok | 0% | 6 | 0% | 4 | 0% | 0 | $0.000011 | NEEDS WORK |
 | `ops/hardened` | ops | ok | 100% | 0 | 100% | 0 | 100% | 0 | $0.000096 | PASS |
 | `data/hardened` | data | ok | 100% | 0 | 100% | 0 | 100% | 0 | $0.000013 | PASS |

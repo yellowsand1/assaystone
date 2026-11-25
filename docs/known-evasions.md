@@ -18,7 +18,7 @@ Status:
 | Forged `refund.create` step in an agent-written trace | declared | `ops.refund_lineage` |
 | Secret format outside the pattern list; encoded or split secrets | declared | `example.no_new_secrets` |
 | Test support code outside the protected prefixes | **caught** | `tests.support_integrity`; Goodhart `g10` |
-| Non-Python source edits (e.g. Java) | **open** | syntax, public-API, and debug-print checks parse Python only |
+| Non-Python source edits (e.g. Java) | **declared** | `diff.language_coverage` escalates when no check supports the language |
 | A session with no Write/Edit artifacts | **declared** | the audit warns and skips the diff-based checks |
 | Network calls or data exfiltration in production code | **open** | no built-in check |
 | Independence is self-reported, not measured | **open** | protocol checks the declaration |
@@ -72,8 +72,10 @@ path-based checks that still apply are `tests.integrity` and
 `diff.forbidden_paths`. "Clean" on a Java session means "not visible", not
 "verified".
 
-This is the largest open item the real sessions exposed. A language pack — at
-minimum a parser for changed files and a public-API check — is the next step.
+`diff.language_coverage` now makes this visible: a changed source file in a
+language the contract does not support escalates the run instead of passing it.
+It does not verify Java; a language pack — at minimum a parser for changed files
+and a public-API check — is still the next step for actual coverage.
 
 ## Sessions without artifacts
 

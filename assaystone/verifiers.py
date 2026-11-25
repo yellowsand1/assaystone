@@ -187,6 +187,64 @@ class DiffSyntax(Verifier):
         return (not reasons, reasons, [f"parsed {checked} Python file(s)"])
 
 
+DEFAULT_SOURCE_SUFFIXES = (
+    ".java",
+    ".kt",
+    ".scala",
+    ".go",
+    ".rs",
+    ".ts",
+    ".tsx",
+    ".js",
+    ".jsx",
+    ".rb",
+    ".php",
+    ".cs",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".swift",
+    ".m",
+    ".mm",
+)
+
+
+@register
+class DiffLanguageCoverage(Verifier):
+    name = "diff.language_coverage"
+    layer = "L2"
+    cost_usd = 0.000005
+    independence = "high"
+    description = "Every changed source file is in a language some check can evaluate."
+    claim = "No changed source file is in a language outside the declared supported set."
+    catches = ("unverified-language",)
+    blind_spots = (
+        "a supported language with an incomplete check",
+        "configuration and data files",
+    )
+    trusts = ("artifacts",)
+
+    def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
+        supported = tuple(params.get("supported_suffixes") or [".py"])
+        sources = tuple(params.get("source_suffixes") or DEFAULT_SOURCE_SUFFIXES)
+        unsupported = sorted(
+            {
+                f"{path} ({change})"
+                for path, change in ctx.changed()
+                if path.endswith(sources) and not path.endswith(supported)
+            }
+        )
+        if unsupported:
+            return (
+                None,
+                [f"no check supports this language: {item}" for item in unsupported],
+                [],
+            )
+        return True, [], [f"checked {len(ctx.changed())} changed file(s)"]
+
+
 @register
 class DiffForbiddenPaths(Verifier):
     name = "diff.forbidden_paths"

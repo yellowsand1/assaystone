@@ -10,13 +10,13 @@ Contract and verifiers conform to the protocol.
 
 | metric | value |
 |---|---|
-| declared defect classes | 9 |
+| declared defect classes | 10 |
 | decided by an independent check | 100% |
 | at risk | 0 |
 
 ### Acceptance criteria
 
-Assurance gap: **0** of 9 criteria have no independent check.
+Assurance gap: **0** of 10 criteria have no independent check.
 
 | criterion | kind | defect | decided by | independent |
 |---|---|---|---|---|
@@ -29,12 +29,13 @@ Assurance gap: **0** of 9 criteria have no independent check.
 | `no-forbidden-path` | forbidden_action | `forbidden-path` | `diff.forbidden_paths` | yes |
 | `no-debug-print` | postcondition | `debug-print` | `quality.no_debug_prints` | yes |
 | `claims-match-evidence` | evidence | `false-claim` | `evidence.claims` | yes |
+| `supported-language` | postcondition | `unverified-language` | `diff.language_coverage` | yes |
 
 ## Recall (labelled traces)
 
 | defects | caught | escaped | routed | false alarms | catch rate | false-alarm rate | avg cost |
 |---|---|---|---|---|---|---|---|
-| 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.001159 |
+| 4 | 4 | 0 | 0 | 0 | 100% | 0% | $0.001164 |
 
 Catch rate: **100%** (95% CI 51%–100%, n=4).
 False-alarm rate: **0%** (95% CI 0%–66%, n=2).

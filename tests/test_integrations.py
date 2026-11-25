@@ -214,8 +214,10 @@ class InitTest(unittest.TestCase):
             self.assertIn("tests.harness_integrity", names)
             self.assertIn("tests.support_integrity", names)
             self.assertIn("diff.ci_surface", names)
+            self.assertIn("diff.language_coverage", names)
             self.assertIn("regression", contract["required_defects"])
             self.assertIn("test-support-tampering", contract["required_defects"])
+            self.assertIn("unverified-language", contract["required_defects"])
             self.assertEqual(contract["domain"], "code")
             self.assertIsNone(result["warning"])
             with self.assertRaises(FileExistsError):

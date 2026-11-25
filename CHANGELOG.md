@@ -49,6 +49,11 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Language coverage.** `diff.language_coverage` escalates when a changed
+  source file is in a language the contract does not support. Real Java sessions
+  no longer audit as "clean"; they become "needs a human" until a Java pack
+  exists. `init` includes the check, and the hardened code contract declares
+  `unverified-language`.
 - **Real-session false positive fixed.** A 477-edit real session produced one
   medium finding: a `print()` in a reproduction script.
   `quality.no_debug_prints` now also excludes `repro/`, `tools/`, `benchmarks/`,

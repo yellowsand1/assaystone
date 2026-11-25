@@ -103,7 +103,7 @@ class CriteriaTest(unittest.TestCase):
     def test_hardened_contract_has_no_assurance_gap(self):
         contract = Contract.load(HARDENED)
         report = analyze_coverage(contract)
-        self.assertEqual(len(report.criteria), 9)
+        self.assertEqual(len(report.criteria), 10)
         self.assertEqual(report.assurance_gap, [])
         self.assertTrue(all(row["independent"] for row in report.criteria))
 

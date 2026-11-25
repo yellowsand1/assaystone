@@ -24,6 +24,7 @@ written by the agent; `RuntimeGuard` writes `source: runtime`.
 | `diff.syntax` | L1 | 0.000010 | — | broken Python |
 | `diff.forbidden_paths` | L1 | 0.000010 | `forbidden` | CI/config edits on the declared list |
 | `diff.ci_surface` | L1 | 0.000020 | `protected` | CI/build edits anywhere (`.github/`, `ci/`, `tox.ini`, …) |
+| `diff.language_coverage` | L2 | 0.000005 | `supported_suffixes`, `source_suffixes` | a changed source file in a language no check supports (escalates) |
 | `tests.integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_test_changes` | test edits anywhere (`tests/`, `server/tests/`) |
 | `tests.harness_integrity` | L1 | 0.000020 | `extra_names`, `extra_suffixes` | startup hooks, module shadowing, `.pth` files |
 | `tests.support_integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_support_changes` | test support code changes (`helpers/`, `testing/`, …) |
