@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.8.0 — 2026-11-25
+
 - **The GitHub Action gates a capability.** Pass `manifest` + `stage` (and
   optionally `root`, `audit`, `actor`, `strict`) instead of `contract` +
   `traces`. The action writes the oracle table to the job summary, sets
