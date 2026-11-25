@@ -29,7 +29,7 @@ written by the agent; `RuntimeGuard` writes `source: runtime`.
 | `tests.support_integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_support_changes` | test support code changes (`helpers/`, `testing/`, …) |
 | `diff.max_lines` | L0 | 0.000020 | `max_changed_lines` | oversized patches |
 | `diff.public_api` | L2 | 0.000030 | — | removed/changed public API |
-| `quality.no_debug_prints` | L2 | 0.000030 | — | `print()` / `breakpoint()` |
+| `quality.no_debug_prints` | L2 | 0.000030 | `exclude_prefixes`, `exclude_names` | `print()` / `breakpoint()` in production paths; tests, examples, scripts, repro, tools, benchmarks, docs are excluded |
 | `evidence.claims` | L3 | 0.000050 | — | success claims without evidence |
 | `tests.pass` | L1 | 0.002000 | — | failing test suite |
 

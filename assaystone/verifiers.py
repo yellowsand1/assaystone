@@ -323,11 +323,23 @@ class NoDebugPrints(Verifier):
     description = "Changed Python code must not contain debug print/breakpoint calls."
     claim = "Changed production Python does not call print() or breakpoint()."
     catches = ("debug-print",)
-    blind_spots = ("debug output routed through logging or sys.stdout",)
+    blind_spots = (
+        "debug output routed through logging or sys.stdout",
+        "a print in an excluded path (tests, examples, scripts, repro, tools, benchmarks, docs)",
+    )
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         exclude_prefixes = list(
-            params.get("exclude_prefixes") or ["tests/", "examples/", "scripts/"]
+            params.get("exclude_prefixes")
+            or [
+                "tests/",
+                "examples/",
+                "scripts/",
+                "repro/",
+                "tools/",
+                "benchmarks/",
+                "docs/",
+            ]
         )
         exclude_names = set(
             params.get("exclude_names")

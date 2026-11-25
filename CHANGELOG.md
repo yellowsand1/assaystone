@@ -49,6 +49,14 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Real-session false positive fixed.** A 477-edit real session produced one
+  medium finding: a `print()` in a reproduction script.
+  `quality.no_debug_prints` now also excludes `repro/`, `tools/`, `benchmarks/`,
+  and `docs/`. The same session now audits clean. The test also exposed two
+  structural gaps now recorded in
+  [docs/known-evasions.md](docs/known-evasions.md): non-Python source edits are
+  invisible to the syntax/API/debug checks, and Bash-only sessions have no
+  artifacts to diff offline.
 - **Confidence intervals.** Goodhart resistance, catch rate, and false-alarm
   rate now report a 95% Wilson interval and the sample size. A 17-case corpus
   no longer reads as a precise population estimate.

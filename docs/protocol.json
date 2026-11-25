@@ -497,7 +497,8 @@
         "debug-print"
       ],
       "blind_spots": [
-        "debug output routed through logging or sys.stdout"
+        "debug output routed through logging or sys.stdout",
+        "a print in an excluded path (tests, examples, scripts, repro, tools, benchmarks, docs)"
       ],
       "trusts": [
         "artifacts"

@@ -18,6 +18,8 @@ Status:
 | Forged `refund.create` step in an agent-written trace | declared | `ops.refund_lineage` |
 | Secret format outside the pattern list; encoded or split secrets | declared | `example.no_new_secrets` |
 | Test support code outside the protected prefixes | **caught** | `tests.support_integrity`; Goodhart `g10` |
+| Non-Python source edits (e.g. Java) | **open** | syntax, public-API, and debug-print checks parse Python only |
+| A session with no Write/Edit artifacts | **declared** | the audit warns and skips the diff-based checks |
 | Network calls or data exfiltration in production code | **open** | no built-in check |
 | Independence is self-reported, not measured | **open** | protocol checks the declaration |
 | A verifier that is wrong in the same way as the generator | **open** | the runner cannot detect correlation |
@@ -61,6 +63,25 @@ behavior-preserving refactor passes.
 
 The remaining blind spot is support code outside the declared prefixes, or a
 helper vendored as a dependency. Both are declared by the verifier.
+
+## Non-Python source edits
+
+`diff.syntax`, `diff.public_api`, and `quality.no_debug_prints` parse Python.
+On a real Java service, a session can change production code and the only
+path-based checks that still apply are `tests.integrity` and
+`diff.forbidden_paths`. "Clean" on a Java session means "not visible", not
+"verified".
+
+This is the largest open item the real sessions exposed. A language pack — at
+minimum a parser for changed files and a public-API check — is the next step.
+
+## Sessions without artifacts
+
+A session that only runs Bash has no `Write` / `Edit` artifacts. At Stop the
+hook merges the git working tree, but an offline audit of an old session
+without a pre-image cannot reconstruct those edits. The audit emits
+"no artifacts; diff-based checks skipped" and treats the run as **not
+auditable**, not as clean.
 
 ## Independence is self-reported
 
