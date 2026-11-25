@@ -392,6 +392,45 @@ signed commit, a transparency log — and pass it to `trail verify --expect HASH
 The verifier then detects truncation as well as edits. This is a stated limit,
 not an oversight.
 
+A [signed receipt](#signed-gate-receipts) closes the authenticity gap for
+holders of the key: it signs the trail head, the manifest digest, and the
+commit. Tail truncation is detectable by comparing the receipt with the trail.
+
+## Signed gate receipts
+
+A trail proves that a file was not edited in place. It does not prove who wrote
+it. A receipt is a small signed statement of one decision:
+
+```bash
+export ASSAYSTONE_RECEIPT_KEY=...        # held by the gate runner, not the agent
+assaystone gate --manifest .assaystone/capability.json --stage canary \
+  --root . --audit .assaystone/trail.jsonl \
+  --receipt .assaystone/receipt.json
+
+assaystone receipt verify .assaystone/receipt.json \
+  --commit "$GITHUB_SHA" --manifest-digest sha256:... --outcome pass
+```
+
+The receipt binds:
+
+- capability, stage, outcome, `merge_allowed`, `deploy_allowed`;
+- the git commit and whether tracked files were dirty;
+- the manifest digest and the trail head + entry count;
+- the actor, timestamp, per-oracle id/type/outcome/digest, assurance gap, chain
+  prior, and rollback oracle;
+- an HMAC-SHA256 signature under `ASSAYSTONE_RECEIPT_KEY`.
+
+Verification fails on any changed field, a wrong key, or a commit, manifest
+digest, or outcome that does not match. The gate refuses to sign a trail that
+does not verify, and refuses to write a receipt without a key (exit `2`).
+
+**Trust model.** HMAC is symmetric: a verifier needs the same key. The receipt
+proves the decision came from someone holding the key — normally the CI gate
+job — not that it is publicly verifiable. Hold the key only in the gate job, make
+the gate + verify a required branch check, and protect the workflow from
+unreviewed edits. Do not put the key in the agent's environment. Public
+(asymmetric) receipts are a declared future limit, not a claim today.
+
 ## A Java public API oracle
 
 A Java change can compile, leave every test green, and still break downstream

@@ -81,6 +81,8 @@ jobs:
 
   action-gate:
     runs-on: ubuntu-latest
+    env:
+      ASSAYSTONE_RECEIPT_KEY: ci-action-key
     steps:
       - uses: actions/checkout@v4
       - uses: ./
@@ -92,8 +94,11 @@ jobs:
           root: examples/capability/pricing_project
           audit: /tmp/assaystone-action-trail.jsonl
           actor: ci
-      - name: Gate outputs and trail
+          receipt: /tmp/assaystone-action-receipt.json
+      - name: Gate outputs, receipt, and trail
         run: |
           test "${{ steps.gate.outputs.verdict }}" = "pass"
           test "${{ steps.gate.outputs.findings }}" = "0"
           assaystone trail verify /tmp/assaystone-action-trail.jsonl
+          assaystone receipt verify /tmp/assaystone-action-receipt.json \
+            --commit "$GITHUB_SHA" --outcome pass

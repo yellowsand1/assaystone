@@ -311,7 +311,9 @@ assaystone capability init --root . --owner platform-team   # draft a manifest
 assaystone capability brief --manifest .assaystone/capability.json --task "..."  # hand the criteria to the agent
 assaystone capability validate --manifest examples/capability/pricing.json
 assaystone gate --manifest examples/capability/pricing.json --stage shadow \
-  --root examples/capability/pricing_project --audit trail.jsonl --actor ci
+  --root examples/capability/pricing_project --audit trail.jsonl --actor ci \
+  --receipt receipt.json
+assaystone receipt verify receipt.json --outcome pass
 assaystone trail verify trail.jsonl
 ```
 
@@ -333,6 +335,8 @@ Three domains run on the same core:
   ledger, and a critical criterion missing from a stage is reported as an
   assurance gap (`--strict` escalates it).
 
+A signed receipt binds the decision to the commit, the manifest digest, and the
+trail head; `receipt verify` checks it offline and fails on any changed field.
 `capability validate --strict` fails when a critical criterion is gated by no
 stage at all. `gate` appends to a hash-chained trail: actor, stage, outcome,
 missing oracles, the assurance gap, and a digest of every oracle it ran. `trail verify` detects
