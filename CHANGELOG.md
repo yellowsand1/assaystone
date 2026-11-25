@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`capability brief`.** Render the manifest as a task brief for an agent: the
+  criteria, the oracle bindings, the stage requirements, the exact gate command,
+  and the rules against weakening tests, CI, or the manifest and against
+  overriding a criterion. In the case study, the same task failed the API oracle
+  without the brief and was reverted by the agent with it. The brief is a view of
+  the manifest, not a second source of truth.
 - **`transcript` oracle `ignore`.** Paths or globs excluded from the session
   artifacts, so the gate's own `.assaystone/` tooling is not counted as agent
   output. The real-agent run in the case study found this: an untracked

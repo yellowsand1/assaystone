@@ -11,6 +11,7 @@ from . import __version__, demo
 from . import trail as audit_trail
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
+from .brief import render_brief
 from .compose import compose, render_plan
 from .contract import Contract
 from .corpus import CorpusError, add_case, case_outcome
@@ -467,6 +468,8 @@ def _registry(path: str | None) -> OracleRegistry | None:
 def cmd_capability(args: argparse.Namespace) -> int:
     if args.capability_command == "init":
         return _cmd_capability_init(args)
+    if args.capability_command == "brief":
+        return _cmd_capability_brief(args)
     try:
         manifest = CapabilityManifest.load(
             args.manifest, registry=_registry(args.registry)
@@ -553,6 +556,30 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_brief(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    text = render_brief(
+        manifest,
+        manifest_path=args.manifest,
+        stage=args.stage,
+        task=args.task or "",
+    )
+    if args.out:
+        target = Path(args.out)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+        print(f"wrote {target}")
+    else:
+        print(text, end="")
     return 0
 
 
@@ -1260,6 +1287,22 @@ def _parser() -> argparse.ArgumentParser:
     capability_init.add_argument("--force", action="store_true")
     capability_init.add_argument("--json", action="store_true")
     capability_init.set_defaults(func=cmd_capability)
+
+    capability_brief = capability_sub.add_parser(
+        "brief", help="render a task brief for an agent from a manifest"
+    )
+    capability_brief.add_argument("--manifest", required=True, metavar="PATH")
+    capability_brief.add_argument(
+        "--stage",
+        default="shadow",
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
+    capability_brief.add_argument("--task", default="", help="the task text")
+    capability_brief.add_argument("--out", default=None, metavar="PATH")
+    capability_brief.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_brief.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",

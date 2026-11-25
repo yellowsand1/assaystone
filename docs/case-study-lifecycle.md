@@ -101,6 +101,44 @@ The session audit added one honest limit and exposed one bug:
 That division is deliberate: the session layer says "I cannot decide this
 language", not "pass".
 
+## The same task with the criteria in the input
+
+The agent run above had no access to the acceptance criteria. A second run used
+the same clone, the same task, and the same gate, with one difference: a brief
+listed the criteria, the gate command, and the rule to stop on a conflict.
+
+| | without the brief | with the brief |
+|---|---|---|
+| source change | rename applied | one edit, then reverted |
+| build | pass | pass |
+| gate | **fail** (public API) | **pass** (tree restored) |
+| agent ran the gate | 0 times | 3 times |
+| final report | "done, build verified" | "task conflicts with a criterion; stopped" |
+
+The agent's shell history shows the loop, not a lucky guess: three Maven runs,
+three gate runs, one revert, and a final clean gate. It did not claim success
+while the API was broken.
+
+This is the missing half of the original problem. The gate alone is post-hoc: an
+agent optimizes for the task as stated. When the acceptance criteria are part of
+the task, the gate becomes the agent's feedback channel, and the work stops
+before the broken change is proposed.
+
+What this does not prove:
+
+- the brief explicitly told the agent to run the gate and to stop on a conflict;
+  it does not show that agents infer unstated criteria;
+- the agent spent 24 shell calls and three gate runs on a one-method rename;
+  cost is real;
+- a refusal is the right outcome here because the task and the criterion are
+  incompatible, but it is not a delivery;
+- no human approved anything, and the SQL domain remains a fixture.
+
+Product implication: the brief should not be hand-written. It is a view of the
+manifest, and it can be generated. The experiment above used a hand-written
+brief; `assaystone capability brief` now renders the same content (criteria,
+oracles, stage policy, gate command, rules) from the manifest.
+
 ## A second domain, same plane
 
 The same commands ran against a pricing project with two different defects:
