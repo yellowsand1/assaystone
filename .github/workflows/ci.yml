@@ -65,6 +65,20 @@ jobs:
           python -m assaystone trail verify .assaystone/self-trail.jsonl
           python -m assaystone receipt verify .assaystone/self-receipt.json \
             --commit "$(git rev-parse HEAD)" --outcome pass
+      - name: Capability status
+        env:
+          ASSAYSTONE_RECEIPT_KEY: ci-self-gate
+        run: |
+          {
+            echo "## Assaystone capability status"
+            echo '```'
+            python -m assaystone capability status \
+              --manifest .assaystone/capability.json \
+              --trail .assaystone/self-trail.jsonl \
+              --receipt .assaystone/self-receipt.json \
+              --stage shadow
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload the gate evidence
         uses: actions/upload-artifact@v4
         with:

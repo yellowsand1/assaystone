@@ -473,6 +473,28 @@ it ran the gate three times, reverted its own edit, and reported the conflict
 instead of claiming success. The brief is a view of the manifest, not a new
 source of truth.
 
+## The capability card
+
+The gate answers one run; the card answers the operator's question.
+
+```bash
+assaystone capability status --manifest .assaystone/capability.json \
+  --trail .assaystone/trail.jsonl --receipt .assaystone/receipt.json \
+  --stage shadow
+```
+
+It reports:
+
+- static assurance gaps and the critical gaps at the current stage;
+- each stage's requirements, approvals, rollback oracle, and chain;
+- whether the owner approval is present and valid;
+- the trail chain, its head, and the last outcome per stage;
+- whether the receipt verifies, and the commit and trail head it binds;
+- a **residual risk** list.
+
+It is read-only. Missing evidence is a residual risk, never a pass. `--json`
+returns the same card for a dashboard or a job summary.
+
 ## Who approves the criteria
 
 A gate is only as trustworthy as the rules it checks. If the agent can edit the
