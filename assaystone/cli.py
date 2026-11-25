@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, demo
+from . import keys as signing_keys
 from . import trail as audit_trail
 from .approval import (
     DEFAULT_OWNER_KEY_ENV,
@@ -804,13 +805,15 @@ def cmd_gate(args: argparse.Namespace) -> int:
     )
     receipt_key = ""
     if args.receipt:
-        receipt_key = os.environ.get(args.receipt_key_env) or ""
-        if not receipt_key:
-            print(
-                f"error: --receipt needs {args.receipt_key_env}",
-                file=sys.stderr,
-            )
-            return 2
+        if not args.receipt_key_file:
+            receipt_key = os.environ.get(args.receipt_key_env) or ""
+            if not receipt_key:
+                print(
+                    f"error: --receipt needs {args.receipt_key_env} or "
+                    "--receipt-key-file",
+                    file=sys.stderr,
+                )
+                return 2
     entry = None
     if args.audit:
         previous = audit_trail.last_manifest_digest(
@@ -842,6 +845,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 receipt_key,
                 actor=actor,
                 trail_path=args.audit,
+                private_key_path=args.receipt_key_file,
             )
         except ReceiptError as exc:
             print(f"error: cannot sign receipt: {exc}", file=sys.stderr)
@@ -884,6 +888,23 @@ def cmd_gate(args: argparse.Namespace) -> int:
     return 1 if result.outcome == "fail" else 2
 
 
+def cmd_key(args: argparse.Namespace) -> int:
+    if args.key_command != "generate":
+        print(f"error: unknown key command {args.key_command!r}", file=sys.stderr)
+        return 2
+    try:
+        private, public = signing_keys.generate(
+            args.private, args.public, force=args.force
+        )
+    except signing_keys.SigningKeyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"private: {private}")
+    print(f"public:  {public}")
+    print("Keep the private key out of CI and out of the agent's environment.")
+    return 0
+
+
 def cmd_receipt(args: argparse.Namespace) -> int:
     if args.receipt_command != "verify":
         print(
@@ -903,6 +924,7 @@ def cmd_receipt(args: argparse.Namespace) -> int:
         expected_commit=args.commit,
         expected_manifest_digest=args.manifest_digest,
         expected_outcome=args.outcome,
+        public_key_path=args.public_key,
     )
     if args.json:
         print(json.dumps(check.to_dict(), indent=2))
@@ -1702,7 +1724,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     gate_parser.add_argument(
         "--receipt-key-env", default=DEFAULT_KEY_ENV,
-        help="environment variable holding the receipt key",
+        help="environment variable holding the HMAC receipt key",
+    )
+    gate_parser.add_argument(
+        "--receipt-key-file", default=None, metavar="PATH",
+        help="Ed25519 private key for the receipt",
     )
     gate_parser.add_argument(
         "--manifest-approval", metavar="PATH", default=None,
@@ -1743,6 +1769,10 @@ def _parser() -> argparse.ArgumentParser:
     receipt_verify = receipt_sub.add_parser("verify", help="check a receipt")
     receipt_verify.add_argument("path", metavar="PATH")
     receipt_verify.add_argument("--key-env", default=DEFAULT_KEY_ENV)
+    receipt_verify.add_argument(
+        "--public-key", default=None, metavar="PATH",
+        help="Ed25519 public key for an ed25519 receipt",
+    )
     receipt_verify.add_argument("--commit", default=None)
     receipt_verify.add_argument("--manifest-digest", default=None)
     receipt_verify.add_argument(
@@ -1750,6 +1780,14 @@ def _parser() -> argparse.ArgumentParser:
     )
     receipt_verify.add_argument("--json", action="store_true")
     receipt_verify.set_defaults(func=cmd_receipt)
+
+    key_parser = sub.add_parser("key", help="generate signing keys")
+    key_sub = key_parser.add_subparsers(dest="key_command", required=True)
+    key_generate = key_sub.add_parser("generate", help="generate an Ed25519 pair")
+    key_generate.add_argument("--private", required=True, metavar="PATH")
+    key_generate.add_argument("--public", required=True, metavar="PATH")
+    key_generate.add_argument("--force", action="store_true")
+    key_generate.set_defaults(func=cmd_key)
 
     compose_parser = sub.add_parser(
         "compose",

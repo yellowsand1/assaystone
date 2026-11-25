@@ -438,8 +438,23 @@ does not verify, and refuses to write a receipt without a key (exit `2`).
 proves the decision came from someone holding the key — normally the CI gate
 job — not that it is publicly verifiable. Hold the key only in the gate job, make
 the gate + verify a required branch check, and protect the workflow from
-unreviewed edits. Do not put the key in the agent's environment. Public
-(asymmetric) receipts are a declared future limit, not a claim today.
+unreviewed edits. Do not put the key in the agent's environment.
+
+**Ed25519 receipts.** With the optional `cryptography` extra, the gate can sign
+with a private key and a reviewer can verify with only the public key:
+
+```bash
+python -m pip install "assaystone[crypto]"
+assaystone key generate --private owner.key --public owner.pub
+assaystone gate ... --receipt receipt.json --receipt-key-file owner.key
+assaystone receipt verify receipt.json --public-key owner.pub --outcome pass
+```
+
+The verifier cannot sign, and the private key never leaves the signer. In CI,
+write the private key from a secret to a `0600` file for the gate step and remove
+it afterwards; keep the public key in the repository or a policy store. HMAC
+remains the default and needs no extra. Key revocation and an identity system
+are still out of scope.
 
 ## A Java public API oracle
 
