@@ -23,7 +23,7 @@ See it in one screen: `assaystone demo plane`.
 ## Start from a draft
 
 ```bash
-assaystone capability init --root . --owner platform-team
+assaystone capability init --root . --owner platform-team --ci --hook
 ```
 
 `init` looks for a build or test surface — `pom.xml`, Gradle, `package.json`
@@ -38,6 +38,16 @@ claim, because inventing either would be exactly the unchecked assertion this
 project argues against. `init` prints what to add next; the first
 `gate --stage shadow` usually fails on the branch check or escalates on a
 missing approval, and that failure is the onboarding.
+
+Two flags wire the draft into the daily loop:
+
+- `--ci` writes `.github/workflows/assaystone.yml`: install the pinned version,
+  run the gate at `shadow`, verify the trail, upload the evidence, and leave a
+  commented block for receipts. It runs on the first push without requiring a
+  secret; the receipt block is opt-in.
+- `--hook` writes `.assaystone/hook.json` so the Claude Code Stop hook can run
+  the same gate. Install it with
+  `assaystone hook install claude-code --manifest .assaystone/capability.json --mode block`.
 
 Detection is heuristic and lives in `scaffold.py`, outside the plane. A new
 build tool means a new detection branch that emits a command payload; the core

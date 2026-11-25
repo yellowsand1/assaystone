@@ -160,6 +160,60 @@ class ScaffoldTest(unittest.TestCase):
         loaded = CapabilityManifest.load(target)
         self.assertEqual(loaded.capability, _slug(Path(self.root).name))
 
+    def test_init_can_write_ci_and_hook(self):
+        self.touch("pom.xml")
+        target, _, _ = init_capability(
+            self.root, owner="team", ci=True, hook=True
+        )
+        workflow = self.root / ".github" / "workflows" / "assaystone.yml"
+        self.assertTrue(workflow.exists())
+        text = workflow.read_text(encoding="utf-8")
+        self.assertIn(".assaystone/capability.json", text)
+        self.assertIn("assaystone gate", text)
+        self.assertIn("assaystone==0.", text)
+        self.assertIn(".assaystone/trail.jsonl", text)
+        hook = json.loads(
+            (self.root / ".assaystone" / "hook.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(hook["capability"], ".assaystone/capability.json")
+        self.assertEqual(hook["stage"], "shadow")
+        self.assertTrue(target.exists())
+
+    def test_init_can_use_a_custom_manifest_path(self):
+        self.touch("pom.xml")
+        target, _, _ = init_capability(
+            self.root, out=self.root / "capabilities" / "foo.json", ci=True
+        )
+        workflow = (
+            self.root / ".github" / "workflows" / "assaystone.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("capabilities/foo.json", workflow)
+        self.assertIn("capabilities/trail.jsonl", workflow)
+        self.assertTrue(target.exists())
+
+    def test_init_refuses_a_manifest_outside_the_root_with_ci(self):
+        self.touch("pom.xml")
+        with tempfile.TemporaryDirectory() as other:
+            with self.assertRaises(ScaffoldError):
+                init_capability(
+                    self.root,
+                    out=Path(other) / "capability.json",
+                    ci=True,
+                )
+
+    def test_existing_workflow_needs_force(self):
+        self.touch("pom.xml")
+        workflow = self.root / ".github" / "workflows" / "assaystone.yml"
+        workflow.parent.mkdir(parents=True)
+        workflow.write_text("name: mine\n", encoding="utf-8")
+        with self.assertRaises(ScaffoldError):
+            init_capability(self.root, ci=True)
+        self.assertFalse((self.root / ".assaystone" / "capability.json").exists())
+        init_capability(self.root, ci=True, force=True)
+        self.assertIn("assaystone gate", workflow.read_text(encoding="utf-8"))
+
     def test_cli_init_json(self):
         self.touch("pom.xml")
         out = io.StringIO()
@@ -172,6 +226,8 @@ class ScaffoldTest(unittest.TestCase):
                     str(self.root),
                     "--owner",
                     "platform-team",
+                    "--ci",
+                    "--hook",
                     "--json",
                 ]
             )
@@ -179,6 +235,8 @@ class ScaffoldTest(unittest.TestCase):
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["stack"], "maven")
         self.assertEqual(payload["manifest"]["owner"], "platform-team")
+        self.assertIn("workflow", payload)
+        self.assertIn("hook", payload)
         manifest_path = Path(payload["path"])
         self.assertTrue(manifest_path.exists())
         self.assertEqual(

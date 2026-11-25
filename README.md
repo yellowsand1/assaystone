@@ -307,7 +307,7 @@ A capability manifest binds criteria to generic oracles — `command`, `file`,
 lifecycle policy:
 
 ```bash
-assaystone capability init --root . --owner platform-team   # draft a manifest
+assaystone capability init --root . --owner platform-team --ci --hook   # draft + CI + Stop hook
 assaystone capability brief --manifest .assaystone/capability.json --task "..."  # hand the criteria to the agent
 assaystone capability validate --manifest examples/capability/pricing.json
 assaystone gate --manifest examples/capability/pricing.json --stage shadow \
