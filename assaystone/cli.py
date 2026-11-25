@@ -1035,8 +1035,19 @@ def cmd_hook_install(args: argparse.Namespace) -> int:
         if args.user
         else Path(args.path) / ".claude" / "settings.local.json"
     )
+    if args.user and args.manifest:
+        print(
+            "error: a capability manifest needs a project settings file, not --user",
+            file=sys.stderr,
+        )
+        return 1
     try:
-        target, changed = install_claude_code(settings, mode=args.mode)
+        target, changed = install_claude_code(
+            settings,
+            mode=args.mode,
+            manifest=args.manifest,
+            stage=args.stage,
+        )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1142,6 +1153,14 @@ def _parser() -> argparse.ArgumentParser:
     install_claude.add_argument("--path", default=".")
     install_claude.add_argument("--user", action="store_true", help="write ~/.claude/settings.json")
     install_claude.add_argument("--mode", choices=["warn", "block"], default="warn")
+    install_claude.add_argument(
+        "--manifest", default=None, help="capability manifest for the Stop gate"
+    )
+    install_claude.add_argument(
+        "--stage",
+        default="shadow",
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
     install_claude.set_defaults(func=cmd_hook_install)
 
     verify = sub.add_parser(
