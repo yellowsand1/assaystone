@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -12,7 +13,12 @@ from unittest import mock
 
 from assaystone import cli, keys, trail
 from assaystone.plane import CapabilityManifest, evaluate_gate
-from assaystone.receipt import ReceiptError, create_receipt, verify_receipt
+from assaystone.receipt import (
+    ReceiptError,
+    create_receipt,
+    render_check,
+    verify_receipt,
+)
 
 KEY = "receipt-test-key"
 
@@ -246,6 +252,82 @@ class ReceiptTest(unittest.TestCase):
         self.assertTrue(
             any("public key" in error for error in check.errors)
         )
+
+    def test_render_names_the_scheme(self):
+        hmac_check = verify_receipt(self.receipt(), KEY)
+        self.assertIn("HMAC receipt", render_check(hmac_check))
+        self.assertNotIn("HMAC receipt", render_check(
+            verify_receipt({"version": 1, "signature": "ed25519:x"}, KEY)
+        ))
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_ed25519_render_shows_key_id_and_public_note(self):
+        private = self.base / "owner.key"
+        public = self.base / "owner.pub"
+        keys.generate(private, public)
+        receipt = create_receipt(
+            self.gate,
+            self.root,
+            actor="ci",
+            trail_path=self.trail,
+            private_key_path=private,
+        )
+        text = render_check(verify_receipt(receipt, public_key_path=public))
+        self.assertIn("key id:", text)
+        self.assertIn("ed25519 receipt", text)
+        self.assertNotIn("HMAC receipt", text)
+
+    @unittest.skipUnless(shutil.which("git"), "git is required")
+    def test_cli_resolves_an_annotated_tag_to_its_commit(self):
+        commit = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        subprocess.run(
+            [
+                "git", "-C", str(self.root),
+                "-c", "user.email=a@b.c", "-c", "user.name=t",
+                "tag", "-a", "v-test", "-m", "test tag",
+            ],
+            check=True,
+        )
+        tag_object = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "v-test"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertNotEqual(tag_object, commit)
+        receipt = create_receipt(
+            self.gate,
+            self.root,
+            KEY,
+            actor="ci",
+            trail_path=self.trail,
+        )
+        receipt_path = self.base / "receipt.json"
+        receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+        out = io.StringIO()
+
+        def verify(commit_arg):
+            with mock.patch.dict(os.environ, {"ASSAYSTONE_RECEIPT_KEY": KEY}):
+                with contextlib.redirect_stdout(out):
+                    return cli.main(
+                        [
+                            "receipt", "verify", str(receipt_path),
+                            "--commit", commit_arg, "--outcome", "pass",
+                        ]
+                    )
+
+        previous = os.getcwd()
+        os.chdir(self.root)
+        try:
+            self.assertEqual(verify("v-test"), 0)
+        finally:
+            os.chdir(previous)
+        self.assertIn("receipt: valid", out.getvalue())
 
     def test_cli_refuses_a_receipt_without_a_key(self):
         manifest_path = self.base / "capability.json"

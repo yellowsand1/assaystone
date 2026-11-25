@@ -431,7 +431,9 @@ The receipt binds:
 - an HMAC-SHA256 signature under `ASSAYSTONE_RECEIPT_KEY`.
 
 Verification fails on any changed field, a wrong key, or a commit, manifest
-digest, or outcome that does not match. The gate refuses to sign a trail that
+digest, or outcome that does not match. `--commit` accepts a SHA or a ref; an
+annotated tag is resolved to its commit, because `git rev-parse v1.2.3` returns
+the tag object, not the commit the receipt signs. The gate refuses to sign a trail that
 does not verify, and refuses to write a receipt without a key (exit `2`).
 
 **Trust model.** HMAC is symmetric: a verifier needs the same key. The receipt

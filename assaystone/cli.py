@@ -927,6 +927,29 @@ def cmd_key(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_commit(value: str | None) -> str | None:
+    """Resolve a ref (including an annotated tag) to a commit SHA.
+
+    ``--commit v1.2.3`` on an annotated tag yields the tag object SHA, which is
+    not the commit the receipt signs. Resolve it the way a reviewer means it.
+    """
+    if not value:
+        return None
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", f"{value}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return value
+    resolved = proc.stdout.strip()
+    return resolved or value
+
+
 def cmd_receipt(args: argparse.Namespace) -> int:
     if args.receipt_command != "verify":
         print(
@@ -943,7 +966,7 @@ def cmd_receipt(args: argparse.Namespace) -> int:
     check = verify_receipt(
         data,
         key,
-        expected_commit=args.commit,
+        expected_commit=_resolve_commit(args.commit),
         expected_manifest_digest=args.manifest_digest,
         expected_outcome=args.outcome,
         public_key_path=args.public_key,
@@ -1811,7 +1834,11 @@ def _parser() -> argparse.ArgumentParser:
         "--public-key", default=None, metavar="PATH",
         help="Ed25519 public key for an ed25519 receipt",
     )
-    receipt_verify.add_argument("--commit", default=None)
+    receipt_verify.add_argument(
+        "--commit",
+        default=None,
+        help="expected commit SHA or a ref (an annotated tag is resolved)",
+    )
     receipt_verify.add_argument("--manifest-digest", default=None)
     receipt_verify.add_argument(
         "--outcome", default=None, choices=["pass", "fail", "escalate"]

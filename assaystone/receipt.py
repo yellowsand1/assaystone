@@ -236,9 +236,17 @@ def render_check(check: ReceiptCheck) -> str:
         f"commit: {check.receipt.get('commit') or '-'}",
         f"trail head: {check.receipt.get('trail_head') or '-'}",
     ]
+    signature = str(check.receipt.get("signature") or "")
+    if signature.startswith("ed25519:"):
+        lines.append(f"key id: {check.receipt.get('key_id') or '-'}")
     for error in check.errors:
         lines.append(f"  {error}")
-    if check.ok:
+    if check.ok and signature.startswith("ed25519:"):
+        lines.append(
+            "note: an ed25519 receipt proves the signer held the private key; "
+            "the public key verifies it."
+        )
+    elif check.ok:
         lines.append(
             "note: an HMAC receipt proves the signer held the key; it is not "
             "a public signature."
