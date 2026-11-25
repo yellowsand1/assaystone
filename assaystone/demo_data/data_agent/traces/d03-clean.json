@@ -1,0 +1,48 @@
+{
+  "id": "d03-clean",
+  "task": "produce a report from sales.csv",
+  "agent": "data-agent/0.1",
+  "input": "sales.csv has three categories",
+  "steps": [
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "sales.csv"
+      },
+      "result": "three rows",
+      "ok": true
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "report.json"
+      },
+      "result": "report written",
+      "ok": true
+    },
+    {
+      "tool": "check_totals",
+      "args": {
+        "path": "report.json"
+      },
+      "result": "looks consistent",
+      "ok": true
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "report.json",
+      "content": "{\n  \"currency\": \"USD\",\n  \"total_cents\": 1000,\n  \"rows\": [\n    {\n      \"category\": \"software\",\n      \"amount_cents\": 500\n    },\n    {\n      \"category\": \"support\",\n      \"amount_cents\": 300\n    },\n    {\n      \"category\": \"training\",\n      \"amount_cents\": 200\n    }\n  ]\n}\n",
+      "change": "added"
+    }
+  ],
+  "final_message": "Report written.",
+  "evidence": {},
+  "labels": {
+    "verdict": "pass",
+    "defect": null,
+    "note": "totals match and no PII"
+  },
+  "created_at": "2026-11-25T00:00:00Z",
+  "source": "agent"
+}

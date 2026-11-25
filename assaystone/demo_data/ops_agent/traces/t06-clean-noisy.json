@@ -22,6 +22,18 @@
       "ok": true
     },
     {
+      "tool": "approval.request",
+      "args": {
+        "tool": "refund.create",
+        "args": {
+          "order_id": "O-1003",
+          "amount_cents": 5000
+        }
+      },
+      "result": "approved",
+      "ok": true
+    },
+    {
       "tool": "refund.create",
       "args": {
         "order_id": "O-1003",
@@ -56,5 +68,6 @@
     "defect": null,
     "note": "correct refund with a benign memo field"
   },
-  "created_at": "2026-11-23T08:46:57Z"
+  "created_at": "2026-11-23T08:46:57Z",
+  "source": "runtime"
 }

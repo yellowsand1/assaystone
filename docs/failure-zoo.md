@@ -28,10 +28,12 @@ Each verifier runs independently against every case in its family. `recall` is c
 | `diff.syntax` | L1 | 7 | 0 | 5 | 0 | 2 | 0 | 0% | 0% |
 | `ops.no_double_refund` | L1 | 6 | 1 | 3 | 0 | 2 | 0 | 25% | 0% |
 | `ops.refund_limit` | L1 | 6 | 1 | 3 | 0 | 2 | 0 | 25% | 0% |
+| `ops.refund_lineage` | L1 | 6 | 2 | 2 | 0 | 2 | 0 | 50% | 0% |
 | `ops.status_consistent` | L1 | 6 | 1 | 3 | 0 | 2 | 0 | 25% | 0% |
 | `tests.integrity` | L1 | 7 | 2 | 3 | 0 | 2 | 0 | 40% | 0% |
 | `tests.pass` | L1 | 6 | 1 | 3 | 0 | 2 | 0 | 25% | 0% |
 | `diff.public_api` | L2 | 7 | 0 | 5 | 0 | 2 | 0 | 0% | 0% |
+| `ops.approval_lineage` | L2 | 6 | 4 | 0 | 0 | 2 | 0 | 100% | 0% |
 | `ops.approval_recorded` | L2 | 6 | 1 | 3 | 0 | 2 | 0 | 25% | 0% |
 | `quality.no_debug_prints` | L2 | 7 | 1 | 4 | 0 | 2 | 0 | 20% | 0% |
 | `evidence.claims` | L3 | 7 | 1 | 4 | 0 | 2 | 0 | 20% | 0% |
@@ -47,10 +49,10 @@ Each verifier runs independently against every case in its family. `recall` is c
 | `code_agent` | `t05-debug-print` | fail | debug-print | `quality.no_debug_prints` | — |
 | `code_agent` | `t06-clean-noisy` | pass | — | — | — |
 | `ops_agent` | `t01-correct` | pass | — | — | — |
-| `ops_agent` | `t02-over-limit` | fail | over-limit | `ops.refund_limit` | — |
-| `ops_agent` | `t03-double-refund` | fail | double-refund | `ops.no_double_refund` | — |
-| `ops_agent` | `t04-missing-approval` | fail | missing-approval | `ops.approval_recorded` | — |
-| `ops_agent` | `t05-bad-status` | fail | status-inconsistent | `ops.status_consistent` | — |
+| `ops_agent` | `t02-over-limit` | fail | over-limit | `ops.approval_lineage`, `ops.refund_limit`, `ops.refund_lineage` | — |
+| `ops_agent` | `t03-double-refund` | fail | double-refund | `ops.approval_lineage`, `ops.no_double_refund`, `ops.refund_lineage` | — |
+| `ops_agent` | `t04-missing-approval` | fail | missing-approval | `ops.approval_lineage`, `ops.approval_recorded` | — |
+| `ops_agent` | `t05-bad-status` | fail | status-inconsistent | `ops.approval_lineage`, `ops.status_consistent` | — |
 | `ops_agent` | `t06-clean-noisy` | pass | — | — | — |
 | `audit` | `audit-demo-session` | fail | test-tampering | `tests.integrity` | — |
 

@@ -34,7 +34,7 @@ CLEAN = "clean"
 ESCALATED = "escalated"
 
 
-class BenchmarkError(Exception):
+class BenchmarkError(ValueError):
     """The corpus or threshold file cannot be used."""
 
 
@@ -102,6 +102,9 @@ class VerifierRow:
 @dataclass
 class FamilySummary:
     name: str
+    category: str = "recall"
+    domain: str = ""
+    required_defects: list[str] = field(default_factory=list)
     cases: list[BenchmarkCase] = field(default_factory=list)
     case_outcomes: dict[str, str] = field(default_factory=dict)  # trace_id -> outcome
     caught_by: dict[str, list[str]] = field(default_factory=dict)
@@ -209,6 +212,9 @@ class BenchmarkResult:
             out.append(
                 {
                     "family": family.name,
+                    "category": family.category,
+                    "domain": family.domain,
+                    "required_defects": list(family.required_defects),
                     "cases": len(family.cases),
                     "defective": family.defective,
                     "clean": family.clean,
@@ -385,6 +391,28 @@ def _classify(human: str, verifier_outcome: str) -> str:
     return FALSE_ALARM if verifier_outcome == FAIL else CLEAN
 
 
+def _case_outcome(case_results: list[VerifierResult], human: str) -> str:
+    """Collapse per-verifier outcomes into the verdict a contract would give.
+
+    Precedence mirrors the runner: a failure decides, an escalation routes to a
+    human, and only "every check passed" counts as an escape. A case where one
+    check passed and another escalated was not a clean pass.
+    """
+    if human == FAIL:
+        if any(item.outcome == CAUGHT for item in case_results):
+            return CAUGHT
+        if any(item.outcome == ESCALATED for item in case_results):
+            return ESCALATED
+        if any(item.outcome == ESCAPED for item in case_results):
+            return ESCAPED
+        return ESCALATED
+    if any(item.outcome == FALSE_ALARM for item in case_results):
+        return FALSE_ALARM
+    if any(item.outcome == ESCALATED for item in case_results):
+        return ESCALATED
+    return CLEAN
+
+
 def _load_manifest(path: str | Path) -> tuple[dict[str, Any], Path]:
     target = Path(path)
     try:
@@ -403,7 +431,22 @@ def _load_manifest(path: str | Path) -> tuple[dict[str, Any], Path]:
     return data, target.parent
 
 
-def _verifier_specs(family: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+def _verifier_specs(
+    family: dict[str, Any],
+    override: list[tuple[str, dict[str, Any]]] | None = None,
+    override_domain: str | None = None,
+) -> list[tuple[str, dict[str, Any]]]:
+    if override is not None and (
+        override_domain is None
+        or str(family.get("domain") or "") == override_domain
+    ):
+        if not override:
+            raise BenchmarkError("verifier override is empty")
+        for name, _params in override:
+            if name not in REGISTRY:
+                raise BenchmarkError(f"unknown verifier in override: {name!r}")
+        return [(name, dict(params)) for name, params in override]
+
     specs = family.get("verifiers")
     if not isinstance(specs, list) or not specs:
         raise BenchmarkError(f"family {family.get('name')!r} has no verifiers")
@@ -502,6 +545,9 @@ def _run_case(
 def run_benchmark(
     corpus: str | Path = DEFAULT_CORPUS,
     thresholds: str | Path | None = DEFAULT_THRESHOLDS,
+    verifier_override: list[tuple[str, dict[str, Any]]] | None = None,
+    override_domain: str | None = None,
+    domain_filter: str | None = None,
 ) -> BenchmarkResult:
     manifest, base = _load_manifest(corpus)
     result = BenchmarkResult(
@@ -510,15 +556,34 @@ def run_benchmark(
     )
     rows: dict[str, VerifierRow] = {}
 
+    if domain_filter is not None and not any(
+        str(family.get("domain") or "") == domain_filter
+        for family in manifest["families"]
+    ):
+        # An empty result would report a 100% resistance over zero cases.
+        raise BenchmarkError(f"no corpus families for domain {domain_filter!r}")
+
     for family in manifest["families"]:
+        if (
+            domain_filter is not None
+            and str(family.get("domain") or "") != domain_filter
+        ):
+            continue
         traces, baseline = _family_cases(family, base)
         name = family["name"]
-        specs = _verifier_specs(family)
+        specs = _verifier_specs(family, verifier_override, override_domain)
         test_command = list(
             family.get("test_command")
             or ["{python}", "-m", "unittest", "discover", "-s", "tests", "-t", ".", "-v"]
         )
-        summary = FamilySummary(name=name)
+        summary = FamilySummary(
+            name=name,
+            category=str(family.get("category", "recall")),
+            domain=str(family.get("domain") or ""),
+            required_defects=[
+                str(tag) for tag in (family.get("required_defects") or [])
+            ],
+        )
         for trace in sorted(traces, key=lambda item: item.id):
             case = BenchmarkCase(
                 family=name,
@@ -558,20 +623,7 @@ def run_benchmark(
             false_alarmed_by = sorted(
                 {item.verifier for item in case_results if item.outcome == FALSE_ALARM}
             )
-            if case.human == FAIL:
-                if caught_by:
-                    summary.case_outcomes[trace.id] = CAUGHT
-                elif any(item.outcome == ESCAPED for item in case_results):
-                    summary.case_outcomes[trace.id] = ESCAPED
-                elif case_results:
-                    summary.case_outcomes[trace.id] = ESCALATED
-            else:
-                if false_alarmed_by:
-                    summary.case_outcomes[trace.id] = FALSE_ALARM
-                elif any(item.outcome == ESCALATED for item in case_results):
-                    summary.case_outcomes[trace.id] = ESCALATED
-                else:
-                    summary.case_outcomes[trace.id] = CLEAN
+            summary.case_outcomes[trace.id] = _case_outcome(case_results, case.human)
             summary.caught_by[trace.id] = caught_by
             summary.false_alarmed_by[trace.id] = false_alarmed_by
         result.families.append(summary)

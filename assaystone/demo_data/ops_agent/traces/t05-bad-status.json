@@ -56,5 +56,6 @@
     "defect": "status-inconsistent",
     "note": "4000 of 12000 refunded but status says refunded"
   },
-  "created_at": "2026-11-23T08:46:57Z"
+  "created_at": "2026-11-23T08:46:57Z",
+  "source": "runtime"
 }

@@ -1,0 +1,5 @@
+{
+  "approvals": [
+    {"action": "merge", "approved": true, "approver": "reviewer-1"}
+  ]
+}

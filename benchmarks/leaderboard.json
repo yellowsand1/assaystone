@@ -1,0 +1,41 @@
+{
+  "name": "built-in contracts",
+  "entries": [
+    {
+      "name": "code/naive",
+      "contract": "../examples/code_agent/contracts/naive.json",
+      "traces": "../examples/code_agent/traces",
+      "baseline": "../examples/code_agent/baseline"
+    },
+    {
+      "name": "code/hardened",
+      "contract": "../examples/code_agent/contracts/hardened.json",
+      "traces": "../examples/code_agent/traces",
+      "baseline": "../examples/code_agent/baseline"
+    },
+    {
+      "name": "ops/amount-only",
+      "contract": "../examples/ops_agent/contracts/amount_only.json",
+      "traces": "../examples/ops_agent/traces",
+      "baseline": "../examples/ops_agent/baseline"
+    },
+    {
+      "name": "ops/hardened",
+      "contract": "../examples/ops_agent/contracts/hardened.json",
+      "traces": "../examples/ops_agent/traces",
+      "baseline": "../examples/ops_agent/baseline"
+    },
+    {
+      "name": "data/hardened",
+      "contract": "../assaystone/demo_data/data_agent/contracts/hardened.json",
+      "traces": "../assaystone/demo_data/data_agent/traces",
+      "baseline": "../assaystone/demo_data/data_agent/baseline"
+    },
+    {
+      "name": "research/hardened",
+      "contract": "../assaystone/demo_data/research_agent/contracts/hardened.json",
+      "traces": "../assaystone/demo_data/research_agent/traces",
+      "baseline": "../assaystone/demo_data/research_agent/baseline"
+    }
+  ]
+}

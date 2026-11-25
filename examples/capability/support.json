@@ -1,0 +1,111 @@
+{
+  "capability": "refund-request",
+  "owner": "support-ops",
+  "systems": [
+    "ticketing",
+    "ledger"
+  ],
+  "data_classes": [
+    "customer"
+  ],
+  "irreversible_actions": [
+    "refund"
+  ],
+  "risk": "high",
+  "lifecycle": "shadow",
+  "retention": "90d",
+  "criteria": [
+    {
+      "id": "ledger-valid",
+      "kind": "postcondition",
+      "statement": "The order ledger is valid JSON.",
+      "oracle": "orders",
+      "severity": "critical"
+    },
+    {
+      "id": "policy-present",
+      "kind": "invariant",
+      "statement": "The policy declares a refund limit.",
+      "oracle": "policy",
+      "severity": "high"
+    },
+    {
+      "id": "manager-approved",
+      "kind": "evidence",
+      "statement": "A manager approved the refund.",
+      "oracle": "manager",
+      "severity": "critical"
+    }
+  ],
+  "oracles": [
+    {
+      "id": "orders",
+      "type": "file",
+      "description": "ledger JSON",
+      "payload": {
+        "path": "orders.json",
+        "mode": "json"
+      }
+    },
+    {
+      "id": "policy",
+      "type": "file",
+      "description": "refund limit present",
+      "payload": {
+        "path": "orders.json",
+        "mode": "contains",
+        "needle": "refund_limit_cents"
+      }
+    },
+    {
+      "id": "manager",
+      "type": "human",
+      "description": "manager approval",
+      "payload": {
+        "action": "refund",
+        "record": "approvals.json"
+      }
+    },
+    {
+      "id": "rollback",
+      "type": "human",
+      "description": "manager attests the refund can be reversed",
+      "payload": {
+        "action": "rollback",
+        "record": "approvals.json"
+      }
+    }
+  ],
+  "policies": {
+    "shadow": {
+      "require": [
+        "orders",
+        "policy"
+      ],
+      "allow_merge": false
+    },
+    "canary": {
+      "require": [
+        "orders",
+        "policy"
+      ],
+      "approvals": [
+        "manager"
+      ],
+      "allow_merge": true
+    },
+    "production": {
+      "require": [
+        "orders",
+        "policy"
+      ],
+      "approvals": [
+        "manager"
+      ],
+      "allow_merge": true,
+      "allow_deploy": true,
+      "rollback_required": true,
+      "rollback": "rollback"
+    }
+  }
+}

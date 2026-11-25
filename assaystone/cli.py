@@ -8,9 +8,13 @@ import sys
 from pathlib import Path
 
 from . import __version__, demo
+from . import trail as audit_trail
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
+from .compose import compose, render_plan
 from .contract import Contract
+from .corpus import CorpusError, add_case, case_outcome
+from .coverage import analyze_coverage, render_coverage
 from .failure_zoo import (
     DEFAULT_CORPUS,
     DEFAULT_THRESHOLDS,
@@ -18,14 +22,46 @@ from .failure_zoo import (
     render_summary,
     run_benchmark,
 )
+from .goodhart import (
+    GOODHART_CORPUS,
+    GOODHART_THRESHOLDS,
+    run_goodhart,
+)
+from .goodhart import (
+    render_summary as render_goodhart_summary,
+)
 from .hooks.claude_code import install_claude_code
 from .hooks.claude_code import main as claude_code_hook_main
 from .init import init_project
+from .leaderboard import LeaderboardError, run_leaderboard
+from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
+from .oracles import OracleError, OracleRegistry
+from .plane import (
+    GATING_SEVERITIES,
+    CapabilityManifest,
+    PlaneError,
+    evaluate_gate,
+    render_gate,
+)
+from .protocol import (
+    check_contract,
+    check_manifest,
+    describe_protocol,
+    render_protocol,
+    write_schemas,
+)
 from .replay import git_preimage, is_git_repo
+from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
 from .runner import run_contract
+from .scaffold import (
+    ScaffoldError,
+    display_path,
+    init_capability,
+    next_steps,
+)
 from .sessions import SessionDiscoveryError, find_latest_session
 
 
@@ -321,6 +357,382 @@ def cmd_record(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_scorecard(args: argparse.Namespace) -> int:
+    contract = _load_contract(args.contract)
+    if contract is None:
+        return 2
+    traces = None
+    if args.trace:
+        traces = _load_traces_arg(args.trace)
+        if traces is None:
+            return 2
+    thresholds = (
+        None if args.no_goodhart_thresholds
+        else (args.goodhart_thresholds or GOODHART_THRESHOLDS)
+    )
+    try:
+        card = run_report_card(
+            contract,
+            traces=traces,
+            baseline=args.baseline,
+            goodhart_corpus=args.goodhart_corpus,
+            goodhart_thresholds=thresholds,
+        )
+    except (ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(json.dumps(card.to_dict(), indent=2))
+    else:
+        print(card.to_markdown())
+
+    for label, path, text in (
+        ("markdown", args.md, card.to_markdown()),
+        ("json", args.json, json.dumps(card.to_dict(), indent=2) + "\n"),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+    return 0 if card.ok else 1
+
+
+def cmd_protocol(args: argparse.Namespace) -> int:
+    if args.check_manifest:
+        try:
+            data = json.loads(
+                Path(args.check_manifest).read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            print(f"error: manifest not found: {args.check_manifest}", file=sys.stderr)
+            return 2
+        except json.JSONDecodeError as exc:
+            print(f"error: invalid manifest JSON: {exc}", file=sys.stderr)
+            return 2
+        violations = check_manifest(data)
+        if args.json:
+            print(
+                json.dumps(
+                    {
+                        "manifest": args.check_manifest,
+                        "ok": not violations,
+                        "violations": violations,
+                    },
+                    indent=2,
+                )
+            )
+        elif not violations:
+            print(f"manifest {args.check_manifest}: ok")
+        else:
+            print(
+                f"manifest {args.check_manifest}: "
+                f"{len(violations)} violation(s)"
+            )
+            for violation in violations:
+                print(f"  - {violation}")
+        return 0 if not violations else 1
+
+    if args.check:
+        contract = _load_contract(args.check)
+        if contract is None:
+            return 2
+        result = check_contract(contract)
+        if args.json:
+            print(json.dumps(result.to_dict(), indent=2))
+        elif result.ok:
+            print(f"contract {result.contract}: ok")
+        else:
+            print(f"contract {result.contract}: {len(result.violations)} violation(s)")
+            for violation in result.violations:
+                print(f"  - {violation}")
+        return 0 if result.ok else 1
+
+    if args.schemas:
+        for path in write_schemas(args.schemas):
+            print(_display(Path(path)))
+
+    if args.json:
+        print(json.dumps(describe_protocol(), indent=2))
+    else:
+        print(render_protocol())
+    return 0
+
+
+def _registry(path: str | None) -> OracleRegistry | None:
+    return OracleRegistry.load(path) if path else None
+
+
+def cmd_capability(args: argparse.Namespace) -> int:
+    if args.capability_command == "init":
+        return _cmd_capability_init(args)
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if not args.json:
+        print(f"capability {manifest.capability}: ok")
+        print(
+            f"  owner={manifest.owner} risk={manifest.risk} "
+            f"lifecycle={manifest.lifecycle}"
+        )
+        print(
+            f"  oracles={len(manifest.oracles)} "
+            f"criteria={len(manifest.criteria)} "
+            f"policies={len(manifest.policies)}"
+        )
+        if manifest.registry:
+            print(
+                f"  registry={manifest.registry} "
+                f"fingerprint={manifest.registry_fingerprint}"
+            )
+        uncovered = manifest.uncovered_criteria()
+        total = len(manifest.criteria)
+        print(f"  criteria gated by some stage: {total - len(uncovered)}/{total}")
+        if uncovered:
+            print(
+                "  not gated by any stage: "
+                + ", ".join(f"{item.id} ({item.severity})" for item in uncovered)
+            )
+    if args.json:
+        data = manifest.to_dict()
+        data["uncovered_criteria"] = [
+            {"id": item.id, "severity": item.severity, "oracle": item.oracle}
+            for item in manifest.uncovered_criteria()
+        ]
+        print(json.dumps(data, indent=2))
+    if args.strict and any(
+        item.severity in GATING_SEVERITIES
+        for item in manifest.uncovered_criteria()
+    ):
+        print(
+            "error: a critical criterion is not gated by any stage",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
+
+
+def _cmd_capability_init(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    try:
+        path, data, detection = init_capability(
+            root, out=args.out, owner=args.owner, force=args.force
+        )
+    except ScaffoldError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    steps = next_steps(data)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "path": str(path),
+                    "stack": detection.stack,
+                    "notes": detection.notes,
+                    "manifest": data,
+                    "next": steps,
+                },
+                indent=2,
+            )
+        )
+        return 0
+    print(f"wrote {display_path(path, root)}")
+    print(f"stack: {detection.stack}")
+    print(f"oracles: {', '.join(item['id'] for item in data['oracles'])}")
+    for note in detection.notes:
+        print(f"note: {note}")
+    print("next:")
+    for step in steps:
+        print(f"  - {step}")
+    print(
+        f"\nrun: assaystone gate --manifest {display_path(path, root)} "
+        "--stage shadow --root ."
+    )
+    return 0
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        result = evaluate_gate(
+            manifest, args.stage, args.root, strict=args.strict
+        )
+    except PlaneError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    entry = None
+    if args.audit:
+        previous = audit_trail.last_manifest_digest(args.audit)
+        if (
+            previous
+            and previous != result.manifest_digest
+            and not args.accept_manifest_change
+        ):
+            result.outcome = "escalate"
+            result.merge_allowed = False
+            result.deploy_allowed = False
+            result.reasons.append(
+                "manifest changed since the last gate on this trail; review "
+                "the diff and re-run with --accept-manifest-change"
+            )
+        actor = (
+            args.actor
+            or os.environ.get("ASSAYSTONE_ACTOR")
+            or os.environ.get("USER")
+            or "unknown"
+        )
+        try:
+            entry = audit_trail.append(args.audit, result, actor=actor)
+        except (OSError, audit_trail.TrailError) as exc:
+            print(f"error: cannot write trail: {exc}", file=sys.stderr)
+            return 2
+    if args.json:
+        data = result.to_dict()
+        if entry is not None:
+            data["trail"] = {
+                "path": args.audit,
+                "seq": entry["seq"],
+                "hash": entry["hash"],
+            }
+        print(json.dumps(data, indent=2))
+    else:
+        print(render_gate(result))
+        if entry is not None:
+            print(
+                f"\ntrail: {args.audit} entry {entry['seq']} "
+                f"hash {entry['hash'][:23]}..."
+            )
+    if result.outcome == "pass":
+        return 0
+    return 1 if result.outcome == "fail" else 2
+
+
+def cmd_trail(args: argparse.Namespace) -> int:
+    if args.trail_command != "verify":
+        print(f"error: unknown trail command {args.trail_command!r}", file=sys.stderr)
+        return 2
+    check = audit_trail.verify(args.path, expected_head=args.expect)
+    if args.json:
+        print(json.dumps(check.to_dict(), indent=2))
+    else:
+        print(audit_trail.render_check(check))
+    return 0 if check.ok else 1
+
+
+def cmd_leaderboard(args: argparse.Namespace) -> int:
+    try:
+        board = run_leaderboard(args.manifest)
+    except (LeaderboardError, ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(json.dumps(board.to_dict(), indent=2))
+    elif args.stdout == "summary":
+        print(render_leaderboard(board))
+    else:
+        print(board.to_markdown())
+
+    for label, path, text in (
+        ("markdown", args.md, board.to_markdown()),
+        ("json", args.json, json.dumps(board.to_dict(), indent=2) + "\n"),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+    return 0 if board.ok else 1
+
+
+def cmd_corpus(args: argparse.Namespace) -> int:
+    try:
+        added = add_case(
+            args.corpus,
+            args.family,
+            args.trace,
+            label=args.label,
+            defect=args.defect,
+            note=args.note or "",
+            baseline=args.baseline,
+            fmt=args.format,
+            case_id=args.id,
+            force=args.force,
+        )
+    except CorpusError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print(f"added {added.family}/{added.trace_id} -> {_display(added.path)}")
+    label = added.verdict
+    if added.defect:
+        label = f"{label} ({added.defect})"
+    print(f"label: {label}")
+
+    if args.validate:
+        try:
+            outcome = case_outcome(args.corpus, added.family, added.trace_id)
+        except CorpusError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        caught = ", ".join(outcome["caught_by"]) or "—"
+        print(f"outcome: {outcome['outcome']} ({caught})")
+    else:
+        print("next: rerun the benchmark, or pass --validate to score it now")
+    return 0
+
+
+def cmd_compose(args: argparse.Namespace) -> int:
+    contract = _load_contract(args.contract) if args.contract else None
+    if args.contract and contract is None:
+        return 2
+    try:
+        plan = compose(
+            contract,
+            declared=args.require,
+            budget_usd=args.budget,
+            contract_only=args.contract_only,
+            require_independent=not args.allow_low_independence,
+        )
+    except (ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(plan.to_dict(), indent=2))
+    else:
+        print(render_plan(plan))
+    return 0 if plan.ok else 1
+
+
+def cmd_coverage(args: argparse.Namespace) -> int:
+    contract = _load_contract(args.contract)
+    if contract is None:
+        return 2
+    try:
+        report = analyze_coverage(contract, args.require)
+    except KeyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_coverage(report))
+    if args.strict and report.at_risk:
+        return 1
+    return 0
+
+
 def cmd_backtest(args: argparse.Namespace) -> int:
     contract = _load_contract(args.contract)
     if contract is None:
@@ -406,6 +818,39 @@ def cmd_benchmark_failure_zoo(args: argparse.Namespace) -> int:
     return 0 if result.thresholds_passed else 1
 
 
+def cmd_benchmark_goodhart(args: argparse.Namespace) -> int:
+    thresholds = None if args.no_thresholds else (args.thresholds or GOODHART_THRESHOLDS)
+    contract = _load_contract(args.contract) if args.contract else None
+    if args.contract and contract is None:
+        return 2
+    try:
+        report = run_goodhart(
+            args.corpus or GOODHART_CORPUS, thresholds, contract=contract
+        )
+    except (ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.stdout == "json":
+        print(report.to_json(), end="")
+    elif args.stdout == "markdown":
+        print(report.to_markdown())
+    else:
+        print(render_goodhart_summary(report))
+
+    for label, path, text in (
+        ("markdown", args.md, report.to_markdown()),
+        ("json", args.json, report.to_json()),
+    ):
+        if path:
+            target = Path(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text, encoding="utf-8")
+            print(f"{label}: {_display(target)}")
+
+    return 0 if report.thresholds_passed else 1
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     try:
         result = init_project(args.path, force=args.force, ci=args.ci)
@@ -455,6 +900,10 @@ def cmd_demo(args: argparse.Namespace) -> int:
         print(demo.run_ops(output_dir))
     elif args.pack == "audit":
         print(demo.run_audit(output_dir))
+    elif args.pack == "adversarial":
+        print(demo.run_adversarial(output_dir))
+    elif args.pack == "plane":
+        print(demo.run_plane(output_dir))
     else:
         print(demo.run_code(output_dir))
     return 0
@@ -469,7 +918,12 @@ def _parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     demo_parser = sub.add_parser("demo", help="run an end-to-end demo")
-    demo_parser.add_argument("pack", nargs="?", choices=["code", "ops", "audit"], default="code")
+    demo_parser.add_argument(
+        "pack",
+        nargs="?",
+        choices=["code", "ops", "audit", "adversarial", "plane"],
+        default="code",
+    )
     demo_parser.add_argument("--output-dir", default=".")
     demo_parser.set_defaults(func=cmd_demo)
 
@@ -559,6 +1013,110 @@ def _parser() -> argparse.ArgumentParser:
     verify.add_argument("--no-evidence", action="store_true")
     verify.set_defaults(func=cmd_verify)
 
+    scorecard_parser = sub.add_parser(
+        "scorecard",
+        help=(
+            "one report card: conformance, coverage, recall on labelled "
+            "traces, and resistance to a contract-aware agent"
+        ),
+        epilog=(
+            "Exit codes: 0 the contract passes all four checks, 1 it needs "
+            "work, 2 load error."
+        ),
+    )
+    scorecard_parser.add_argument("--contract", required=True)
+    scorecard_parser.add_argument(
+        "--trace",
+        default=None,
+        help="labelled trace file or directory; enables the recall section",
+    )
+    scorecard_parser.add_argument("--baseline", default=".")
+    scorecard_parser.add_argument(
+        "--goodhart-corpus",
+        default=None,
+        metavar="PATH",
+        help="adversarial corpus; defaults to the packaged goodhart corpus",
+    )
+    scorecard_parser.add_argument(
+        "--goodhart-thresholds",
+        default=None,
+        metavar="PATH",
+        help="resistance thresholds; defaults to the packaged thresholds",
+    )
+    scorecard_parser.add_argument(
+        "--no-goodhart-thresholds",
+        action="store_true",
+        help="do not check resistance thresholds",
+    )
+    scorecard_parser.add_argument(
+        "--stdout",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="format printed to stdout",
+    )
+    scorecard_parser.add_argument("--md", default=None, metavar="PATH")
+    scorecard_parser.add_argument("--json", default=None, metavar="PATH")
+    scorecard_parser.set_defaults(func=cmd_scorecard)
+
+    protocol_parser = sub.add_parser(
+        "protocol",
+        help="show the verifier protocol, export schemas, or check a contract",
+        epilog=(
+            "The protocol is the machine-readable contract between a verifier "
+            "and the scorecard. Exit codes: 0 ok, 1 contract violates the "
+            "protocol, 2 load error."
+        ),
+    )
+    protocol_parser.add_argument(
+        "--json", action="store_true", help="machine-readable JSON output"
+    )
+    protocol_parser.add_argument(
+        "--schemas",
+        default=None,
+        metavar="DIR",
+        help="write contract/verifier/verdict JSON Schemas to DIR",
+    )
+    protocol_parser.add_argument(
+        "--check",
+        default=None,
+        metavar="CONTRACT",
+        help="check a contract against the protocol instead of printing it",
+    )
+    protocol_parser.add_argument(
+        "--check-manifest",
+        default=None,
+        metavar="PATH",
+        help="check a verifier manifest (JSON) against the protocol",
+    )
+    protocol_parser.set_defaults(func=cmd_protocol)
+
+    coverage_parser = sub.add_parser(
+        "coverage",
+        help="check which declared defect classes a contract covers",
+        epilog=(
+            "Exit codes: 0 report written, 1 at-risk defects with --strict, "
+            "2 contract error."
+        ),
+    )
+    coverage_parser.add_argument("--contract", required=True)
+    coverage_parser.add_argument(
+        "--require",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help="defect tag the contract must cover; repeatable. "
+        "Defaults to the contract's required_defects.",
+    )
+    coverage_parser.add_argument(
+        "--json", action="store_true", help="machine-readable JSON output"
+    )
+    coverage_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 1 if a declared defect is uncovered or only weakly covered",
+    )
+    coverage_parser.set_defaults(func=cmd_coverage)
+
     backtest_parser = sub.add_parser("backtest", help="score a contract against human labels")
     backtest_parser.add_argument("--contract", required=True)
     backtest_parser.add_argument("--trace", required=True)
@@ -610,11 +1168,259 @@ def _parser() -> argparse.ArgumentParser:
     failure_zoo.add_argument("--csv", default=None, metavar="PATH", help="write per-check CSV")
     failure_zoo.set_defaults(func=cmd_benchmark_failure_zoo)
 
+    goodhart = benchmark_sub.add_parser(
+        "goodhart",
+        help=(
+            "measure whether an agent that knows the contract can pass "
+            "without doing the work"
+        ),
+        epilog=(
+            "Runs offline against packaged adversarial fixtures. Exit codes: "
+            "0 thresholds pass, 1 regression below threshold, 2 corpus error."
+        ),
+    )
+    goodhart.add_argument(
+        "--contract",
+        default=None,
+        metavar="PATH",
+        help=(
+            "score this contract's verifiers instead of the corpus manifests; "
+            "the contract's domain selects the families"
+        ),
+    )
+    goodhart.add_argument(
+        "--corpus",
+        default=None,
+        metavar="PATH",
+        help="corpus manifest; defaults to the packaged goodhart/corpus.json",
+    )
+    goodhart.add_argument(
+        "--thresholds",
+        default=None,
+        metavar="PATH",
+        help="regression thresholds; defaults to the packaged thresholds.json",
+    )
+    goodhart.add_argument(
+        "--no-thresholds",
+        action="store_true",
+        help="report results without checking regression thresholds",
+    )
+    goodhart.add_argument(
+        "--stdout",
+        choices=["summary", "markdown", "json"],
+        default="summary",
+        help="format printed to stdout",
+    )
+    goodhart.add_argument("--md", default=None, metavar="PATH", help="write Markdown report")
+    goodhart.add_argument("--json", default=None, metavar="PATH", help="write JSON results")
+    goodhart.set_defaults(func=cmd_benchmark_goodhart)
+
     init = sub.add_parser("init", help="scaffold a contract for the current repository")
     init.add_argument("--path", default=".")
     init.add_argument("--force", action="store_true", help="overwrite an existing contract")
     init.add_argument("--ci", action="store_true", help="also write a GitHub Actions workflow")
     init.set_defaults(func=cmd_init)
+
+    capability_parser = sub.add_parser(
+        "capability",
+        help="validate a capability manifest",
+    )
+    capability_sub = capability_parser.add_subparsers(
+        dest="capability_command", required=True
+    )
+    capability_validate = capability_sub.add_parser(
+        "validate", help="check a capability manifest"
+    )
+    capability_validate.add_argument("--manifest", required=True, metavar="PATH")
+    capability_validate.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_validate.add_argument("--json", action="store_true")
+    capability_validate.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail when a critical criterion is gated by no stage",
+    )
+    capability_validate.set_defaults(func=cmd_capability)
+
+    capability_init = capability_sub.add_parser(
+        "init", help="draft a capability manifest from the repository"
+    )
+    capability_init.add_argument("--root", default=".")
+    capability_init.add_argument(
+        "--out", default=None, help="manifest path (default .assaystone/capability.json)"
+    )
+    capability_init.add_argument("--owner", default=None)
+    capability_init.add_argument("--force", action="store_true")
+    capability_init.add_argument("--json", action="store_true")
+    capability_init.set_defaults(func=cmd_capability)
+
+    gate_parser = sub.add_parser(
+        "gate",
+        help="evaluate a capability at a lifecycle stage",
+        epilog=(
+            "Exit codes: 0 pass, 1 fail, 2 escalate or manifest error. The "
+            "command runs the oracles declared in the manifest; only run "
+            "manifests you trust."
+        ),
+    )
+    gate_parser.add_argument("--manifest", required=True, metavar="PATH")
+    gate_parser.add_argument(
+        "--stage",
+        required=True,
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
+    gate_parser.add_argument("--root", default=".")
+    gate_parser.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    gate_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="escalate when a critical criterion is not gated at this stage",
+    )
+    gate_parser.add_argument(
+        "--audit", metavar="PATH", default=None, help="append to this trail file"
+    )
+    gate_parser.add_argument("--actor", default=None, help="who ran the gate")
+    gate_parser.add_argument(
+        "--accept-manifest-change",
+        action="store_true",
+        help="record a reviewed manifest change instead of escalating",
+    )
+    gate_parser.add_argument("--json", action="store_true")
+    gate_parser.set_defaults(func=cmd_gate)
+
+    trail_parser = sub.add_parser(
+        "trail", help="verify a hash-chained gate audit trail"
+    )
+    trail_sub = trail_parser.add_subparsers(dest="trail_command", required=True)
+    trail_verify = trail_sub.add_parser("verify", help="check the hash chain")
+    trail_verify.add_argument("path", metavar="PATH")
+    trail_verify.add_argument(
+        "--expect",
+        default=None,
+        metavar="HASH",
+        help="anchored head hash; detects truncation of the tail",
+    )
+    trail_verify.add_argument("--json", action="store_true")
+    trail_verify.set_defaults(func=cmd_trail)
+
+    compose_parser = sub.add_parser(
+        "compose",
+        help=(
+            "choose the cheapest independent cover for declared defect "
+            "classes, and report what no check decides"
+        ),
+        epilog=(
+            "Coverage is a weighted set cover: each declared class needs one "
+            "medium/high independence check. Exit codes: 0 all covered and "
+            "within budget, 1 uncovered or over budget, 2 input error."
+        ),
+    )
+    compose_parser.add_argument("--contract", default=None, metavar="PATH")
+    compose_parser.add_argument(
+        "--require",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help="defect class to cover; repeatable. Defaults to required_defects.",
+    )
+    compose_parser.add_argument(
+        "--budget", type=float, default=None, metavar="USD"
+    )
+    compose_parser.add_argument(
+        "--contract-only",
+        action="store_true",
+        help="plan from the contract's own verifiers instead of the registry",
+    )
+    compose_parser.add_argument(
+        "--allow-low-independence",
+        action="store_true",
+        help="let low-independence checks cover a class",
+    )
+    compose_parser.add_argument("--json", action="store_true")
+    compose_parser.set_defaults(func=cmd_compose)
+
+    leaderboard_parser = sub.add_parser(
+        "leaderboard",
+        help="compare several contracts on coverage, recall, resistance, and cost",
+        epilog=(
+            "The manifest lists an entry per contract, with optional traces and "
+            "baseline. Exit codes: 0 every entry passes, 1 at least one needs "
+            "work, 2 manifest error."
+        ),
+    )
+    leaderboard_parser.add_argument("--manifest", required=True, metavar="PATH")
+    leaderboard_parser.add_argument(
+        "--stdout",
+        choices=["markdown", "summary", "json"],
+        default="markdown",
+    )
+    leaderboard_parser.add_argument("--md", default=None, metavar="PATH")
+    leaderboard_parser.add_argument("--json", default=None, metavar="PATH")
+    leaderboard_parser.set_defaults(func=cmd_leaderboard)
+
+    corpus_parser = sub.add_parser(
+        "corpus",
+        help="add a labelled case to an existing benchmark corpus",
+        epilog=(
+            "The manifest is never edited: an existing family points at a "
+            "directory, so the new labelled trace is picked up by the next run. "
+            "Exit codes: 0 added, 2 corpus or input error."
+        ),
+    )
+    corpus_sub = corpus_parser.add_subparsers(
+        dest="corpus_command", required=True
+    )
+    corpus_add = corpus_sub.add_parser(
+        "add",
+        help="write one labelled trace into a family",
+    )
+    corpus_add.add_argument("--corpus", required=True, metavar="PATH")
+    corpus_add.add_argument("--family", required=True)
+    corpus_add.add_argument(
+        "--trace",
+        required=True,
+        metavar="PATH",
+        help="a trace JSON, a transcript, or an observability export",
+    )
+    corpus_add.add_argument("--label", required=True, choices=["pass", "fail"])
+    corpus_add.add_argument(
+        "--defect",
+        default=None,
+        metavar="TAG",
+        help="required for a failing case; the shared defect vocabulary",
+    )
+    corpus_add.add_argument("--note", default="")
+    corpus_add.add_argument(
+        "--baseline",
+        default=None,
+        metavar="DIR",
+        help="baseline used to replay a transcript; defaults to the family's",
+    )
+    corpus_add.add_argument(
+        "--format",
+        default="auto",
+        choices=[
+            "auto",
+            "trace",
+            "messages",
+            "claude-code",
+            "codex",
+            "langsmith",
+            "langfuse",
+            "otel",
+        ],
+    )
+    corpus_add.add_argument("--id", default=None, metavar="CASE_ID")
+    corpus_add.add_argument("--force", action="store_true")
+    corpus_add.add_argument(
+        "--validate",
+        action="store_true",
+        help="rerun the corpus and report what the verifier pack did",
+    )
+    corpus_add.set_defaults(func=cmd_corpus)
 
     record = sub.add_parser("record", help="convert a transcript or export into a trace")
     record.add_argument("--transcript", required=True, help="transcript, export, or trace file")

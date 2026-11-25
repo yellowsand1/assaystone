@@ -77,6 +77,10 @@ class Verdict:
     evidence: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
     duration_ms: float = 0.0
+    # Effective independence after provenance: an agent-written testimony
+    # downgrades a check to low. The declared value is kept for transparency.
+    independence: str = "high"
+    declared_independence: str = "high"
 
     @property
     def outcome(self) -> str:
@@ -93,6 +97,32 @@ class Verdict:
             "evidence": self.evidence,
             "cost_usd": round(self.cost_usd, 8),
             "duration_ms": round(self.duration_ms, 2),
+            "independence": self.independence,
+            "declared_independence": self.declared_independence,
+        }
+
+
+@dataclass
+class CriterionVerdict:
+    """What one acceptance criterion decided, independent of the check."""
+
+    id: str
+    kind: str
+    defect: str
+    severity: str
+    outcome: str
+    verifiers: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "defect": self.defect,
+            "severity": self.severity,
+            "outcome": self.outcome,
+            "verifiers": list(self.verifiers),
+            "reasons": list(self.reasons),
         }
 
 
@@ -105,6 +135,11 @@ class RunResult:
     cost_usd: float = 0.0
     duration_ms: float = 0.0
     first_failure: str | None = None
+    # Failures raised by low-independence verifiers that no independent
+    # verifier confirmed. They route to a human instead of deciding.
+    unconfirmed: list[str] = field(default_factory=list)
+    # Per-criterion outcomes. Empty when the contract declares no criteria.
+    criteria: list[CriterionVerdict] = field(default_factory=list)
 
     @property
     def reasons(self) -> list[str]:
@@ -121,6 +156,8 @@ class RunResult:
             "cost_usd": round(self.cost_usd, 8),
             "duration_ms": round(self.duration_ms, 2),
             "first_failure": self.first_failure,
+            "unconfirmed": list(self.unconfirmed),
+            "criteria": [c.to_dict() for c in self.criteria],
             "verdicts": [v.to_dict() for v in self.verdicts],
         }
 
@@ -137,6 +174,10 @@ class Trace:
     evidence: dict[str, Any] = field(default_factory=dict)
     labels: Label | None = None
     created_at: str = field(default_factory=utc_now)
+    # Who wrote the trace: "agent" (a transcript or export) or "runtime" (a
+    # guard that recorded the steps itself). Testimony from an agent trace is
+    # not independent evidence.
+    source: str = "agent"
 
     def artifact_map(self) -> dict[str, Artifact]:
         return {a.path: a for a in self.artifacts}
@@ -159,6 +200,7 @@ class Trace:
             "evidence": self.evidence,
             "labels": self.labels.to_dict() if self.labels else None,
             "created_at": self.created_at,
+            "source": self.source,
         }
 
     @classmethod
@@ -174,6 +216,7 @@ class Trace:
             evidence=dict(data.get("evidence") or {}),
             labels=Label.from_dict(data["labels"]) if data.get("labels") else None,
             created_at=data.get("created_at", utc_now()),
+            source=str(data.get("source") or "agent"),
         )
 
     def save(self, path: str | Path) -> None:

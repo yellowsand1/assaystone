@@ -9,7 +9,10 @@ from assaystone import cli
 from assaystone.failure_zoo import (
     DEFAULT_CORPUS,
     DEFAULT_THRESHOLDS,
+    BenchmarkCase,
+    VerifierResult,
     VerifierRow,
+    _case_outcome,
     check_thresholds,
     render_summary,
     run_benchmark,
@@ -239,6 +242,39 @@ class FailureZooCliTest(unittest.TestCase):
             code = cli.main(["benchmark", "failure-zoo", "--stdout", "json"])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out.getvalue())["summary"]["defective"], 9)
+
+
+class CaseOutcomeTest(unittest.TestCase):
+    """A case that escalated was routed to a human, not silently escaped."""
+
+    def result(self, outcome: str) -> VerifierResult:
+        case = BenchmarkCase(
+            family="f", trace_id="t", human="fail", defect="d", note=""
+        )
+        return VerifierResult(case=case, verifier="v", outcome=outcome)
+
+    def test_escalation_beats_escape(self):
+        results = [self.result("escaped"), self.result("escalated")]
+        self.assertEqual(_case_outcome(results, "fail"), "escalated")
+
+    def test_catch_beats_escalation_and_escape(self):
+        results = [self.result("caught"), self.result("escalated"), self.result("escaped")]
+        self.assertEqual(_case_outcome(results, "fail"), "caught")
+
+    def test_all_escaped_is_an_escape(self):
+        results = [self.result("escaped"), self.result("escaped")]
+        self.assertEqual(_case_outcome(results, "fail"), "escaped")
+
+    def test_clean_case_precedence(self):
+        self.assertEqual(
+            _case_outcome([self.result("clean"), self.result("false_alarm")], "pass"),
+            "false_alarm",
+        )
+        self.assertEqual(
+            _case_outcome([self.result("clean"), self.result("escalated")], "pass"),
+            "escalated",
+        )
+        self.assertEqual(_case_outcome([self.result("clean")], "pass"), "clean")
 
 
 if __name__ == "__main__":

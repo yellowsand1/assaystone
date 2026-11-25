@@ -1,0 +1,190 @@
+{
+  "capability": "pricing-change",
+  "owner": "growth-pricing",
+  "systems": [
+    "pricing-service",
+    "ledger"
+  ],
+  "data_classes": [
+    "internal",
+    "financial"
+  ],
+  "irreversible_actions": [
+    "publish",
+    "deploy"
+  ],
+  "risk": "high",
+  "lifecycle": "shadow",
+  "retention": "90d",
+  "criteria": [
+    {
+      "id": "tests-pass",
+      "kind": "postcondition",
+      "statement": "The fee test suite passes.",
+      "oracle": "tests",
+      "severity": "critical"
+    },
+    {
+      "id": "ledger-conserved",
+      "kind": "invariant",
+      "statement": "The ledger holds 3 orders totalling 12300 cents.",
+      "oracle": "ledger",
+      "severity": "critical"
+    },
+    {
+      "id": "fee-parity",
+      "kind": "invariant",
+      "statement": "The refactored fee calculation matches the old one.",
+      "oracle": "parity",
+      "severity": "critical"
+    },
+    {
+      "id": "publish-approved",
+      "kind": "evidence",
+      "statement": "The pricing owner approved publishing.",
+      "oracle": "approval",
+      "severity": "critical"
+    }
+  ],
+  "oracles": [
+    {
+      "id": "seed",
+      "type": "command",
+      "description": "materialise the ledger from orders.json",
+      "payload": {
+        "command": [
+          "sh",
+          "-c",
+          "python3 seed.py"
+        ],
+        "timeout": 60
+      }
+    },
+    {
+      "id": "tests",
+      "type": "command",
+      "description": "fee unit tests",
+      "payload": {
+        "command": [
+          "sh",
+          "-c",
+          "python3 -m unittest -q test_fees.py"
+        ],
+        "timeout": 120
+      }
+    },
+    {
+      "id": "ledger",
+      "type": "sql",
+      "description": "ledger totals are conserved",
+      "payload": {
+        "driver": "sqlite",
+        "database": "ledger.db",
+        "query": "select count(*) as n, sum(amount_cents) as total from orders",
+        "expect": {
+          "mode": "rows",
+          "equals": [
+            {
+              "n": 3,
+              "total": 12300
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "parity",
+      "type": "shadow",
+      "description": "old and new fee code agree on the same orders",
+      "payload": {
+        "old": {
+          "type": "command",
+          "payload": {
+            "command": [
+              "sh",
+              "-c",
+              "python3 fee.py old"
+            ]
+          }
+        },
+        "new": {
+          "type": "command",
+          "payload": {
+            "command": [
+              "sh",
+              "-c",
+              "python3 fee.py new"
+            ]
+          }
+        },
+        "compare": {
+          "mode": "json",
+          "ignore": [
+            "generated_at",
+            "version"
+          ]
+        }
+      }
+    },
+    {
+      "id": "approval",
+      "type": "human",
+      "description": "pricing owner publish approval",
+      "payload": {
+        "action": "publish",
+        "record": "approvals.json"
+      }
+    },
+    {
+      "id": "rollback",
+      "type": "command",
+      "description": "the previous fee implementation still runs",
+      "payload": {
+        "command": [
+          "sh",
+          "-c",
+          "python3 fee.py old"
+        ],
+        "timeout": 60
+      }
+    }
+  ],
+  "policies": {
+    "shadow": {
+      "require": [
+        "seed",
+        "tests",
+        "ledger",
+        "parity"
+      ],
+      "allow_merge": false
+    },
+    "canary": {
+      "require": [
+        "seed",
+        "tests",
+        "ledger",
+        "parity"
+      ],
+      "approvals": [
+        "approval"
+      ],
+      "allow_merge": true
+    },
+    "production": {
+      "require": [
+        "seed",
+        "tests",
+        "ledger",
+        "parity"
+      ],
+      "approvals": [
+        "approval"
+      ],
+      "allow_merge": true,
+      "allow_deploy": true,
+      "rollback_required": true,
+      "rollback": "rollback"
+    }
+  }
+}

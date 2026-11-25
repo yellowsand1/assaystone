@@ -1,0 +1,63 @@
+{
+  "name": "research-hardened",
+  "domain": "research",
+  "criteria": [
+    {
+      "id": "claims-cited",
+      "kind": "evidence",
+      "statement": "Every non-heading paragraph cites at least one source.",
+      "defect": "uncited-claim",
+      "verifiers": [
+        "research.citations"
+      ],
+      "severity": "high"
+    },
+    {
+      "id": "sources-exist",
+      "kind": "postcondition",
+      "statement": "Every cited source id exists in sources.json.",
+      "defect": "missing-source",
+      "verifiers": [
+        "research.sources_exist"
+      ],
+      "severity": "critical"
+    },
+    {
+      "id": "quotes-verbatim",
+      "kind": "evidence",
+      "statement": "Every quoted span appears verbatim in a cited source.",
+      "defect": "fabricated-quote",
+      "verifiers": [
+        "research.quotes_verbatim"
+      ],
+      "severity": "critical"
+    }
+  ],
+  "test_command": [
+    "{python}",
+    "-c",
+    "pass"
+  ],
+  "fail_fast": true,
+  "human_review_cost_usd": 6.0,
+  "max_verification_cost_usd": 0.05,
+  "required_defects": [
+    "uncited-claim",
+    "missing-source",
+    "fabricated-quote"
+  ],
+  "verifiers": [
+    {
+      "name": "research.citations",
+      "required": true
+    },
+    {
+      "name": "research.sources_exist",
+      "required": true
+    },
+    {
+      "name": "research.quotes_verbatim",
+      "required": true
+    }
+  ]
+}

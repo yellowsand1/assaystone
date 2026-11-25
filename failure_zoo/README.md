@@ -62,15 +62,36 @@ fails on threshold regressions or a stale scorecard.
 
 A case is:
 
-1. a trace JSON (redact secrets and customer data);
+1. a trace JSON or a redacted transcript (Claude Code, Codex, LangSmith, Langfuse,
+   OpenTelemetry);
 2. a human verdict (`pass` or `fail`);
-3. one line describing the defect;
-4. optionally, the verifier that should catch it.
+3. for a failing case, one defect tag from the shared vocabulary;
+4. optionally, a note explaining why it is a failure.
 
-Open an issue with the **failure case** template. Accepted cases are added as
-fixtures, registered in the corpus manifest, and included in the
-mutation/backtest and Failure Zoo benchmarks. Raise the thresholds when a new
-case increases the expected caught count; never lower one to make a run pass.
+Add it to an existing family with one command:
+
+```bash
+assaystone corpus add \
+  --corpus assaystone/demo_data/goodhart/corpus.json \
+  --family mechanical \
+  --trace ~/session.jsonl --format claude-code \
+  --baseline ~/repo-before \
+  --label fail --defect test-harness-hijack \
+  --note "neutralised assertEqual instead of fixing the rounding" \
+  --validate
+```
+
+The command replays the transcript against the baseline, writes one labelled trace
+into the family directory, and never edits the manifest. `--validate` reruns the
+corpus and prints whether the current pack caught the case.
+
+Adversarial cases live in
+[`assaystone/demo_data/goodhart/`](../assaystone/demo_data/goodhart). The same
+command works there; choose `mechanical`, `semantic`, or `ops_lineage`.
+
+Open an issue with the **failure case** template for cases that need a new family
+or new verifiers. Raise the thresholds when a new case increases the expected
+caught count; never lower one to make a run pass.
 
 ## Why this exists
 
