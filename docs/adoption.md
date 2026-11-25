@@ -1,8 +1,9 @@
 # Run a 45-minute design-partner session
 
 The first external evidence does not come from a launch post. It comes from three
-people who let you run the audit on one of their real sessions and tell you what it
-missed. This is the script for that session.
+people who let you run the tool on their real work and tell you what it missed.
+There are two scripts: an audit session (45 minutes) and a lifecycle trial
+(30 minutes) for someone who owns a service.
 
 ## Who to ask
 
@@ -77,6 +78,50 @@ declare the blind spot; do not quietly drop the case.
 - Do not turn a false positive into an argument. Write it down and fix it.
 - Do not ask for a testimonial before the session. Ask after, and only if the
   result was useful.
+
+## The lifecycle trial (30 minutes)
+
+Use this when the person owns a service and can name one small change.
+
+### Before the session
+
+- Ask for a **temporary clone** of the repository. Do not work in their tree.
+- Run `capability init --root . --owner <team>` and add the criteria they care
+  about: compile, tests, public API (for Java, copy
+  `examples/capability/java_api_diff.py`), a migration check, an approval.
+- Run a baseline `gate --stage shadow`. Every escalation is a criterion with no
+  oracle yet; decide together whether to add one or declare it.
+
+### The session
+
+| minutes | what |
+|---|---|
+| 0–5 | Ask what "done" means for this change; write the criteria down. |
+| 5–10 | Render `capability brief` and show it. This is the agent's input. |
+| 10–20 | Let their agent attempt the change with the brief. Do not steer it. |
+| 20–25 | Run the gate. Compare the agent's claim with the evidence. |
+| 25–30 | Ask: would this have caught something? Would you put it in CI? What did it miss? |
+
+### What to collect
+
+- the change and the defect class (if the gate failed);
+- the agent's final claim versus the gate's verdict;
+- whether the agent ran the gate itself;
+- every escalation and false positive;
+- gate latency on their machine;
+- consent for a redacted fixture.
+
+### What not to do
+
+- Do not fill in an approval for them. A missing approval must escalate.
+- Do not merge or deploy their change.
+- Do not hand-edit the manifest mid-run to make the gate pass.
+- Do not claim the loop closed if the agent simply refused; record it as a
+  conflict, not a delivery.
+
+This is the script that produced
+[the lifecycle case study](case-study-lifecycle.md): one run without the brief
+failed the API oracle, one run with it reverted and stopped.
 
 ## After three sessions
 
