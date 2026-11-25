@@ -353,7 +353,11 @@ missing oracles, the assurance gap, and a digest of every oracle it ran. `trail 
 edits and deleted entries; pass `--expect HASH` with an externally anchored head
 to detect truncation as well. Assaystone gates itself: `.assaystone/capability.json` declares this repository's
 acceptance criteria, and CI runs the same gate, writes the trail, signs the
-receipt, and uploads both as evidence. The Claude Code Stop hook can run the same
+receipt, and uploads both as evidence. Releases are gated at `production`: the
+owner signs the manifest digest with an Ed25519 key whose private half stays
+outside the repository, and the release job verifies it with the committed
+public key, runs the oracles and the rollback check, signs an Ed25519 release
+receipt, and uploads the evidence. The Claude Code Stop hook can run the same
 gate and refuse to stop while it fails.
 
 Case study: [a green build, a broken API, a blocked promotion, and a verified

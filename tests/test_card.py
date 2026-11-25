@@ -127,7 +127,7 @@ class CardTest(unittest.TestCase):
         text = render_card(card)
         self.assertIn("chain intact", text)
         self.assertIn("valid: pass", text)
-        self.assertIn("no recorded `production` gate", " ".join(card.residual_risks))
+        self.assertNotIn("no recorded `production` gate", " ".join(card.residual_risks))
         self.assertNotIn("does not verify", " ".join(card.residual_risks))
 
     def test_static_and_stage_gaps_are_reported(self):
@@ -137,6 +137,10 @@ class CardTest(unittest.TestCase):
         self.assertTrue(
             any("unused" in risk for risk in card.residual_risks)
         )
+        self.assertEqual(
+            [item["criterion"] for item in card.stage_gap], ["unused"]
+        )
+        self.assertIn("Stage gap at `shadow`", render_card(card))
 
     def test_broken_trail_and_wrong_receipt_key_are_risks(self):
         manifest = self.manifest()

@@ -571,10 +571,11 @@ pricing       growth  high  shadow     4/4       shadow:pass      ok        ok  
 refunds       support high  shadow     3/3       canary:pass      ok        -        0
 ```
 
-`--strict` exits `1` when any capability has a critical risk: no trail, a
-declared stage with no recorded gate, a last gate that did not pass, an ungated
-critical criterion, an invalid approval, receipt, or waiver, or an invalid
-manifest. `--json` returns the same data.
+`--strict` exits `1` when any capability has a critical risk: no trail, no
+recorded gate for the capability's current lifecycle stage, a recorded stage
+whose last decision did not pass, an ungated critical criterion, an invalid
+approval, receipt, or waiver, or an invalid manifest. A future stage with no
+evidence yet is not a current defect; the per-stage gap stays on the card. `--json` returns the same data.
 
 The registry is read-only and creates no second source of truth: every cell comes
 from the capability card. It is how a team answers "where do we stand?" without
@@ -718,6 +719,12 @@ equivalent:
 Make the trail job artifact immutable and log the head hash; pass it back with
 `--expect HASH` on the next run. Exit codes let the pipeline stop on `fail` and
 route `escalate` to a required reviewer instead of retrying.
+
+Assaystone's own release workflow is the reference: it runs `gate --stage
+production` before it builds, with a committed owner approval verified by the
+owner public key, the tests/lint/benchmark oracles, the rollback check, an
+Ed25519 release receipt whose private key is a GitHub secret, and an evidence
+artifact. Starting with 0.17.0, the release is the first tag gated this way.
 
 If a stage declares `after`, carry the **same trail artifact** from the earlier
 stage into the later job. Two separate trails are two separate histories, and

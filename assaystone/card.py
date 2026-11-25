@@ -16,7 +16,7 @@ from .approval import (
     load_approval,
     verify_approval,
 )
-from .plane import GATING_SEVERITIES, CapabilityManifest
+from .plane import CapabilityManifest
 from .receipt import ReceiptError, load_receipt, verify_receipt
 from .trail import TrailError
 from .trail import read as read_trail
@@ -282,20 +282,28 @@ def build_card(
         risks.append(
             f"criterion `{item.id}` ({item.severity}) is gated by no stage"
         )
-    for item in card.stage_gap:
-        if item["severity"] in GATING_SEVERITIES:
+    if not card.trail.get("present"):
+        risks.append("no trail evidence")
+    else:
+        last = card.trail.get("last", {})
+        current_entry = last.get(card.lifecycle)
+        if current_entry is None:
             risks.append(
-                f"criterion `{item['criterion']}` ({item['severity']}) is not "
-                f"gated at `{current}`"
+                f"no recorded `{card.lifecycle}` gate for the current lifecycle"
             )
-    for stage_name in manifest.policies:
-        entry = card.trail.get("last", {}).get(stage_name)
-        if entry is None:
-            risks.append(f"no recorded `{stage_name}` gate on this trail")
-        elif entry.get("outcome") != "pass":
+        elif current_entry.get("outcome") != "pass":
             risks.append(
-                f"the last `{stage_name}` gate was `{entry.get('outcome')}`"
+                f"the last `{card.lifecycle}` gate was "
+                f"`{current_entry.get('outcome')}`"
             )
+        for stage_name, entry in last.items():
+            if stage_name == card.lifecycle:
+                continue
+            if entry.get("outcome") != "pass":
+                risks.append(
+                    f"the last `{stage_name}` gate was "
+                    f"`{entry.get('outcome')}`"
+                )
     if card.trail.get("present") and not card.trail.get("ok"):
         detail = (card.trail.get("errors") or ["unknown error"])[0]
         risks.append(f"trail does not verify: {detail}")
@@ -396,6 +404,13 @@ def render_card(card: StatusCard) -> str:
                 f"  {item['criterion']}: until {item.get('expires_at')} "
                 f"by {item.get('approved_by')}"
             )
+
+    if card.stage_gap:
+        gap = ", ".join(
+            f"`{item['criterion']}` ({item['severity']})"
+            for item in card.stage_gap
+        )
+        lines.extend(["", f"Stage gap at `{card.stage}`", f"  {gap}"])
 
     lines.extend(["", "Residual risk"])
     if not card.residual_risks:

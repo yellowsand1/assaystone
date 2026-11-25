@@ -39,9 +39,38 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install Assaystone for the production gate
+        run: python -m pip install ".[dev]"
+      - name: Owner approval and production gate
+        env:
+          ASSAYSTONE_RELEASE_KEY: ${{ secrets.ASSAYSTONE_RELEASE_KEY }}
+        run: |
+          printf '%s\n' "$ASSAYSTONE_RELEASE_KEY" > "$RUNNER_TEMP/release.key"
+          chmod 600 "$RUNNER_TEMP/release.key"
+          python -m assaystone gate \
+            --manifest .assaystone/capability.json \
+            --stage production --root . \
+            --owner-public-key .assaystone/owner.pub \
+            --audit .assaystone/release-trail.jsonl \
+            --receipt .assaystone/release-receipt.json \
+            --receipt-key-file "$RUNNER_TEMP/release.key" \
+            --actor release
+          python -m assaystone trail verify .assaystone/release-trail.jsonl
+          python -m assaystone receipt verify .assaystone/release-receipt.json \
+            --public-key .assaystone/release.pub \
+            --commit "$GITHUB_SHA" --outcome pass
+          rm -f "$RUNNER_TEMP/release.key"
+      - name: Upload the release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: assaystone-release-evidence
+          path: |
+            .assaystone/release-trail.jsonl
+            .assaystone/release-receipt.json
       - name: Build
         run: |
           python -m pip install build twine
