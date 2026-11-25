@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Assaystone — verification for AI agents</title>
-  <meta name="description" content="An open protocol and adversarial benchmark for agent acceptance. Every verifier declares what it catches and what it cannot see.">
+  <title>Assaystone — acceptance and deployment gates for AI agents</title>
+  <meta name="description" content="Acceptance contracts and deployment gates for AI agents. Every verifier declares what it catches and what it cannot see; every gate records its evidence.">
   <meta name="theme-color" content="#0d1117">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Your agent's tests pass. Did it delete the failing test?">
@@ -38,7 +38,7 @@
       <div class="hero-copy">
         <div class="eyebrow"><span class="pulse"></span> Open source · Apache-2.0 · zero runtime dependencies</div>
         <h1>Your agent's tests pass.<br><em>Did it delete the failing test?</em></h1>
-        <p class="lede">Assaystone is an open protocol and adversarial benchmark for agent acceptance. Every verifier must declare what it claims, what it catches, and what it cannot see—then recall, resistance, coverage, and cost are measured, not assumed.</p>
+        <p class="lede">Assaystone is an open protocol and adversarial benchmark for agent acceptance—and an acceptance plane that gates a capability through shadow, canary, and production. Every verifier must declare what it claims, what it catches, and what it cannot see; every deployment decision leaves evidence.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="#quickstart">Run the audit</a>
           <a class="button button-secondary" href="https://github.com/yellowsand1/assaystone">View on GitHub <span aria-hidden="true">↗</span></a>
@@ -114,6 +114,11 @@
           <span class="step-number">03</span>
           <h3>Gate CI and runtime</h3>
           <p>Fail merges and irreversible tool calls with the same checks. Route ambiguous outcomes to a human instead of guessing.</p>
+        </article>
+        <article>
+          <span class="step-number">04</span>
+          <h3>Gate the deployment</h3>
+          <p>A capability manifest binds criteria to nine generic oracles—compile, diff, HTTP, SQL, old-vs-new shadow, the agent's transcript—and gates shadow, canary, and production with a hash-chained trail.</p>
         </article>
       </div>
       <div class="code-grid">

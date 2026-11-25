@@ -20,6 +20,12 @@ Every verifier must answer three questions before it is allowed to decide:
 - **catches** — the defect classes it claims to detect
 - **blind_spots** — the defect classes it knows it cannot detect
 
+Above the verifier, the **acceptance plane** answers the deployment question: a
+capability manifest binds typed criteria to nine generic oracles — compile, file,
+git, HTTP, SQL, old-vs-new shadow, the agent's transcript, and the verifier ABI —
+and gates `shadow`, `canary`, and `production`, recording every decision in a
+hash-chained trail.
+
 Assaystone then measures the verifier set on axes that a single pass rate hides:
 
 | question | metric | command |
@@ -32,8 +38,12 @@ Assaystone then measures the verifier set on axes that a single pass rate hides:
 | How do several contracts compare? | leaderboard | `assaystone leaderboard` |
 
 It also ships a reference implementation: audit existing Claude Code, Codex CLI,
-and observability traces, then gate CI and runtime with the same contract. Nothing
-leaves your machine; no API key or runtime dependency is required.
+and observability traces, then gate CI, runtime, and deployment with the same
+acceptance language. Nothing leaves your machine; no API key or runtime
+dependency is required.
+
+The deployment question — *can this capability move to the next stage, and with
+what evidence?* — is a gate too: `assaystone demo plane`.
 
 <img src="assets/demo.gif" alt="Assaystone auditing a Claude Code transcript and finding a deleted failing test" width="760">
 
