@@ -544,11 +544,11 @@ def test_agent_run(assaystone):
 ### GitHub Action
 
 ```yaml
-- uses: yellowsand1/assaystone@v0.15.0
+- uses: yellowsand1/assaystone@v0.16.0
   with:
     contract: .assaystone/contract.json
     traces: .assaystone/traces
-    install: assaystone==0.15.0   # optional; default installs the action repo
+    install: assaystone==0.16.0   # optional; default installs the action repo
 ```
 
 Failures become PR annotations; a Markdown summary is written to the job summary.
@@ -557,7 +557,7 @@ The same action gates a capability when you pass `manifest` instead of
 `contract`/`traces`:
 
 ```yaml
-- uses: yellowsand1/assaystone@v0.15.0
+- uses: yellowsand1/assaystone@v0.16.0
   with:
     manifest: .assaystone/capability.json
     stage: canary
@@ -769,7 +769,7 @@ tests/                 # unit + integration tests
 
 ## Status and roadmap
 
-`v0.15.0` — alpha. The core is domain-agnostic, and the acceptance plane now
+`v0.16.0` — alpha. The core is domain-agnostic, and the acceptance plane now
 gates a capability at shadow, canary, and production.
 
 - [x] audit: Claude Code and Codex CLI transcripts, message exports, trace JSON
