@@ -21,6 +21,8 @@ class PlaneDemoTest(unittest.TestCase):
             self.assertIn("canary without the owner approval:", text)
             self.assertIn("escalate", text)
             self.assertIn("merge_allowed=True", text)
+            self.assertIn("production, chained to the canary entry", text)
+            self.assertIn("deploy_allowed=True", text)
             self.assertIn("chain broken", text)
             trail_path = Path(tmp) / "plane-demo-trail.jsonl"
             self.assertTrue(trail.verify(trail_path).ok)

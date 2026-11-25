@@ -297,7 +297,8 @@ A stage declares what evidence it needs:
  "production": {"require": ["compile", "tests"],
                 "approvals": ["reviewer"],
                 "allow_merge": true, "allow_deploy": true,
-                "rollback_required": true, "rollback": "rollback_plan"}}
+                "rollback_required": true, "rollback": "rollback_plan",
+                "after": "canary"}}
 ```
 
 * All required oracles and approvals run. Any `fail` fails the gate; any
@@ -312,6 +313,11 @@ A stage declares what evidence it needs:
   or a file that the rollback script exists. The trail records the oracle, its
   outcome, and its digest.
 * A stage with no policy escalates rather than passing by default.
+* `after` chains a stage to a recorded pass of an earlier one. `production`
+  with `"after": "canary"` will not run unless the trail holds a passing
+  `canary` gate for the same capability and the same manifest digest. No trail,
+  no entry, a later failure, or a changed manifest escalates. The decision chain
+  is evidence, not an assumption that someone ran the previous stage.
 
 ### Assurance gap and `--strict`
 
@@ -353,6 +359,7 @@ list.
  "oracles": [{"id": "ledger", "type": "sql", "outcome": "pass",
               "digest": "sha256:...", "fingerprint": "sha256:..."}],
  "missing": [], "gap": ["publish-approved"], "strict": false,
+ "prior": {"stage": "canary", "seq": 0, "hash": "sha256:...", "outcome": "pass"},
  "prev": "sha256:0000...", "hash": "sha256:..."}
 ```
 
@@ -439,6 +446,10 @@ A gate is a command, so it fits any pipeline:
 Make the trail job artifact immutable and log the head hash; pass it back with
 `--expect HASH` on the next run. Exit codes let the pipeline stop on `fail` and
 route `escalate` to a required reviewer instead of retrying.
+
+If a stage declares `after`, carry the **same trail artifact** from the earlier
+stage into the later job. Two separate trails are two separate histories, and
+the chain check escalates rather than guessing which one is real.
 
 ## Limits
 

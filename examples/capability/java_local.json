@@ -128,7 +128,8 @@
       "allow_merge": true,
       "allow_deploy": true,
       "rollback_required": true,
-      "rollback": "rollback"
+      "rollback": "rollback",
+      "after": "canary"
     }
   }
 }

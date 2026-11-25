@@ -67,6 +67,7 @@ def entry_for(
             getattr(gate, "manifest_lifecycle", "") or ""
         ),
         "manifest_digest": str(getattr(gate, "manifest_digest", "") or ""),
+        "prior": dict(getattr(gate, "prior", {}) or {}),
         "oracles": [
             {
                 "id": item.oracle,
@@ -161,15 +162,17 @@ class TrailCheck:
         }
 
 
-def last_manifest_digest(path: str | Path) -> str:
-    """Digest recorded by the most recent gate on this trail, if any."""
+def last_manifest_digest(path: str | Path, capability: str = "") -> str:
+    """Digest recorded by the most recent gate for this capability, if any."""
     try:
         entries = read(path)
     except TrailError:
         return ""
-    if not entries:
-        return ""
-    return str(entries[-1].get("manifest_digest") or "")
+    for entry in reversed(entries):
+        if capability and entry.get("capability") != capability:
+            continue
+        return str(entry.get("manifest_digest") or "")
+    return ""
 
 
 def verify(path: str | Path, expected_head: str | None = None) -> TrailCheck:
