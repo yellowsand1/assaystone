@@ -250,6 +250,7 @@ class WaiverTest(unittest.TestCase):
             self.root,
             owner_public_key=public,
         )
+        self.assertEqual(entry["key_id"], keys.key_id(public))
         self.assertEqual(gate.outcome, "pass", gate.reasons)
         self.assertEqual(gate.waived[0]["criterion"], "ok")
 
@@ -266,6 +267,26 @@ class WaiverTest(unittest.TestCase):
             owner_public_key=other_public,
         )
         self.assertEqual(wrong.outcome, "fail")
+
+        body = {
+            key: value
+            for key, value in entry.items()
+            if key != "signature"
+        }
+        body["key_id"] = "sha256:not-the-key"
+        body["signature"] = keys.sign_body(body, private_key_path=private)
+        payload["waivers"] = [body]
+        self.waiver_path.write_text(json.dumps(payload), encoding="utf-8")
+        mismatch = evaluate_gate(
+            self.manifest,
+            "canary",
+            self.root,
+            owner_public_key=public,
+        )
+        self.assertEqual(mismatch.outcome, "fail")
+        self.assertTrue(
+            any("key_id" in reason for reason in mismatch.reasons)
+        )
 
     @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
     def test_cli_ed25519_waive_and_gate(self):

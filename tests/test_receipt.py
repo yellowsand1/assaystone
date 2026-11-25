@@ -203,6 +203,7 @@ class ReceiptTest(unittest.TestCase):
             private_key_path=private,
         )
         self.assertTrue(receipt["signature"].startswith("ed25519:"))
+        self.assertEqual(receipt["key_id"], keys.key_id(public))
         check = verify_receipt(
             receipt,
             expected_outcome="pass",
@@ -214,6 +215,18 @@ class ReceiptTest(unittest.TestCase):
         receipt["outcome"] = "fail"
         tampered = verify_receipt(receipt, public_key_path=public)
         self.assertFalse(tampered.ok)
+
+        body = {
+            key: value
+            for key, value in receipt.items()
+            if key != "signature"
+        }
+        body["outcome"] = "pass"
+        body["key_id"] = "sha256:not-the-key"
+        body["signature"] = keys.sign_body(body, private_key_path=private)
+        mismatch = verify_receipt(body, public_key_path=public)
+        self.assertFalse(mismatch.ok)
+        self.assertIn("key_id", " ".join(mismatch.errors))
 
     @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
     def test_bad_public_key_file_is_an_error(self):

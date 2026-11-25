@@ -453,8 +453,14 @@ assaystone receipt verify receipt.json --public-key owner.pub --outcome pass
 The verifier cannot sign, and the private key never leaves the signer. In CI,
 write the private key from a secret to a `0600` file for the gate step and remove
 it afterwards; keep the public key in the repository or a policy store. HMAC
-remains the default and needs no extra. Key revocation and an identity system
-are still out of scope.
+remains the default and needs no extra.
+
+Ed25519 artifacts carry a **key id** — the SHA-256 fingerprint of the public key
+— inside the signed body. Verification checks it whenever the public key is
+supplied, so a key substitution fails even if the signature is otherwise valid.
+`assaystone key fingerprint --public owner.pub` prints it, and `key generate`
+shows it. To rotate, publish a new key id; old artifacts keep the old id. There
+is no revocation list or identity system yet, and the docs say so.
 
 ## A Java public API oracle
 
@@ -631,9 +637,10 @@ signature escalates. This is a governance decision, not a failed check.
 
 Keep them separate. The owner decides what "acceptable" means; CI records that
 the decision was made. HMAC is symmetric; Ed25519 lets CI hold only a public key,
-so it can verify an owner decision without being able to make one. The approval
-has no expiry; it is valid while the digest is unchanged. A review window and
-key revocation are declared future gaps.
+so it can verify an owner decision without being able to make one. Ed25519
+approvals and waivers carry a key id, so the gate can reject a substituted
+public key. The approval has no expiry; it is valid while the digest is
+unchanged. A review window and key revocation are declared future gaps.
 
 ## Self-weakening and forged approvals
 

@@ -95,6 +95,23 @@ def load_public(path: str | Path):
     return key
 
 
+def public_key_id(public_key) -> str:
+    _, serialization, _ = _crypto()
+    der = public_key.public_bytes(
+        encoding=serialization.Encoding.DER,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return "sha256:" + hashlib.sha256(der).hexdigest()[:16]
+
+
+def key_id(public_path: str | Path) -> str:
+    return public_key_id(load_public(public_path))
+
+
+def key_id_for_private(private_path: str | Path) -> str:
+    return public_key_id(load_private(private_path).public_key())
+
+
 def sign(body: bytes, private_path: str | Path) -> str:
     key = load_private(private_path)
     signature = key.sign(body)

@@ -90,6 +90,11 @@ def create_waiver(
     body = _body(
         manifest, criterion, reason.strip(), approved_by, expires_at, at
     )
+    if private_key_path:
+        try:
+            body["key_id"] = keys.key_id_for_private(private_key_path)
+        except keys.SigningKeyError as exc:
+            raise WaiverError(str(exc)) from exc
     try:
         body["signature"] = keys.sign_body(body, key, private_key_path)
     except keys.SigningKeyError as exc:
@@ -182,12 +187,28 @@ def verify_waivers(
         if error:
             errors.append(f"waiver {criterion}: {error}")
             continue
+        if (
+            str(value).startswith("ed25519:")
+            and entry.get("key_id")
+            and public_key_path
+        ):
+            try:
+                actual = keys.key_id(public_key_path)
+            except keys.SigningKeyError as exc:
+                errors.append(f"waiver {criterion}: {exc}")
+                continue
+            if actual != entry.get("key_id"):
+                errors.append(
+                    f"waiver {criterion}: public key does not match key_id"
+                )
+                continue
         valid[criterion] = {
             "criterion": criterion,
             "reason": entry.get("reason"),
             "approved_by": entry.get("approved_by"),
             "at": entry.get("at"),
             "expires_at": entry.get("expires_at"),
+            "key_id": entry.get("key_id"),
         }
     # One bad entry makes the whole file untrusted. A partial waiver set after a
     # failed verification is not evidence.

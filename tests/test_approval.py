@@ -195,12 +195,14 @@ class ApprovalTest(unittest.TestCase):
         (self.root / "capability.approval.json").write_text(
             json.dumps(approval), encoding="utf-8"
         )
+        self.assertEqual(approval["key_id"], keys.key_id(public))
         gate = evaluate_gate(
             self.manifest, "shadow", self.root, owner_public_key=public
         )
         self.assertEqual(gate.outcome, "pass", gate.reasons)
         self.assertTrue(gate.manifest_approval["verified"])
         self.assertEqual(gate.manifest_approval["scheme"], "ed25519")
+        self.assertEqual(gate.manifest_approval["key_id"], keys.key_id(public))
 
         missing = evaluate_gate(self.manifest, "shadow", self.root)
         self.assertEqual(missing.outcome, "escalate")
@@ -213,6 +215,22 @@ class ApprovalTest(unittest.TestCase):
             self.manifest, "shadow", self.root, owner_public_key=other_public
         )
         self.assertEqual(wrong.outcome, "escalate")
+
+        body = {
+            key: value
+            for key, value in approval.items()
+            if key != "signature"
+        }
+        body["key_id"] = "sha256:not-the-key"
+        body["signature"] = keys.sign_body(body, private_key_path=private)
+        (self.root / "capability.approval.json").write_text(
+            json.dumps(body), encoding="utf-8"
+        )
+        mismatch = evaluate_gate(
+            self.manifest, "shadow", self.root, owner_public_key=public
+        )
+        self.assertEqual(mismatch.outcome, "escalate")
+        self.assertIn("key_id", mismatch.reasons[0])
 
     @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
     def test_cli_ed25519_accept_and_gate(self):
