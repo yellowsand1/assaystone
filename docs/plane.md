@@ -328,6 +328,18 @@ assurance gap (declared, not gated at this stage):
 `design`, where nothing is deployed yet). A failure still outranks the gap: the
 gate reports `fail`, not `escalate`.
 
+`capability validate` reports a stronger, static case: a criterion no stage
+gates at all. That is a manifest defect, not a stage decision, so it is visible
+before the first gate:
+
+```text
+criteria gated by some stage: 3/4
+not gated by any stage: publish-approved (critical)
+```
+
+`capability validate --strict` exits `1` when a critical criterion is in that
+list.
+
 ## Audit trail
 
 `gate --audit PATH` appends one JSON line:

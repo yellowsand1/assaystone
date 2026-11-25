@@ -38,7 +38,13 @@ from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
 from .oracles import OracleError, OracleRegistry
-from .plane import CapabilityManifest, PlaneError, evaluate_gate, render_gate
+from .plane import (
+    GATING_SEVERITIES,
+    CapabilityManifest,
+    PlaneError,
+    evaluate_gate,
+    render_gate,
+)
 from .protocol import (
     check_contract,
     check_manifest,
@@ -468,9 +474,7 @@ def cmd_capability(args: argparse.Namespace) -> int:
     except (PlaneError, OracleError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
-    if args.json:
-        print(json.dumps(manifest.to_dict(), indent=2))
-    else:
+    if not args.json:
         print(f"capability {manifest.capability}: ok")
         print(
             f"  owner={manifest.owner} risk={manifest.risk} "
@@ -486,6 +490,30 @@ def cmd_capability(args: argparse.Namespace) -> int:
                 f"  registry={manifest.registry} "
                 f"fingerprint={manifest.registry_fingerprint}"
             )
+        uncovered = manifest.uncovered_criteria()
+        total = len(manifest.criteria)
+        print(f"  criteria gated by some stage: {total - len(uncovered)}/{total}")
+        if uncovered:
+            print(
+                "  not gated by any stage: "
+                + ", ".join(f"{item.id} ({item.severity})" for item in uncovered)
+            )
+    if args.json:
+        data = manifest.to_dict()
+        data["uncovered_criteria"] = [
+            {"id": item.id, "severity": item.severity, "oracle": item.oracle}
+            for item in manifest.uncovered_criteria()
+        ]
+        print(json.dumps(data, indent=2))
+    if args.strict and any(
+        item.severity in GATING_SEVERITIES
+        for item in manifest.uncovered_criteria()
+    ):
+        print(
+            "error: a critical criterion is not gated by any stage",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 
@@ -1208,6 +1236,11 @@ def _parser() -> argparse.ArgumentParser:
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
     )
     capability_validate.add_argument("--json", action="store_true")
+    capability_validate.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail when a critical criterion is gated by no stage",
+    )
     capability_validate.set_defaults(func=cmd_capability)
 
     capability_init = capability_sub.add_parser(

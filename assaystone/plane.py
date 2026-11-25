@@ -216,6 +216,21 @@ class CapabilityManifest:
                 )
         return errors
 
+    def uncovered_criteria(self) -> list[ManifestCriterion]:
+        """Criteria no lifecycle stage gates at all.
+
+        A per-stage gap is reported by ``evaluate_gate``; this is the stronger
+        static case: the manifest declares a criterion and never binds it to an
+        oracle in any policy.
+        """
+        gated: set[str] = set()
+        for policy in self.policies.values():
+            gated.update(policy.require)
+            gated.update(policy.approvals)
+            if policy.rollback:
+                gated.add(policy.rollback)
+        return [item for item in self.criteria if item.oracle not in gated]
+
     def to_dict(self) -> dict[str, Any]:
         data: dict[str, Any] = {
             "capability": self.capability,

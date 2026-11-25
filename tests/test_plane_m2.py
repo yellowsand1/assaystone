@@ -1009,6 +1009,79 @@ class VerifierOracleTest(unittest.TestCase):
         self.assertFalse(result.merge_allowed)
 
 
+class StaticGapTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.path = self.root / "capability.json"
+
+    def write(self, gated=True):
+        policies = {"shadow": {"require": ["ok"], "allow_merge": False}}
+        if gated:
+            policies["canary"] = {
+                "require": ["ok"],
+                "approvals": ["approval"],
+                "allow_merge": True,
+            }
+        data = manifest_data(
+            [
+                {"id": "ok", "type": "command", "payload": {"command": ["true"]}},
+                {
+                    "id": "approval",
+                    "type": "command",
+                    "payload": {"command": ["true"]},
+                },
+            ],
+            policies,
+            criteria=[
+                {
+                    "id": "approval-matters",
+                    "kind": "evidence",
+                    "statement": "A human approved the change.",
+                    "oracle": "approval",
+                    "severity": "critical",
+                }
+            ],
+        )
+        self.path.write_text(json.dumps(data), encoding="utf-8")
+
+    def run_validate(self, *extra):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.main(
+                [
+                    "capability",
+                    "validate",
+                    "--manifest",
+                    str(self.path),
+                    *extra,
+                ]
+            )
+        return code, out.getvalue(), err.getvalue()
+
+    def test_ungated_criterion_is_reported_but_not_fatal(self):
+        self.write(gated=False)
+        code, out, _ = self.run_validate()
+        self.assertEqual(code, 0)
+        self.assertIn("not gated by any stage", out)
+        self.assertIn("approval-matters", out)
+
+    def test_strict_fails_on_a_critical_static_gap(self):
+        self.write(gated=False)
+        code, _, err = self.run_validate("--strict")
+        self.assertEqual(code, 1)
+        self.assertIn("critical criterion", err)
+
+    def test_strict_passes_when_every_criterion_is_gated(self):
+        self.write(gated=True)
+        code, out, _ = self.run_validate("--strict", "--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertEqual(payload["uncovered_criteria"], [])
+        self.assertEqual(payload["capability"], "test")
+
+
 class ApprovalSignatureTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

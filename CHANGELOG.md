@@ -10,6 +10,9 @@
   agent testimony escalate (bind `transcript` instead); `tests.pass` needs
   `run_tests`. The verifier's claim, blind spots, and independence travel with
   the gate result.
+- **Static assurance gap.** `capability validate` reports criteria that no
+  stage gates at all, and `--strict` fails when one is critical. This is the
+  manifest-level version of the per-stage gap the gate already reports.
 - **Numeric HTTP thresholds.** `lte`, `gte`, `lt`, and `gt` compare a JSON path
   against a bound, so a canary policy can require an error rate or a latency
   directly. A boolean is rejected as a metric rather than compared as 1.
