@@ -929,6 +929,7 @@ def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
         return _result(spec, "escalate", [f"audit failed: {exc}"])
     counts = report.severity_counts()
     findings = report.findings
+    empty = [trace for trace in traces if not trace.artifacts]
     evidence = [
         f"traces={len(traces)}",
         f"findings={len(findings)}",
@@ -973,6 +974,18 @@ def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
             for item in failing[:3]
         ]
         return _result(spec, "fail", reasons, evidence, output)
+    if empty and not payload.get("allow_empty_artifacts"):
+        return _result(
+            spec,
+            "escalate",
+            [
+                f"{len(empty)} of {len(traces)} transcript(s) have no "
+                "artifacts; nothing to diff (set allow_empty_artifacts to "
+                "accept a read-only session)"
+            ],
+            evidence + [f"empty={len(empty)}"],
+            output,
+        )
     unresolved = [item for item in findings if item.outcome == ESCALATE]
     if unresolved:
         reasons = [

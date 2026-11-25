@@ -806,6 +806,21 @@ class TranscriptOracleTest(unittest.TestCase):
         self.assertEqual(result.outcome, "pass", result.reasons)
         self.assertTrue(any("tests.integrity" in item for item in result.evidence))
 
+    def test_empty_session_escalates(self):
+        (self.root / "readonly.json").write_text(
+            json.dumps(
+                {"id": "readonly", "task": "answer a question", "steps": [], "artifacts": []}
+            ),
+            encoding="utf-8",
+        )
+        result = self.run_audit(transcript="readonly.json")
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("no artifacts", result.reasons[0])
+        allowed = self.run_audit(
+            transcript="readonly.json", allow_empty_artifacts=True
+        )
+        self.assertEqual(allowed.outcome, "pass")
+
     def test_unknown_fail_on_escalates(self):
         result = self.run_audit(fail_on="hgih")
         self.assertEqual(result.outcome, "escalate")

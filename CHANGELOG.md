@@ -9,8 +9,11 @@
   fails when a finding meets `fail_on`. Findings inherit the kernel's
   provenance rules, so a failure that rests on agent-written testimony arrives
   as an escalation. `git_preimage` and `workspace` cover pre- and post-session
-  working trees; `run_tests` is opt-in. Transcripts must stay inside the gate
-  root.
+  working trees; `run_tests` is opt-in. A session with no artifacts escalates
+  instead of passing: there is nothing to diff, and a read-only session is not
+  a clean change. Transcripts must stay inside the gate root. Validated on a
+  real local Maven session: 12 artifacts, one unsupported-language finding,
+  escalation in 0.05s.
 - **Manifest digest and signed approvals.** A gate records the digest of its
   acceptance rules; a changed manifest escalates against an existing trail until
   `--accept-manifest-change`. A `human` oracle with `hmac_env` verifies an
