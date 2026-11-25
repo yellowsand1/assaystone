@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-No changes yet.
+- **Lifecycle case study.** A real Maven module was taken through shadow, a
+  public-API defect that compilation and an empty test suite cannot see, an
+  escalation for a missing approval, a chained canary → production promotion,
+  and a verified `git revert`. A second SQL/shadow domain ran on the same core.
+  The write-up, with what it does and does not prove, is
+  [docs/case-study-lifecycle.md](docs/case-study-lifecycle.md).
+- **Java public-API oracle example.** `examples/capability/java_api_diff.py`
+  compares `javap -public` against a git baseline in a temporary worktree. It is
+  a command payload, not a new primitive.
 
 ## 0.8.0 — 2026-11-25
 

@@ -389,6 +389,25 @@ signed commit, a transparency log — and pass it to `trail verify --expect HASH
 The verifier then detects truncation as well as edits. This is a stated limit,
 not an oversight.
 
+## A Java public API oracle
+
+A Java change can compile, leave every test green, and still break downstream
+consumers by removing or changing a public signature. The cheap oracle is
+`javap -public` against the baseline:
+
+```json
+{"id": "api", "type": "command",
+ "payload": {"command": ["python3", ".assaystone/java_api_diff.py",
+                         "--baseline", "HEAD"]}}
+```
+
+[`examples/capability/java_api_diff.py`](../examples/capability/java_api_diff.py)
+compiles the baseline in a temporary worktree and compares both trees. It is a
+payload, not a primitive: copy it into the repository and bind it to a criterion.
+The full run is in
+[case-study-lifecycle.md](case-study-lifecycle.md): a green build, a broken API,
+an escalated promotion, and a verified `git revert`.
+
 ## Self-weakening and forged approvals
 
 Two attacks are specific to a gate that reads its own inputs from the working
