@@ -106,6 +106,93 @@ class ClaudeCodeHookTest(unittest.TestCase):
             self.assertEqual(code, 0)
             self.assertIn("tests.integrity", message)
 
+    def _capability_repo(self, oracle="true"):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        repo = Path(tmp.name) / "repo"
+        (repo / ".assaystone").mkdir(parents=True)
+        manifest = {
+            "capability": "hook-test",
+            "owner": "team",
+            "systems": [],
+            "data_classes": [],
+            "irreversible_actions": [],
+            "risk": "low",
+            "lifecycle": "shadow",
+            "criteria": [
+                {
+                    "id": "ok",
+                    "kind": "postcondition",
+                    "statement": "it works",
+                    "oracle": "ok",
+                    "severity": "critical",
+                }
+            ],
+            "oracles": [
+                {"id": "ok", "type": "command", "payload": {"command": [oracle]}}
+            ],
+            "policies": {"shadow": {"require": ["ok"]}},
+        }
+        (repo / ".assaystone" / "capability.json").write_text(
+            json.dumps(manifest), encoding="utf-8"
+        )
+        (repo / ".assaystone" / "hook.json").write_text(
+            json.dumps(
+                {
+                    "capability": ".assaystone/capability.json",
+                    "stage": "shadow",
+                }
+            ),
+            encoding="utf-8",
+        )
+        return repo
+
+    def test_capability_gate_passes_without_a_transcript(self):
+        repo = self._capability_repo()
+        code, message = run_hook(
+            {"cwd": str(repo), "session_id": f"gate-{uuid.uuid4()}"}
+        )
+        self.assertEqual((code, message), (0, ""))
+
+    def test_capability_gate_warns_then_blocks(self):
+        repo = self._capability_repo(oracle="false")
+        payload = {"cwd": str(repo), "session_id": f"gate-{uuid.uuid4()}"}
+        code, message = run_hook(payload)
+        self.assertEqual(code, 0)
+        self.assertIn("-> fail", message)
+        with patch.dict(os.environ, {"ASSAYSTONE_HOOK_MODE": "block"}, clear=False):
+            code, message = run_hook(payload)
+        self.assertEqual(code, 2)
+        self.assertIn("blocked", message)
+
+    def test_installer_writes_the_capability_config(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            settings = Path(tmp) / "project" / ".claude" / "settings.local.json"
+            target, changed = install_claude_code(
+                settings,
+                mode="block",
+                manifest=".assaystone/capability.json",
+                stage="canary",
+            )
+            self.assertTrue(changed)
+            self.assertTrue(target.exists())
+            config = json.loads(
+                (Path(tmp) / "project" / ".assaystone" / "hook.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(config["capability"], ".assaystone/capability.json")
+            self.assertEqual(config["stage"], "canary")
+            text = settings.read_text(encoding="utf-8")
+            self.assertIn("ASSAYSTONE_HOOK_MODE=block", text)
+            _, changed_again = install_claude_code(
+                settings,
+                mode="block",
+                manifest=".assaystone/capability.json",
+                stage="canary",
+            )
+            self.assertFalse(changed_again)
+
     def test_cli_hook(self):
         proc = subprocess.run(
             [sys.executable, "-m", "assaystone", "hook", "claude-code"],

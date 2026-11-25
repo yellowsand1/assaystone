@@ -345,7 +345,8 @@ missing oracles, the assurance gap, and a digest of every oracle it ran. `trail 
 edits and deleted entries; pass `--expect HASH` with an externally anchored head
 to detect truncation as well. Assaystone gates itself: `.assaystone/capability.json` declares this repository's
 acceptance criteria, and CI runs the same gate, writes the trail, signs the
-receipt, and uploads both as evidence.
+receipt, and uploads both as evidence. The Claude Code Stop hook can run the same
+gate and refuse to stop while it fails.
 
 Case study: [a green build, a broken API, a blocked promotion, and a verified
 rollback](docs/case-study-lifecycle.md). Reference: [docs/plane.md](docs/plane.md).
