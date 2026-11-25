@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-No changes yet.
+- **`capability diff`.** Compare two manifest versions the way a reviewer reads
+  them: criteria added, removed, or changed, oracle fingerprints, per-stage
+  requirements, approvals, rollback, and chain. A change that removes or lowers
+  assurance is flagged; additions and tightening are shown but not flagged.
+  `--json` returns the same structure. The diff decides nothing; it tells the
+  owner what they are re-approving.
 
 ## 0.18.0 — 2026-11-25
 

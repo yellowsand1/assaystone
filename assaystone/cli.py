@@ -24,6 +24,8 @@ from .compose import compose, render_plan
 from .contract import Contract
 from .corpus import CorpusError, add_case, case_outcome
 from .coverage import analyze_coverage, render_coverage
+from .diff import compare as compare_manifests
+from .diff import render_diff
 from .failure_zoo import (
     DEFAULT_CORPUS,
     DEFAULT_THRESHOLDS,
@@ -499,6 +501,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_status(args)
     if args.capability_command == "waive":
         return _cmd_capability_waive(args)
+    if args.capability_command == "diff":
+        return _cmd_capability_diff(args)
     if args.capability_command == "list":
         return _cmd_capability_list(args)
     try:
@@ -618,6 +622,23 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_diff(args: argparse.Namespace) -> int:
+    try:
+        old = CapabilityManifest.load(args.old, registry=_registry(args.registry))
+        new = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    diff = compare_manifests(old, new)
+    if args.json:
+        print(json.dumps(diff.to_dict(), indent=2))
+    else:
+        print(render_diff(diff, args.old, args.manifest))
     return 0
 
 
@@ -1746,6 +1767,18 @@ def _parser() -> argparse.ArgumentParser:
         "--strict", action="store_true", help="fail on any critical risk"
     )
     capability_list.set_defaults(func=cmd_capability)
+
+    capability_diff = capability_sub.add_parser(
+        "diff",
+        help="show what changed between two manifests, as a reviewer would read it",
+    )
+    capability_diff.add_argument("--manifest", required=True, metavar="PATH")
+    capability_diff.add_argument("--old", required=True, metavar="PATH")
+    capability_diff.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_diff.add_argument("--json", action="store_true")
+    capability_diff.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",
