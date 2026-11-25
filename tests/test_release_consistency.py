@@ -10,8 +10,6 @@ import re
 import unittest
 from pathlib import Path
 
-import tomllib
-
 import assaystone
 from assaystone import init
 
@@ -24,6 +22,14 @@ class ReleaseConsistencyTest(unittest.TestCase):
         self.changelog = (REPO / "CHANGELOG.md").read_text(encoding="utf-8")
 
     def test_pyproject_version_matches_the_package(self):
+        try:
+            import tomllib
+        except ImportError:  # Python 3.10
+            text = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+            found = re.search(r'^version = "([^"]+)"', text, re.MULTILINE)
+            self.assertIsNotNone(found)
+            self.assertEqual(found.group(1), self.version)
+            return
         data = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
         self.assertEqual(data["project"]["version"], self.version)
 
