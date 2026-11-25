@@ -53,5 +53,8 @@ pytest: check-python
 lint: check-python
 	$(PYTHON) -m ruff check assaystone tests scripts
 
+release-prep: check-python
+	$(PYTHON) scripts/release_prep.py --version $(VERSION)
+
 package: check-python
 	$(PYTHON) -m build

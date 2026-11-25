@@ -18,6 +18,7 @@ from .approval import (
 )
 from .plane import CapabilityManifest
 from .receipt import ReceiptError, load_receipt, verify_receipt
+from .revocation import read_revocations, revocation_path_for
 from .trail import TrailError
 from .trail import read as read_trail
 from .trail import verify as verify_trail
@@ -40,6 +41,7 @@ class StatusCard:
     trail: dict[str, Any] = field(default_factory=dict)
     receipt: dict[str, Any] = field(default_factory=dict)
     waivers: dict[str, Any] = field(default_factory=dict)
+    revocations: dict[str, Any] = field(default_factory=dict)
     residual_risks: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,6 +60,7 @@ class StatusCard:
             "trail": dict(self.trail),
             "receipt": dict(self.receipt),
             "waivers": dict(self.waivers),
+            "revocations": dict(self.revocations),
             "residual_risks": list(self.residual_risks),
         }
 
@@ -238,6 +241,7 @@ def build_card(
     receipt_path: str | Path | None = None,
     approval_path: str | Path | None = None,
     waivers_path: str | Path | None = None,
+    revocations_path: str | Path | None = None,
     owner_key: str = "",
     owner_public_key: str | Path | None = None,
     receipt_key: str = "",
@@ -276,6 +280,40 @@ def build_card(
     card.waivers = _waiver_status(
         manifest, waivers_path, owner_key, owner_public_key
     )
+    revocations = read_revocations(
+        revocations_path or revocation_path_for(manifest.source or None)
+    )
+    project_fields = [
+        ("owner approval", card.approval),
+        ("receipt", card.receipt),
+    ]
+    hits = []
+    for label, status in project_fields:
+        hit = revocations.is_revoked(status.get("key_id"))
+        if hit:
+            hits.append({**hit, "artifact": label})
+    for item in card.waivers.get("valid", []):
+        hit = revocations.is_revoked(item.get("key_id"))
+        if hit:
+            hits.append({**hit, "artifact": f"waiver for `{item['criterion']}`"})
+    card.revocations = {
+        "present": bool(
+            (revocations_path or revocation_path_for(manifest.source or None))
+        ),
+        "ok": revocations.ok,
+        "errors": list(revocations.errors),
+        "entries": len(revocations.revoked),
+        "revoked_artifacts": hits,
+    }
+    for hit in hits:
+        card.residual_risks.append(
+            f"{hit['artifact']} was signed by a revoked key {hit['key_id']}"
+        )
+    if not revocations.ok:
+        card.residual_risks.append(
+            "the revocation list does not read: "
+            + (revocations.errors[0] if revocations.errors else "unknown error")
+        )
 
     risks = card.residual_risks
     for item in never:
@@ -411,6 +449,24 @@ def render_card(card: StatusCard) -> str:
             for item in card.stage_gap
         )
         lines.extend(["", f"Stage gap at `{card.stage}`", f"  {gap}"])
+
+    lines.extend(["", "Revocations"])
+    if not card.revocations.get("present"):
+        lines.append("  no revocation list")
+    elif not card.revocations.get("ok"):
+        lines.append(
+            "  INVALID: "
+            + (
+                (card.revocations.get("errors") or ["invalid"])[0]
+            )
+        )
+    elif card.revocations.get("revoked_artifacts"):
+        for hit in card.revocations["revoked_artifacts"]:
+            lines.append(f"  {hit['artifact']}: revoked key {hit['key_id']}")
+    else:
+        lines.append(
+            f"  {card.revocations.get('entries', 0)} revoked key(s), none used"
+        )
 
     lines.extend(["", "Residual risk"])
     if not card.residual_risks:

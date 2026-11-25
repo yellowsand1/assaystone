@@ -380,6 +380,7 @@ class GateResult:
     manifest_digest: str = ""
     manifest_approval: dict[str, Any] = field(default_factory=dict)
     waived: list[dict[str, Any]] = field(default_factory=list)
+    revoked: list[dict[str, Any]] = field(default_factory=list)
     prior: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -400,6 +401,7 @@ class GateResult:
             "manifest_digest": self.manifest_digest,
             "manifest_approval": dict(self.manifest_approval),
             "waived": list(self.waived),
+            "revoked": list(self.revoked),
             "prior": dict(self.prior),
         }
 
@@ -553,6 +555,7 @@ def evaluate_gate(
     owner_key: str = "",
     owner_public_key: str | Path | None = None,
     waivers_path: str | Path | None = None,
+    revocations_path: str | Path | None = None,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -678,6 +681,70 @@ def evaluate_gate(
                         {"oracle": item.oracle, **valid[criterion.id]}
                     )
                 waived_oracles.add(item.oracle)
+    revoked: list[dict[str, Any]] = []
+    revocation_error = ""
+    if manifest.manifest_approval or manifest.waivers:
+        from .revocation import read_revocations, revocation_path_for
+
+        path = revocations_path or revocation_path_for(manifest.source or None)
+        revocations = read_revocations(path)
+        if not revocations.ok:
+            revocation_error = "; ".join(revocations.errors)
+        else:
+            candidates = []
+            if approval_info.get("key_id"):
+                candidates.append(("owner approval", approval_info["key_id"]))
+            for item in waived:
+                if item.get("key_id"):
+                    candidates.append(
+                        (f"waiver for `{item['criterion']}`", item["key_id"])
+                    )
+            for label, key_id in candidates:
+                hit = revocations.is_revoked(key_id)
+                if hit:
+                    revoked.append({**hit, "artifact": label})
+    if revoked:
+        return GateResult(
+            capability=manifest.capability,
+            stage=stage,
+            outcome="escalate",
+            results=results,
+            missing=missing,
+            reasons=[
+                f"{item['artifact']} was signed by a revoked key "
+                f"{item['key_id']} ({item.get('reason')}); re-decide under a "
+                "current key"
+                for item in revoked
+            ],
+            gap=gap,
+            strict=strict,
+            manifest_lifecycle=manifest.lifecycle,
+            manifest_digest=manifest_digest(manifest),
+            manifest_approval=approval_info,
+            waived=waived,
+            revoked=revoked,
+            prior=prior,
+            rollback_required=policy.rollback_required,
+            rollback=policy.rollback,
+        )
+    if revocation_error:
+        return GateResult(
+            capability=manifest.capability,
+            stage=stage,
+            outcome="escalate",
+            results=results,
+            missing=missing,
+            reasons=[f"revocation list does not read: {revocation_error}"],
+            gap=gap,
+            strict=strict,
+            manifest_lifecycle=manifest.lifecycle,
+            manifest_digest=manifest_digest(manifest),
+            manifest_approval=approval_info,
+            waived=waived,
+            prior=prior,
+            rollback_required=policy.rollback_required,
+            rollback=policy.rollback,
+        )
     effective_fail = any(
         item.outcome == "fail" and item.oracle not in waived_oracles
         for item in results
@@ -731,6 +798,7 @@ def evaluate_gate(
         manifest_digest=manifest_digest(manifest),
         manifest_approval=approval_info,
         waived=waived,
+        revoked=revoked,
         prior=prior,
     )
 
