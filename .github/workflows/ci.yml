@@ -59,6 +59,7 @@ jobs:
           python -m assaystone gate \
             --manifest .assaystone/capability.json \
             --stage shadow --root . \
+            --owner-public-key .assaystone/owner.pub \
             --audit .assaystone/trail.jsonl \
             --receipt .assaystone/receipt.json \
             --actor ci
@@ -76,13 +77,14 @@ jobs:
               --manifest .assaystone/capability.json \
               --trail .assaystone/trail.jsonl \
               --receipt .assaystone/receipt.json \
+              --owner-public-key .assaystone/owner.pub \
               --stage shadow
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - name: Capability portfolio
         env:
           ASSAYSTONE_RECEIPT_KEY: ci-self-gate
-        run: python -m assaystone capability list --root . --strict
+        run: python -m assaystone capability list --root . --strict --owner-public-key .assaystone/owner.pub
       - name: Upload the gate evidence
         uses: actions/upload-artifact@v4
         with:

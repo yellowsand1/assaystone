@@ -95,14 +95,23 @@ def _critical(card: StatusCard) -> list[str]:
     if not card.trail.get("present"):
         issues.append("no trail evidence")
     else:
-        for stage in card.stages:
-            name = stage["stage"]
-            entry = card.trail.get("last", {}).get(name)
-            if entry is None:
-                issues.append(f"no recorded `{name}` gate")
-            elif entry.get("outcome") != "pass":
+        last = card.trail.get("last", {})
+        current = last.get(card.lifecycle)
+        if current is None:
+            issues.append(
+                f"no recorded `{card.lifecycle}` gate for the current lifecycle"
+            )
+        elif current.get("outcome") != "pass":
+            issues.append(
+                f"the last `{card.lifecycle}` gate was "
+                f"`{current.get('outcome')}`"
+            )
+        for stage, entry in last.items():
+            if stage == card.lifecycle:
+                continue
+            if entry.get("outcome") != "pass":
                 issues.append(
-                    f"the last `{name}` gate was `{entry.get('outcome')}`"
+                    f"the last `{stage}` gate was `{entry.get('outcome')}`"
                 )
     return issues
 

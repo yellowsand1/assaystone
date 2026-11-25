@@ -12,3 +12,5 @@ assaystone-demo-contract.json
 htmlcov/
 .assaystone/trail.jsonl
 .assaystone/receipt.json
+.assaystone/release-trail.jsonl
+.assaystone/release-receipt.json

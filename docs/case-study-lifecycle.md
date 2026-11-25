@@ -246,6 +246,13 @@ Two things worked without changes:
 No change to the gate core was needed for the agent run. The fixes were
 connectors: an example Java oracle and an exclusion for the gate's own files.
 
+The product now applies the same rule to itself. Starting with 0.17.0, the
+release workflow runs `gate --stage production` before it builds: a committed
+owner approval verified by an Ed25519 public key, tests, lint, the Failure Zoo
+drift check, the rollback oracle, and an Ed25519 release receipt signed by a key
+held in a GitHub secret. The evidence is uploaded with the release. The first tag
+gated this way is the release that introduces it.
+
 ## Reproduce it
 
 The trial used a manifest like this (copy the API script into the repository

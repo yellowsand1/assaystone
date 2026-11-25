@@ -159,13 +159,6 @@ class PortfolioTest(unittest.TestCase):
             actor="ci",
             at="2026-11-25T00:00:00Z",
         )
-        production = evaluate_gate(manifest, "production", self.root)
-        trail.append(
-            directory / "trail.jsonl",
-            production,
-            actor="ci",
-            at="2026-11-25T00:01:00Z",
-        )
         portfolio = build_portfolio(
             self.root
         )
@@ -177,6 +170,78 @@ class PortfolioTest(unittest.TestCase):
         self.assertEqual(entry.critical, [])
         self.assertNotEqual(entry.card.stage_gap, [])
         self.assertEqual(portfolio.critical_count(), 2)
+
+    def test_a_future_stage_without_evidence_is_not_critical(self):
+        directory = self.root / ".assaystone" / "cap-d"
+        directory.mkdir(parents=True)
+        data = manifest_data("cap-d")
+        data["policies"]["production"] = {
+            "require": ["ok"],
+            "allow_merge": True,
+            "allow_deploy": True,
+        }
+        path = directory / "capability.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "shadow", self.root),
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-d"
+        )
+        self.assertEqual(entry.critical, [])
+
+        data["lifecycle"] = "production"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "production", self.root),
+            actor="ci",
+            at="2026-11-25T00:01:00Z",
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-d"
+        )
+        self.assertEqual(entry.critical, [])
+
+    def test_current_lifecycle_needs_its_own_gate(self):
+        directory = self.root / ".assaystone" / "cap-e"
+        directory.mkdir(parents=True)
+        data = manifest_data("cap-e")
+        data["lifecycle"] = "production"
+        data["policies"]["production"] = {
+            "require": ["ok"],
+            "allow_merge": True,
+            "allow_deploy": True,
+        }
+        path = directory / "capability.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "shadow", self.root),
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-e"
+        )
+        self.assertTrue(
+            any("no recorded `production` gate" in issue for issue in entry.critical)
+        )
 
     def test_invalid_manifest_is_a_critical_entry(self):
         broken = self.root / ".assaystone" / "broken" / "capability.json"
