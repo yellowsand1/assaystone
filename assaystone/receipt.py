@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from . import keys
 from .oracles import canonical_json
 
 VERSION = 1
@@ -62,13 +63,17 @@ def _unsigned(receipt: dict[str, Any]) -> dict[str, Any]:
 def create_receipt(
     gate: Any,
     root: str | Path,
-    key: str,
+    key: str = "",
     actor: str = "unknown",
     trail_path: str | Path | None = None,
     at: str | None = None,
+    private_key_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Build and sign a receipt for one evaluated gate."""
-    if not key:
+    """Build and sign a receipt for one evaluated gate.
+
+    ``private_key_path`` signs with Ed25519; otherwise ``key`` is the HMAC key.
+    """
+    if not private_key_path and not key:
         raise ReceiptError("a receipt needs a signing key")
     root = Path(root).resolve()
     head = ""
@@ -116,7 +121,15 @@ def create_receipt(
         "prior": dict(gate.prior or {}),
         "rollback": str(gate.rollback or ""),
     }
-    body["signature"] = signature(body, key)
+    if private_key_path:
+        try:
+            body["signature"] = keys.sign(
+                canonical_json(body).encode("utf-8"), private_key_path
+            )
+        except keys.SigningKeyError as exc:
+            raise ReceiptError(str(exc)) from exc
+    else:
+        body["signature"] = signature(body, key)
     return body
 
 
@@ -142,10 +155,11 @@ class ReceiptCheck:
 
 def verify_receipt(
     receipt: dict[str, Any],
-    key: str,
+    key: str = "",
     expected_commit: str | None = None,
     expected_manifest_digest: str | None = None,
     expected_outcome: str | None = None,
+    public_key_path: str | Path | None = None,
 ) -> ReceiptCheck:
     errors: list[str] = []
     if not isinstance(receipt, dict):
@@ -153,14 +167,27 @@ def verify_receipt(
     if receipt.get("version") != VERSION:
         errors.append(f"unsupported receipt version: {receipt.get('version')!r}")
     signature_value = str(receipt.get("signature") or "")
-    if not signature_value.startswith("hmac-sha256:"):
-        errors.append("missing or unknown signature")
-    elif not key:
-        errors.append("no verification key")
+    if signature_value.startswith("ed25519:"):
+        if not public_key_path:
+            errors.append("an ed25519 receipt needs a public key")
+        else:
+            try:
+                body = canonical_json(_unsigned(receipt)).encode("utf-8")
+                valid = keys.verify(body, signature_value, public_key_path)
+            except keys.SigningKeyError as exc:
+                errors.append(str(exc))
+            else:
+                if not valid:
+                    errors.append("signature does not verify")
+    elif signature_value.startswith("hmac-sha256:"):
+        if not key:
+            errors.append("no verification key")
+        else:
+            expected = signature(_unsigned(receipt), key)
+            if not hmac.compare_digest(signature_value, expected):
+                errors.append("signature does not verify")
     else:
-        expected = signature(_unsigned(receipt), key)
-        if not hmac.compare_digest(signature_value, expected):
-            errors.append("signature does not verify")
+        errors.append("missing or unknown signature")
     if expected_commit is not None and receipt.get("commit") != expected_commit:
         errors.append(
             f"commit {receipt.get('commit')!r} != expected {expected_commit!r}"

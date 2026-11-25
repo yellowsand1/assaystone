@@ -54,9 +54,13 @@ inputs:
     required: false
     default: ""
   receipt-key-env:
-    description: Environment variable holding the receipt key.
+    description: Environment variable holding the HMAC receipt key.
     required: false
     default: "ASSAYSTONE_RECEIPT_KEY"
+  receipt-key-file:
+    description: Path to an Ed25519 private key for the receipt.
+    required: false
+    default: ""
   manifest-approval:
     description: Path to the owner approval for the manifest digest.
     required: false
@@ -134,6 +138,9 @@ runs:
               --receipt "${{ inputs.receipt }}"
               --receipt-key-env "${{ inputs.receipt-key-env }}"
             )
+          fi
+          if [ -n "${{ inputs.receipt-key-file }}" ]; then
+            argv+=(--receipt-key-file "${{ inputs.receipt-key-file }}")
           fi
           if [ -n "${{ inputs.manifest-approval }}" ]; then
             argv+=(

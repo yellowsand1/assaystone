@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from assaystone import cli, trail
+from assaystone import cli, keys, trail
 from assaystone.plane import CapabilityManifest, evaluate_gate
 from assaystone.receipt import ReceiptError, create_receipt, verify_receipt
 
@@ -40,6 +40,14 @@ def manifest_data():
         ],
         "policies": {"shadow": {"require": ["ok"], "allow_merge": False}},
     }
+
+
+try:
+    import cryptography  # noqa: F401
+
+    HAVE_CRYPTO = True
+except ImportError:  # pragma: no cover
+    HAVE_CRYPTO = False
 
 
 class ReceiptTest(unittest.TestCase):
@@ -180,6 +188,51 @@ class ReceiptTest(unittest.TestCase):
                 )
         self.assertEqual(code, 0, verify_out.getvalue())
         self.assertIn("receipt: valid", verify_out.getvalue())
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_ed25519_receipt_round_trip(self):
+        private = self.base / "owner.key"
+        public = self.base / "owner.pub"
+        keys.generate(private, public)
+        receipt = create_receipt(
+            self.gate,
+            self.root,
+            actor="ci",
+            trail_path=self.trail,
+            at="2026-11-25T00:01:00Z",
+            private_key_path=private,
+        )
+        self.assertTrue(receipt["signature"].startswith("ed25519:"))
+        check = verify_receipt(
+            receipt,
+            expected_outcome="pass",
+            public_key_path=public,
+        )
+        self.assertTrue(check.ok, check.errors)
+        missing = verify_receipt(receipt, expected_outcome="pass")
+        self.assertFalse(missing.ok)
+        receipt["outcome"] = "fail"
+        tampered = verify_receipt(receipt, public_key_path=public)
+        self.assertFalse(tampered.ok)
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_bad_public_key_file_is_an_error(self):
+        private = self.base / "owner.key"
+        keys.generate(private, self.base / "owner.pub")
+        receipt = create_receipt(
+            self.gate,
+            self.root,
+            actor="ci",
+            trail_path=self.trail,
+            private_key_path=private,
+        )
+        check = verify_receipt(
+            receipt, public_key_path=self.base / "absent.pub"
+        )
+        self.assertFalse(check.ok)
+        self.assertTrue(
+            any("public key" in error for error in check.errors)
+        )
 
     def test_cli_refuses_a_receipt_without_a_key(self):
         manifest_path = self.base / "capability.json"
