@@ -952,6 +952,14 @@ def _transcript(spec: OracleSpec, root: Path) -> OracleResult:
     )
     rank = {"low": 1, "medium": 2, "high": 3, "critical": 4}
     fail_on = str(payload.get("fail_on") or "high").lower()
+    if fail_on not in {"any", "high", "medium", "low", "none"}:
+        return _result(
+            spec,
+            "escalate",
+            [f"unknown fail_on: {fail_on!r}"],
+            evidence,
+            output,
+        )
     threshold = 0 if fail_on == "any" else rank.get(fail_on, 3)
     if fail_on == "none":
         threshold = len(rank) + 1

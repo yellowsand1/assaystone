@@ -806,6 +806,11 @@ class TranscriptOracleTest(unittest.TestCase):
         self.assertEqual(result.outcome, "pass", result.reasons)
         self.assertTrue(any("tests.integrity" in item for item in result.evidence))
 
+    def test_unknown_fail_on_escalates(self):
+        result = self.run_audit(fail_on="hgih")
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("unknown fail_on", result.reasons[0])
+
     def test_missing_transcript_escalates(self):
         result = self.run_audit(transcript="absent.jsonl")
         self.assertEqual(result.outcome, "escalate")
