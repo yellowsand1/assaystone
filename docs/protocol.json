@@ -510,6 +510,76 @@
       "conformant": true
     },
     {
+      "name": "research.citations",
+      "version": "1",
+      "layer": "L1",
+      "independence": "high",
+      "claim": "Every non-heading paragraph in report.md contains a [source] citation.",
+      "catches": [
+        "uncited-claim"
+      ],
+      "blind_spots": [
+        "a cited paragraph with an additional uncited claim",
+        "a citation that does not support the claim"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "Every non-heading paragraph cites at least one source.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
+      "name": "research.quotes_verbatim",
+      "version": "1",
+      "layer": "L1",
+      "independence": "high",
+      "claim": "Every quoted span in report.md appears verbatim in sources.json.",
+      "catches": [
+        "fabricated-quote"
+      ],
+      "blind_spots": [
+        "a paraphrase presented as a quote",
+        "a quote split across lines",
+        "a translated quote"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "Every quoted span appears verbatim in a source.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
+      "name": "research.sources_exist",
+      "version": "1",
+      "layer": "L0",
+      "independence": "high",
+      "claim": "Every [id] cited in report.md exists in sources.json.",
+      "catches": [
+        "missing-source"
+      ],
+      "blind_spots": [
+        "a cited source that exists but does not support the claim",
+        "a retracted source"
+      ],
+      "trusts": [
+        "artifacts"
+      ],
+      "cost": {
+        "usd": 5e-06
+      },
+      "description": "Every cited source id exists in sources.json.",
+      "builtin": true,
+      "conformant": true
+    },
+    {
       "name": "tests.harness_integrity",
       "version": "1",
       "layer": "L1",
@@ -607,6 +677,6 @@
       "conformant": true
     }
   ],
-  "conformant": 25,
+  "conformant": 28,
   "nonconformant": []
 }

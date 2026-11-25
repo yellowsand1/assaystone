@@ -67,6 +67,19 @@ workspace and is the third domain: the acceptance language is unchanged.
 
 See `assaystone/demo_data/data_agent/` for the baseline, traces, and contract.
 
+## Research pack
+
+The fourth domain. It reads `report.md` and `sources.json` from the workspace.
+The criteria are all about evidence, and the language is unchanged.
+
+| Verifier | Layer | Cost | Catches |
+|---|---|---|---|
+| `research.citations` | L1 | 0.000005 | a non-heading paragraph without a citation |
+| `research.sources_exist` | L0 | 0.000005 | a citation to an unknown source id |
+| `research.quotes_verbatim` | L1 | 0.000005 | a quote that is not in any source |
+
+See `assaystone/demo_data/research_agent/`.
+
 ## External pack
 
 These adapters reuse installed tools without making them a runtime dependency. If

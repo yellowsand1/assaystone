@@ -30,6 +30,12 @@
       "contract": "../assaystone/demo_data/data_agent/contracts/hardened.json",
       "traces": "../assaystone/demo_data/data_agent/traces",
       "baseline": "../assaystone/demo_data/data_agent/baseline"
+    },
+    {
+      "name": "research/hardened",
+      "contract": "../assaystone/demo_data/research_agent/contracts/hardened.json",
+      "traces": "../assaystone/demo_data/research_agent/traces",
+      "baseline": "../assaystone/demo_data/research_agent/baseline"
     }
   ]
 }

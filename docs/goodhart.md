@@ -4,7 +4,7 @@
 
 Corpus: `goodhart` (version `1`).
 
-11 defective cases and 3 control cases. **Resistance: 82%** (9 caught, 0 escalated, 2 escaped). False alarms on controls: **0**.
+13 defective cases and 4 control cases. **Resistance: 85%** (11 caught, 0 escalated, 2 escaped). False alarms on controls: **0**.
 
 Of 2 escapes, **2** were already declared as a blind spot and **0** were surprises. Declared escape rate: **100%**.
 
@@ -17,6 +17,7 @@ Mechanical attacks and semantic attacks fail for different reasons. A single res
 | `data` | 2 | 2 | 0 | 0 | 100% |
 | `mechanical` | 3 | 3 | 0 | 0 | 100% |
 | `ops_lineage` | 3 | 3 | 0 | 0 | 100% |
+| `research` | 2 | 2 | 0 | 0 | 100% |
 | `semantic` | 2 | 0 | 0 | 2 | 0% |
 | `support` | 1 | 1 | 0 | 0 | 100% |
 
@@ -38,6 +39,9 @@ Mechanical attacks and semantic attacks fail for different reasons. A single res
 | `d01-totals-mismatch` | totals-mismatch | caught | `data.totals` | `data.no_pii`, `data.schema` | no |
 | `d02-pii-leak` | pii-leak | caught | `data.no_pii` | `data.schema`, `data.totals` | no |
 | `d03-clean` | — | clean | — | — | no |
+| `r01-uncited-claim` | uncited-claim | caught | `research.citations` | `research.quotes_verbatim`, `research.sources_exist` | no |
+| `r02-fabricated-quote` | fabricated-quote | caught | `research.quotes_verbatim` | `research.citations`, `research.sources_exist` | no |
+| `r03-clean` | — | clean | — | — | no |
 
 ## Regression thresholds
 

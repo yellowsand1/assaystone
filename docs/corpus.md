@@ -40,6 +40,7 @@ case up and the manifest stays reviewable.
 | `ops_lineage` | an action domain where approval or ledger lineage is the evidence |
 | `support` | test support code outside the `tests/` prefix (shared assertion helpers) |
 | `data` | a report's schema, row totals, or PII |
+| `research` | a claim without a citation, an unknown source, or a fabricated quote |
 
 The Failure Zoo (`assaystone/demo_data/failure_zoo/`) uses the same format for
 recall cases.

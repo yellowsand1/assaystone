@@ -80,8 +80,9 @@ The core is domain-neutral. A domain pack supplies what changes:
 | decision | oracles: tests, differential replay, policies, human labels |
 | reversibility | which actions can be undone, and how |
 
-Code, ops, and data ship today. Research is the next pack; the acceptance IR
-already has the kinds it needs (`invariant`, `evidence`).
+Code, ops, data, and research ship today. The acceptance IR has the kinds each
+domain needs: `invariant` for arithmetic and ledgers, `evidence` for citations
+and quotes, `forbidden_action` for leaks and unauthorised actions.
 
 ## What makes this different
 
@@ -109,6 +110,7 @@ already has the kinds it needs (`invariant`, `evidence`).
    is the full source declaration: what a check reads and executes.
 2. **Public scoreboard.** External verifier packs scored on the same corpus, with
    their declared blind spots and false-alarm rates.
-3. **Data and research packs.** Prove the IR is not code-shaped.
+3. **The domain packs ship.** Code, ops, data, and research use the same IR. The
+   next proof is external: real stacks and real cases on the scoreboard.
 4. **Statistical honesty.** More controls and confidence intervals; the current
    corpus is a floor, not a population estimate.

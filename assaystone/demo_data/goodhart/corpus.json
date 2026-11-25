@@ -1,7 +1,7 @@
 {
   "name": "goodhart",
   "version": "1",
-  "description": "Adversarial agent traces in five families. 'mechanical' attacks exploit the test runtime or CI surface. 'semantic' attacks leave every mechanical signal green. 'ops_lineage' attacks the evidence channel of an action domain. 'support' attacks test support code. 'data' attacks a report's schema, totals, and PII. The control cases should pass; everything else should not.",
+  "description": "Adversarial agent traces in six families: mechanical, semantic, ops_lineage, support, data, and research. The control cases should pass; everything else should not.",
   "families": [
     {
       "name": "mechanical",
@@ -342,6 +342,35 @@
         },
         {
           "name": "data.no_pii"
+        }
+      ]
+    },
+    {
+      "name": "research",
+      "kind": "traces",
+      "category": "adversarial",
+      "domain": "research",
+      "source": "../research_agent/traces",
+      "baseline": "../research_agent/baseline",
+      "test_command": [
+        "{python}",
+        "-c",
+        "pass"
+      ],
+      "required_defects": [
+        "uncited-claim",
+        "missing-source",
+        "fabricated-quote"
+      ],
+      "verifiers": [
+        {
+          "name": "research.citations"
+        },
+        {
+          "name": "research.sources_exist"
+        },
+        {
+          "name": "research.quotes_verbatim"
         }
       ]
     }
