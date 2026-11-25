@@ -315,6 +315,8 @@ assaystone trail verify trail.jsonl
 ```
 
 `shadow` can pass but cannot merge; `canary` and `production` add approvals.
+A later stage can require a recorded earlier pass (`"after": "canary"`), and the
+chain verifies the trail before trusting it.
 The core does not know Maven: `mvn -q -DskipTests compile` is a command payload.
 A SQL check is a single read-only query. A `shadow` check runs the old and the
 new implementation on the same input and fails when the output diverges, which
