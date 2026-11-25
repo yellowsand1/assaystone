@@ -10,3 +10,5 @@ assaystone-demo-*.md
 assaystone-demo-contract.json
 .coverage
 htmlcov/
+.assaystone/self-trail.jsonl
+.assaystone/self-receipt.json

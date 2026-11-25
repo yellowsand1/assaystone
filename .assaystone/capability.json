@@ -1,0 +1,23 @@
+{
+  "capability": "assaystone-repository",
+  "owner": "yellowsand1",
+  "systems": ["git", "github-actions", "pypi"],
+  "data_classes": ["public"],
+  "irreversible_actions": ["release"],
+  "risk": "high",
+  "lifecycle": "shadow",
+  "retention": "30d",
+  "criteria": [
+    {"id": "tests", "kind": "postcondition", "statement": "The test suite passes.", "oracle": "tests", "severity": "critical"},
+    {"id": "lint", "kind": "postcondition", "statement": "Ruff passes on the package and tests.", "oracle": "lint", "severity": "critical"},
+    {"id": "benchmark-current", "kind": "invariant", "statement": "The committed Failure Zoo report is current.", "oracle": "benchmark", "severity": "high"}
+  ],
+  "oracles": [
+    {"id": "tests", "type": "command", "description": "unittest suite", "payload": {"command": ["python3", "-m", "unittest", "discover", "-s", "tests", "-t", "."], "timeout": 600}},
+    {"id": "lint", "type": "command", "description": "ruff", "payload": {"command": ["python3", "-m", "ruff", "check", "assaystone", "tests"], "timeout": 120}},
+    {"id": "benchmark", "type": "command", "description": "Failure Zoo report is not stale", "payload": {"command": ["sh", "-c", "python3 -m assaystone benchmark failure-zoo --md /tmp/assaystone-failure-zoo.md >/dev/null && diff -u docs/failure-zoo.md /tmp/assaystone-failure-zoo.md"], "timeout": 300}}
+  ],
+  "policies": {
+    "shadow": {"require": ["tests", "lint", "benchmark"], "allow_merge": false}
+  }
+}
