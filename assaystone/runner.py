@@ -5,7 +5,15 @@ import time
 from pathlib import Path
 
 from .contract import Contract
-from .model import ESCALATE, FAIL, PASS, RunResult, Trace, Verdict
+from .model import (
+    ESCALATE,
+    FAIL,
+    PASS,
+    CriterionVerdict,
+    RunResult,
+    Trace,
+    Verdict,
+)
 from .verifiers import REGISTRY, Verifier, VerifyContext, independence_rank
 from .workspace import Workspace
 
@@ -96,6 +104,79 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
         overall = PASS
         first_failure = None
 
+    criterion_verdicts: list[CriterionVerdict] = []
+    if contract.criteria:
+        by_name = {verdict.verifier: verdict for verdict in verdicts}
+        for criterion in contract.criteria:
+            if criterion.verifiers:
+                bound = [name for name in criterion.verifiers if name in by_name]
+            else:
+                bound = [
+                    name
+                    for name in by_name
+                    if name in REGISTRY
+                    and criterion.defect in REGISTRY[name].catches
+                ]
+            related = [by_name[name] for name in bound]
+            reasons: list[str] = []
+            if not related:
+                outcome = ESCALATE
+                reasons.append("no bound verifier ran")
+            elif any(verdict.ok is False for verdict in related):
+                outcome = FAIL
+                reasons = [
+                    reason
+                    for verdict in related
+                    if verdict.ok is False
+                    for reason in verdict.reasons
+                ]
+            elif any(verdict.ok is None for verdict in related):
+                outcome = ESCALATE
+                reasons = [
+                    reason
+                    for verdict in related
+                    if verdict.ok is None
+                    for reason in verdict.reasons
+                ]
+            else:
+                outcome = PASS
+            if outcome == ESCALATE and criterion.on_unknown == "fail":
+                outcome = FAIL
+                reasons.append("on_unknown=fail")
+            criterion_verdicts.append(
+                CriterionVerdict(
+                    id=criterion.id,
+                    kind=criterion.kind,
+                    defect=criterion.defect,
+                    severity=criterion.severity,
+                    outcome=outcome,
+                    verifiers=bound,
+                    reasons=reasons,
+                )
+            )
+
+        # A critical or high criterion gates the run. A low/medium gap is
+        # reported in the result but does not block.
+        gating = [
+            item
+            for item in criterion_verdicts
+            if item.severity in ("critical", "high")
+        ]
+        blocking = [item for item in gating if item.outcome == FAIL]
+        unknown = [item for item in gating if item.outcome == ESCALATE]
+        if blocking and overall != FAIL:
+            overall = FAIL
+            first_failure = (
+                f"criterion {blocking[0].id}: "
+                f"{blocking[0].reasons[0] if blocking[0].reasons else 'failed'}"
+            )
+        elif unknown and overall == PASS:
+            overall = ESCALATE
+            first_failure = (
+                f"criterion {unknown[0].id}: "
+                f"{unknown[0].reasons[0] if unknown[0].reasons else 'unresolved'}"
+            )
+
     return RunResult(
         trace_id=trace.id,
         contract=contract.name,
@@ -105,4 +186,5 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
         duration_ms=(time.perf_counter() - started) * 1000,
         first_failure=first_failure,
         unconfirmed=unconfirmed,
+        criteria=criterion_verdicts,
     )

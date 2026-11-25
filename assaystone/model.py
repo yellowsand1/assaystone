@@ -99,6 +99,30 @@ class Verdict:
 
 
 @dataclass
+class CriterionVerdict:
+    """What one acceptance criterion decided, independent of the check."""
+
+    id: str
+    kind: str
+    defect: str
+    severity: str
+    outcome: str
+    verifiers: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "kind": self.kind,
+            "defect": self.defect,
+            "severity": self.severity,
+            "outcome": self.outcome,
+            "verifiers": list(self.verifiers),
+            "reasons": list(self.reasons),
+        }
+
+
+@dataclass
 class RunResult:
     trace_id: str
     contract: str
@@ -110,6 +134,8 @@ class RunResult:
     # Failures raised by low-independence verifiers that no independent
     # verifier confirmed. They route to a human instead of deciding.
     unconfirmed: list[str] = field(default_factory=list)
+    # Per-criterion outcomes. Empty when the contract declares no criteria.
+    criteria: list[CriterionVerdict] = field(default_factory=list)
 
     @property
     def reasons(self) -> list[str]:
@@ -127,6 +153,7 @@ class RunResult:
             "duration_ms": round(self.duration_ms, 2),
             "first_failure": self.first_failure,
             "unconfirmed": list(self.unconfirmed),
+            "criteria": [c.to_dict() for c in self.criteria],
             "verdicts": [v.to_dict() for v in self.verdicts],
         }
 

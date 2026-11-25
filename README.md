@@ -253,8 +253,9 @@ A contract is not a list of checks. It is a statement of what "acceptable" means
 
 Each criterion binds to checks through a defect tag. A criterion with no check is
 an **assurance gap**, not a bug: the requirement is declared, and the tool says it
-cannot decide it. The same language describes code, actions, data, and research.
-Spec: [docs/acceptance-ir.md](docs/acceptance-ir.md).
+cannot decide it. A critical or high criterion with no check escalates the run
+instead of passing it. The same language describes code, actions, data, and
+research. Spec: [docs/acceptance-ir.md](docs/acceptance-ir.md).
 
 ## Plan a contract
 

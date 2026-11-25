@@ -105,12 +105,34 @@ against the check's `catches`. The same tag flows through:
 That is why a criterion can be written before a check exists. The requirement does
 not wait for the implementation.
 
+## How a criterion decides
+
+For each criterion, the runner collects the bound checks that actually ran:
+
+1. any bound check fails — the criterion fails;
+2. otherwise, any bound check cannot decide — the criterion escalates, unless
+   `on_unknown: fail`, which turns it into a failure;
+3. no bound check ran — the criterion escalates: this is the assurance gap;
+4. otherwise it passes.
+
+A `critical` or `high` criterion gates the run. A `medium` or `low` criterion is
+reported in the result but does not block it.
+
+A contract that declares criteria but has no checks therefore escalates instead
+of passing:
+
+```bash
+assaystone verify \
+  --contract examples/ops_agent/contracts/declared_only.json \
+  --trace examples/ops_agent/traces/t01-correct.json \
+  --baseline examples/ops_agent/baseline
+```
+
 ## What v1 does and does not do
 
-- It parses, validates, and reports criteria.
+- It parses, validates, reports, and decides criteria.
+- It enforces `on_unknown` and severity gating.
 - It computes the assurance gap per criterion.
 - It plans at the defect level, so criteria inherit `compose`.
-- It does **not** yet enforce per-criterion `on_unknown`; the runner's global
-  policy applies. Per-criterion policy is the next step.
 - It does not measure independence. `independence` is still declared by the
   verifier; provenance is the next protocol change.

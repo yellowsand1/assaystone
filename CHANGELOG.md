@@ -53,8 +53,13 @@
   invariant, postcondition, forbidden_action, evidence) with a statement, a
   defect tag, an optional verifier binding, severity, and `on_unknown`. Coverage
   reports the **assurance gap**: declared criteria that no independent check can
-  decide. The IR is backward compatible; `required_defects` is derived from the
-  criteria when omitted. Spec: [docs/acceptance-ir.md](docs/acceptance-ir.md).
+  decide. The runner decides each criterion: a bound failure fails it, an
+  unresolved check escalates unless `on_unknown: fail`, and a criterion with no
+  bound check escalates. Critical/high criteria gate the run. The IR is backward
+  compatible; `required_defects` is derived from the criteria when omitted.
+  `examples/ops_agent/contracts/declared_only.json` declares six criteria, has
+  no checks for them, and escalates a clean run instead of passing it. Spec:
+  [docs/acceptance-ir.md](docs/acceptance-ir.md).
 - **Test support integrity.** `tests.support_integrity` protects test support
   code outside the `tests/` prefix (`helpers/`, `testing/`, `test_utils/`,
   `spec/support/`). The Goodhart `support` family adds a fixture whose suite
