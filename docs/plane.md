@@ -10,12 +10,36 @@ policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
 
 ```bash
+assaystone capability init --root . --owner platform-team
 assaystone capability validate --manifest examples/capability/java.json
 assaystone gate --manifest examples/capability/pricing.json --stage canary \
   --root examples/capability/pricing_project \
   --audit .assaystone/trail.jsonl --actor release-bot --strict
 assaystone trail verify .assaystone/trail.jsonl --expect sha256:...
 ```
+
+## Start from a draft
+
+```bash
+assaystone capability init --root . --owner platform-team
+```
+
+`init` looks for a build or test surface — `pom.xml`, Gradle, `package.json`
+scripts, `pyproject.toml` plus tests, `go.mod`, `Cargo.toml` — and writes
+`.assaystone/capability.json` with a build oracle, a test oracle where it found
+tests, an artifact check for compiled stacks, and a branch check that follows
+the convention the repository already uses (`feature/` or `feat/`). It never
+runs a build.
+
+The draft is deliberately incomplete. It declares no approvals and no rollback
+claim, because inventing either would be exactly the unchecked assertion this
+project argues against. `init` prints what to add next; the first
+`gate --stage shadow` usually fails on the branch check or escalates on a
+missing approval, and that failure is the onboarding.
+
+Detection is heuristic and lives in `scaffold.py`, outside the plane. A new
+build tool means a new detection branch that emits a command payload; the core
+does not learn about it.
 
 Exit codes: `0` pass, `1` fail, `2` escalate or a manifest/trail error. A gate
 that cannot decide never exits `0`.
@@ -187,15 +211,24 @@ A stage declares what evidence it needs:
 ```json
 {"canary": {"require": ["compile", "tests"],
             "approvals": ["reviewer"],
-            "allow_merge": true}}
+            "allow_merge": true},
+ "production": {"require": ["compile", "tests"],
+                "approvals": ["reviewer"],
+                "allow_merge": true, "allow_deploy": true,
+                "rollback_required": true, "rollback": "rollback_plan"}}
 ```
 
 * All required oracles and approvals run. Any `fail` fails the gate; any
   missing oracle or `escalate` escalates; otherwise it passes.
 * `allow_merge` and `allow_deploy` are only granted on a pass. A stage that
   allows merging *and* deploying needs both flags.
-* `rollback_required` is reported; the trail records that the requirement was
-  attached to the decision.
+* `rollback_required` must name a `rollback` oracle. The gate runs it like any
+  other required check, so "rollback required" is evidence, not a claim. A
+  policy that asserts rollback without naming an oracle is a manifest error —
+  the same rule this project applies to verifiers applies to itself. The rollout
+  can be a human attestation, a command that the old implementation still runs,
+  or a file that the rollback script exists. The trail records the oracle, its
+  outcome, and its digest.
 * A stage with no policy escalates rather than passing by default.
 
 ### Assurance gap and `--strict`
@@ -221,6 +254,7 @@ gate reports `fail`, not `escalate`.
 {"seq": 0, "at": "2026-11-25T03:01:38Z", "capability": "pricing-change",
  "stage": "shadow", "outcome": "pass", "actor": "qa-bot",
  "merge_allowed": false, "deploy_allowed": false,
+ "rollback_required": false, "rollback": "",
  "oracles": [{"id": "ledger", "type": "sql", "outcome": "pass",
               "digest": "sha256:...", "fingerprint": "sha256:..."}],
  "missing": [], "gap": ["publish-approved"], "strict": false,

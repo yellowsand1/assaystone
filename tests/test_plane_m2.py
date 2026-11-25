@@ -666,6 +666,81 @@ class GateGapTest(unittest.TestCase):
         self.assertEqual(result.outcome, "pass")
 
 
+class RollbackTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def manifest(self, rollback_command=None, policy_extra=None):
+        oracles = [
+            {"id": "ok", "type": "command", "payload": {"command": ["true"]}},
+        ]
+        if rollback_command is not None:
+            oracles.append(
+                {
+                    "id": "rollback",
+                    "type": "command",
+                    "payload": {
+                        "command": [sys.executable, "-c", rollback_command]
+                    },
+                }
+            )
+        policy = {
+            "require": ["ok"],
+            "allow_merge": True,
+            "allow_deploy": True,
+            "rollback_required": True,
+        }
+        policy.update(policy_extra or {})
+        return CapabilityManifest.from_dict(
+            manifest_data(oracles, {"production": policy})
+        )
+
+    def test_rollback_claim_needs_an_oracle(self):
+        with self.assertRaises(PlaneError) as caught:
+            self.manifest()
+        self.assertIn("rollback oracle", str(caught.exception))
+
+    def test_unknown_rollback_oracle_is_rejected(self):
+        with self.assertRaises(PlaneError):
+            self.manifest(
+                rollback_command="pass", policy_extra={"rollback": "nope"}
+            )
+
+    def test_rollback_oracle_runs_and_fails_the_gate(self):
+        manifest = self.manifest(
+            rollback_command="raise SystemExit(3)", policy_extra={"rollback": "rollback"}
+        )
+        result = evaluate_gate(manifest, "production", self.root)
+        self.assertEqual(result.outcome, "fail")
+        self.assertFalse(result.deploy_allowed)
+        rollback = next(item for item in result.results if item.oracle == "rollback")
+        self.assertEqual(rollback.outcome, "fail")
+        self.assertTrue(result.rollback_required)
+        self.assertEqual(result.rollback, "rollback")
+
+    def test_rollback_oracle_passes_the_gate(self):
+        manifest = self.manifest(
+            rollback_command="pass", policy_extra={"rollback": "rollback"}
+        )
+        result = evaluate_gate(manifest, "production", self.root)
+        self.assertEqual(result.outcome, "pass", result.reasons)
+        self.assertTrue(result.deploy_allowed)
+
+    def test_rollback_is_recorded_in_the_trail(self):
+        manifest = self.manifest(
+            rollback_command="pass", policy_extra={"rollback": "rollback"}
+        )
+        gate = evaluate_gate(manifest, "production", self.root)
+        entry = trail.entry_for(gate, actor="ci", at="2026-11-25T00:00:00Z")
+        self.assertTrue(entry["rollback_required"])
+        self.assertEqual(entry["rollback"], "rollback")
+        self.assertIn(
+            "rollback", [item["id"] for item in entry["oracles"]]
+        )
+
+
 class TrailTest(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

@@ -48,6 +48,7 @@ class StagePolicy:
     allow_merge: bool = False
     allow_deploy: bool = False
     rollback_required: bool = False
+    rollback: str = ""
 
 
 @dataclass
@@ -118,6 +119,7 @@ class CapabilityManifest:
                 allow_merge=bool(value.get("allow_merge", False)),
                 allow_deploy=bool(value.get("allow_deploy", False)),
                 rollback_required=bool(value.get("rollback_required", False)),
+                rollback=str(value.get("rollback") or ""),
             )
             for name, value in (data.get("policies") or {}).items()
         }
@@ -203,6 +205,15 @@ class CapabilityManifest:
             for oracle_id in policy.require + policy.approvals:
                 if oracle_id not in oracle_ids:
                     errors.append(f"policy {stage}: unknown oracle {oracle_id!r}")
+            if policy.rollback and policy.rollback not in oracle_ids:
+                errors.append(
+                    f"policy {stage}: unknown rollback oracle "
+                    f"{policy.rollback!r}"
+                )
+            if policy.rollback_required and not policy.rollback:
+                errors.append(
+                    f"policy {stage}: rollback_required needs a rollback oracle"
+                )
         return errors
 
     def to_dict(self) -> dict[str, Any]:
@@ -244,6 +255,7 @@ class CapabilityManifest:
                     "allow_merge": policy.allow_merge,
                     "allow_deploy": policy.allow_deploy,
                     "rollback_required": policy.rollback_required,
+                    "rollback": policy.rollback,
                 }
                 for name, policy in sorted(self.policies.items())
             },
@@ -310,6 +322,8 @@ class GateResult:
     deploy_allowed: bool = False
     gap: list[dict[str, Any]] = field(default_factory=list)
     strict: bool = False
+    rollback_required: bool = False
+    rollback: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -323,6 +337,8 @@ class GateResult:
             "deploy_allowed": self.deploy_allowed,
             "gap": list(self.gap),
             "strict": self.strict,
+            "rollback_required": self.rollback_required,
+            "rollback": self.rollback,
         }
 
 
@@ -330,6 +346,8 @@ def _assurance_gap(
     manifest: CapabilityManifest, policy: StagePolicy
 ) -> list[dict[str, Any]]:
     gated = set(policy.require) | set(policy.approvals)
+    if policy.rollback:
+        gated.add(policy.rollback)
     return [
         {
             "criterion": item.id,
@@ -360,7 +378,11 @@ def evaluate_gate(
             strict=strict,
         )
     by_id = {item.id: item for item in manifest.oracles}
-    required = list(dict.fromkeys(policy.require + policy.approvals))
+    required = list(
+        dict.fromkeys(
+            policy.require + policy.approvals + ([policy.rollback] if policy.rollback else [])
+        )
+    )
     results: list[OracleResult] = []
     missing: list[str] = []
     for oracle_id in required:
@@ -398,8 +420,8 @@ def evaluate_gate(
                 f"strict: {item['severity']} criterion {item['criterion']!r} "
                 f"is not gated at {stage}"
             )
-    if policy.rollback_required and outcome == "pass":
-        reasons.append("rollback plan required")
+    if policy.rollback_required:
+        reasons.append(f"rollback evidence: {policy.rollback}")
     return GateResult(
         capability=manifest.capability,
         stage=stage,
@@ -411,6 +433,8 @@ def evaluate_gate(
         deploy_allowed=policy.allow_deploy and outcome == "pass",
         gap=gap,
         strict=strict,
+        rollback_required=policy.rollback_required,
+        rollback=policy.rollback,
     )
 
 

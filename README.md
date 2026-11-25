@@ -290,6 +290,7 @@ A capability manifest binds criteria to generic oracles — `command`, `file`,
 `git`, `human`, `http`, `sql`, `shadow` — and a lifecycle policy:
 
 ```bash
+assaystone capability init --root . --owner platform-team   # draft a manifest
 assaystone capability validate --manifest examples/capability/pricing.json
 assaystone gate --manifest examples/capability/pricing.json --stage shadow \
   --root examples/capability/pricing_project --audit trail.jsonl --actor ci

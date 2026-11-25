@@ -29,6 +29,17 @@
 - **Assurance gap at the gate.** Every gate reports declared criteria the stage
   does not gate. `--strict` escalates when a critical criterion is ungated; a
   failure still outranks the gap.
+- **`capability init`.** Onboarding for the plane: inspect a repository for
+  Maven, Gradle, npm, Python, Go, or Cargo, follow the branch convention it
+  already uses, and write a draft `.assaystone/capability.json`. The draft
+  declares no approvals and no rollback claim, because inventing either would
+  be the unchecked assertion this project argues against. Detection lives in
+  `scaffold.py`, outside the plane.
+- **Rollback is checked, not claimed.** A policy with `rollback_required`
+  must name a `rollback` oracle; without one the manifest is invalid. The gate
+  runs it as a required check, so a production decision carries the evidence
+  and its digest. The three example capabilities bind human or command
+  rollback oracles.
 - **Third domain, manifest only.** `pricing.json` checks a fee refactor with a
   `shadow` parity oracle, a `sql` ledger oracle, a `command` test oracle, and a
   human publish approval. `pricing_project` is deterministic and needs no

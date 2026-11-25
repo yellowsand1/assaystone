@@ -50,6 +50,12 @@ from .replay import git_preimage, is_git_repo
 from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
 from .runner import run_contract
+from .scaffold import (
+    ScaffoldError,
+    display_path,
+    init_capability,
+    next_steps,
+)
 from .sessions import SessionDiscoveryError, find_latest_session
 
 
@@ -453,6 +459,8 @@ def _registry(path: str | None) -> OracleRegistry | None:
 
 
 def cmd_capability(args: argparse.Namespace) -> int:
+    if args.capability_command == "init":
+        return _cmd_capability_init(args)
     try:
         manifest = CapabilityManifest.load(
             args.manifest, registry=_registry(args.registry)
@@ -478,6 +486,45 @@ def cmd_capability(args: argparse.Namespace) -> int:
                 f"  registry={manifest.registry} "
                 f"fingerprint={manifest.registry_fingerprint}"
             )
+    return 0
+
+
+def _cmd_capability_init(args: argparse.Namespace) -> int:
+    root = Path(args.root).resolve()
+    try:
+        path, data, detection = init_capability(
+            root, out=args.out, owner=args.owner, force=args.force
+        )
+    except ScaffoldError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    steps = next_steps(data)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "path": str(path),
+                    "stack": detection.stack,
+                    "notes": detection.notes,
+                    "manifest": data,
+                    "next": steps,
+                },
+                indent=2,
+            )
+        )
+        return 0
+    print(f"wrote {display_path(path, root)}")
+    print(f"stack: {detection.stack}")
+    print(f"oracles: {', '.join(item['id'] for item in data['oracles'])}")
+    for note in detection.notes:
+        print(f"note: {note}")
+    print("next:")
+    for step in steps:
+        print(f"  - {step}")
+    print(
+        f"\nrun: assaystone gate --manifest {display_path(path, root)} "
+        "--stage shadow --root ."
+    )
     return 0
 
 
@@ -1147,6 +1194,18 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_validate.add_argument("--json", action="store_true")
     capability_validate.set_defaults(func=cmd_capability)
+
+    capability_init = capability_sub.add_parser(
+        "init", help="draft a capability manifest from the repository"
+    )
+    capability_init.add_argument("--root", default=".")
+    capability_init.add_argument(
+        "--out", default=None, help="manifest path (default .assaystone/capability.json)"
+    )
+    capability_init.add_argument("--owner", default=None)
+    capability_init.add_argument("--force", action="store_true")
+    capability_init.add_argument("--json", action="store_true")
+    capability_init.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",

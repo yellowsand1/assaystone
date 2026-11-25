@@ -61,6 +61,8 @@ def entry_for(
         "actor": actor,
         "merge_allowed": gate.merge_allowed,
         "deploy_allowed": gate.deploy_allowed,
+        "rollback_required": bool(getattr(gate, "rollback_required", False)),
+        "rollback": str(getattr(gate, "rollback", "") or ""),
         "oracles": [
             {
                 "id": item.oracle,

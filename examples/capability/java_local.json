@@ -1,27 +1,134 @@
 {
   "capability": "java-change-local",
   "owner": "platform-team",
-  "systems": ["git", "jdk"],
-  "data_classes": ["internal"],
-  "irreversible_actions": ["merge", "deploy"],
+  "systems": [
+    "git",
+    "jdk"
+  ],
+  "data_classes": [
+    "internal"
+  ],
+  "irreversible_actions": [
+    "merge",
+    "deploy"
+  ],
   "risk": "high",
   "lifecycle": "shadow",
   "retention": "30d",
   "criteria": [
-    {"id": "compiles", "kind": "postcondition", "statement": "The Java source compiles.", "oracle": "compile", "severity": "critical"},
-    {"id": "class-emitted", "kind": "postcondition", "statement": "The compiler emitted App.class.", "oracle": "classfile", "severity": "critical"},
-    {"id": "feature-branch", "kind": "precondition", "statement": "The change is on a feature branch.", "oracle": "branch", "severity": "high"},
-    {"id": "reviewer-approved", "kind": "evidence", "statement": "A reviewer approved the merge.", "oracle": "reviewer", "severity": "critical"}
+    {
+      "id": "compiles",
+      "kind": "postcondition",
+      "statement": "The Java source compiles.",
+      "oracle": "compile",
+      "severity": "critical"
+    },
+    {
+      "id": "class-emitted",
+      "kind": "postcondition",
+      "statement": "The compiler emitted App.class.",
+      "oracle": "classfile",
+      "severity": "critical"
+    },
+    {
+      "id": "feature-branch",
+      "kind": "precondition",
+      "statement": "The change is on a feature branch.",
+      "oracle": "branch",
+      "severity": "high"
+    },
+    {
+      "id": "reviewer-approved",
+      "kind": "evidence",
+      "statement": "A reviewer approved the merge.",
+      "oracle": "reviewer",
+      "severity": "critical"
+    }
   ],
   "oracles": [
-    {"id": "compile", "type": "command", "description": "javac the source", "payload": {"command": ["sh", "-c", "mkdir -p out && javac -d out src/main/java/com/example/App.java"], "timeout": 60}},
-    {"id": "classfile", "type": "file", "description": "compiled class exists", "payload": {"path": "out/com/example/App.class", "mode": "exists"}},
-    {"id": "branch", "type": "git", "description": "feature branch", "payload": {"mode": "branch", "expected": "feat/"}},
-    {"id": "reviewer", "type": "human", "description": "reviewer approval", "payload": {"action": "merge", "record": "approvals.json"}}
+    {
+      "id": "compile",
+      "type": "command",
+      "description": "javac the source",
+      "payload": {
+        "command": [
+          "sh",
+          "-c",
+          "mkdir -p out && javac -d out src/main/java/com/example/App.java"
+        ],
+        "timeout": 60
+      }
+    },
+    {
+      "id": "classfile",
+      "type": "file",
+      "description": "compiled class exists",
+      "payload": {
+        "path": "out/com/example/App.class",
+        "mode": "exists"
+      }
+    },
+    {
+      "id": "branch",
+      "type": "git",
+      "description": "feature branch",
+      "payload": {
+        "mode": "branch",
+        "expected": "feat/"
+      }
+    },
+    {
+      "id": "reviewer",
+      "type": "human",
+      "description": "reviewer approval",
+      "payload": {
+        "action": "merge",
+        "record": "approvals.json"
+      }
+    },
+    {
+      "id": "rollback",
+      "type": "human",
+      "description": "the reviewer attests a rollback path",
+      "payload": {
+        "action": "rollback",
+        "record": "approvals.json"
+      }
+    }
   ],
   "policies": {
-    "shadow": {"require": ["compile", "classfile", "branch"], "allow_merge": false},
-    "canary": {"require": ["compile", "classfile", "branch"], "approvals": ["reviewer"], "allow_merge": true},
-    "production": {"require": ["compile", "classfile", "branch"], "approvals": ["reviewer"], "allow_merge": true, "allow_deploy": true, "rollback_required": true}
+    "shadow": {
+      "require": [
+        "compile",
+        "classfile",
+        "branch"
+      ],
+      "allow_merge": false
+    },
+    "canary": {
+      "require": [
+        "compile",
+        "classfile",
+        "branch"
+      ],
+      "approvals": [
+        "reviewer"
+      ],
+      "allow_merge": true
+    },
+    "production": {
+      "require": [
+        "compile",
+        "classfile",
+        "branch"
+      ],
+      "approvals": [
+        "reviewer"
+      ],
+      "allow_merge": true,
+      "allow_deploy": true,
+      "rollback_required": true,
+      "rollback": "rollback"
+    }
   }
 }
