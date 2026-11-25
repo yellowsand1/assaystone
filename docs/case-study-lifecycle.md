@@ -152,6 +152,39 @@ Canary (with the owner approval) and production (chained to canary, rollback
 oracle) passed after the defects were reverted. The SQL trail has 5 entries and
 verifies. No core code changed between the two domains.
 
+## Incident: a verified rollback
+
+The first pass ended after production. A second pass on the same module added an
+`incident` policy and exercised it:
+
+1. A compatible change was committed. Canary passed with the owner approval;
+   production passed, chained to that canary entry, with `deploy_allowed=True`
+   and the rollback oracle satisfied.
+2. A public-accessor rename was applied to the working tree. The shadow gate
+   failed at the API oracle while build, artifact, and branch passed.
+3. The working tree was restored, and a shadow gate passed.
+4. The incident gate required build, artifact, API parity, the feature branch, a
+   reverse-applicable promotion commit, and a clean worktree, plus two signed
+   approvals (`promote` and `incident-close`). It passed.
+
+The trail had six entries and verified. The incident receipt verified against the
+checked-out commit. The status card for `--stage incident` reported no residual
+risk, and the strict portfolio reported 0 critical risks for the capability.
+
+What this proves: the incident stage can require both a clean post-rollback state
+and the signatures that close the incident. What it does not: the rollback was a
+working-tree restore of an uncommitted defect, not a production rollback. The
+incident gate verifies cleanliness, parity, and the two signatures; it does not
+prove that a deployed system was restored. That still needs a real deployment and
+a compensation oracle.
+
+The trial also found a portfolio bug: `capability list --strict` treated a
+criterion gated only at a later stage as a critical defect at the current
+lifecycle. A capability at `shadow` is not expected to gate production criteria.
+Strict mode now requires every declared stage to have a passing decision and
+every critical criterion to be gated somewhere; the per-stage gap remains on the
+card as information.
+
 ## Cost on this machine
 
 | gate | wall time |
@@ -198,6 +231,11 @@ seconds, not minutes, and it is the difference between "the build is green" and
    `.assaystone/` excluded.
 3. **The session oracle cannot decide an unsupported language.** It escalates;
    the API oracle decides. That is the honest division, not a gap to paper over.
+4. **Portfolio strictness was wrong for later-stage criteria.** The incident
+   trial showed a `shadow` capability flagged as critical because it did not gate
+   production-only criteria. Strict mode now checks that every declared stage has
+   a passing decision and every critical criterion is gated somewhere; per-stage
+   gaps stay on the card.
 
 Two things worked without changes:
 
