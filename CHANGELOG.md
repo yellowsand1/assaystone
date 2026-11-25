@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.9.0 — 2026-11-25
+
 - **`capability brief`.** Render the manifest as a task brief for an agent: the
   criteria, the oracle bindings, the stage requirements, the exact gate command,
   and the rules against weakening tests, CI, or the manifest and against
