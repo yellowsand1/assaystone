@@ -40,6 +40,15 @@ class KeyTest(unittest.TestCase):
         self.assertTrue(keys.verify(body, signature, self.public))
         self.assertFalse(keys.verify(b"another decision", signature, self.public))
 
+    def test_key_id_is_stable_and_distinguishes_keys(self):
+        self.generate()
+        first = keys.key_id(self.public)
+        self.assertEqual(first, keys.key_id_for_private(self.private))
+        other_private = self.root / "other.key"
+        other_public = self.root / "other.pub"
+        keys.generate(other_private, other_public)
+        self.assertNotEqual(first, keys.key_id(other_public))
+
     def test_wrong_key_and_tampering(self):
         self.generate()
         other_private = self.root / "other.key"

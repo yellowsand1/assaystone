@@ -902,6 +902,13 @@ def cmd_gate(args: argparse.Namespace) -> int:
 
 
 def cmd_key(args: argparse.Namespace) -> int:
+    if args.key_command == "fingerprint":
+        try:
+            print(signing_keys.key_id(args.public))
+        except signing_keys.SigningKeyError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        return 0
     if args.key_command != "generate":
         print(f"error: unknown key command {args.key_command!r}", file=sys.stderr)
         return 2
@@ -909,11 +916,13 @@ def cmd_key(args: argparse.Namespace) -> int:
         private, public = signing_keys.generate(
             args.private, args.public, force=args.force
         )
+        key_id = signing_keys.key_id(public)
     except signing_keys.SigningKeyError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(f"private: {private}")
     print(f"public:  {public}")
+    print(f"key id:  {key_id}")
     print("Keep the private key out of CI and out of the agent's environment.")
     return 0
 
@@ -1817,6 +1826,12 @@ def _parser() -> argparse.ArgumentParser:
     key_generate.add_argument("--public", required=True, metavar="PATH")
     key_generate.add_argument("--force", action="store_true")
     key_generate.set_defaults(func=cmd_key)
+
+    key_fingerprint = key_sub.add_parser(
+        "fingerprint", help="print the key id of a public key"
+    )
+    key_fingerprint.add_argument("--public", required=True, metavar="PATH")
+    key_fingerprint.set_defaults(func=cmd_key)
 
     compose_parser = sub.add_parser(
         "compose",

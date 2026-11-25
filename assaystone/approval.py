@@ -68,6 +68,11 @@ def create_approval(
         "approved_by": approver,
         "at": at or _now(),
     }
+    if private_key_path:
+        try:
+            body["key_id"] = keys.key_id_for_private(private_key_path)
+        except keys.SigningKeyError as exc:
+            raise ApprovalError(str(exc)) from exc
     try:
         body["signature"] = keys.sign_body(body, key, private_key_path)
     except keys.SigningKeyError as exc:
@@ -112,6 +117,7 @@ def verify_approval(
             if str(approval.get("signature") or "").startswith("ed25519:")
             else "hmac-sha256"
         ),
+        "key_id": approval.get("key_id"),
     }
     if approval.get("version") != VERSION:
         errors.append(f"unsupported approval version: {approval.get('version')!r}")
@@ -135,6 +141,18 @@ def verify_approval(
     )
     if error:
         errors.append(f"approval {error}")
+    elif (
+        info["scheme"] == "ed25519"
+        and approval.get("key_id")
+        and public_key_path
+    ):
+        try:
+            actual = keys.key_id(public_key_path)
+        except keys.SigningKeyError as exc:
+            errors.append(str(exc))
+        else:
+            if actual != approval.get("key_id"):
+                errors.append("approval public key does not match key_id")
     info["verified"] = not errors
     return ApprovalCheck(ok=not errors, info=info, errors=errors)
 

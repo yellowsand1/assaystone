@@ -123,6 +123,7 @@ def create_receipt(
     }
     if private_key_path:
         try:
+            body["key_id"] = keys.key_id_for_private(private_key_path)
             body["signature"] = keys.sign(
                 canonical_json(body).encode("utf-8"), private_key_path
             )
@@ -179,6 +180,16 @@ def verify_receipt(
             else:
                 if not valid:
                     errors.append("signature does not verify")
+                elif receipt.get("key_id"):
+                    try:
+                        actual = keys.key_id(public_key_path)
+                    except keys.SigningKeyError as exc:
+                        errors.append(str(exc))
+                    else:
+                        if actual != receipt.get("key_id"):
+                            errors.append(
+                                "public key does not match key_id"
+                            )
     elif signature_value.startswith("hmac-sha256:"):
         if not key:
             errors.append("no verification key")
