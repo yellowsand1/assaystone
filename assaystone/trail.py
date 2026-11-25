@@ -63,6 +63,9 @@ def entry_for(
         "deploy_allowed": gate.deploy_allowed,
         "rollback_required": bool(getattr(gate, "rollback_required", False)),
         "rollback": str(getattr(gate, "rollback", "") or ""),
+        "manifest_lifecycle": str(
+            getattr(gate, "manifest_lifecycle", "") or ""
+        ),
         "oracles": [
             {
                 "id": item.oracle,
@@ -113,6 +116,12 @@ def append(
     file_path = Path(path)
     entries = read(file_path)
     if entries:
+        check = verify(file_path)
+        if not check.ok:
+            raise TrailError(
+                "refusing to append to a broken trail: "
+                + "; ".join(check.errors[:3])
+            )
         last = entries[-1]
         prev = str(last.get("hash") or "")
         seq = int(last.get("seq", len(entries) - 1)) + 1

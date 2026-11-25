@@ -254,7 +254,7 @@ gate reports `fail`, not `escalate`.
 {"seq": 0, "at": "2026-11-25T03:01:38Z", "capability": "pricing-change",
  "stage": "shadow", "outcome": "pass", "actor": "qa-bot",
  "merge_allowed": false, "deploy_allowed": false,
- "rollback_required": false, "rollback": "",
+ "rollback_required": false, "rollback": "", "manifest_lifecycle": "shadow",
  "oracles": [{"id": "ledger", "type": "sql", "outcome": "pass",
               "digest": "sha256:...", "fingerprint": "sha256:..."}],
  "missing": [], "gap": ["publish-approved"], "strict": false,

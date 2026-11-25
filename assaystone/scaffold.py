@@ -87,12 +87,35 @@ def _branch_oracle(root: Path, notes: list[str]) -> list[dict[str, Any]]:
     ]
 
 
+def _maven_packaging(root: Path) -> str:
+    import xml.etree.ElementTree as ElementTree
+
+    try:
+        document = ElementTree.parse(root / "pom.xml")
+    except (OSError, ElementTree.ParseError):
+        return ""
+    for path in (
+        "{http://maven.apache.org/POM/4.0.0}packaging",
+        "packaging",
+    ):
+        node = document.getroot().find(path)
+        if node is not None:
+            return (node.text or "").strip()
+    return ""
+
+
 def _detect_maven(root: Path, notes: list[str]) -> Detection:
     binary = "./mvnw" if (root / "mvnw").exists() else "mvn"
     oracles = [_command("build", [binary, "-q", "-DskipTests", "compile"], 600)]
     if (root / "src" / "test" / "java").is_dir():
         oracles.append(_command("tests", [binary, "-q", "test"], 900))
-    oracles.append(_artifact("target/classes"))
+    if _maven_packaging(root) == "pom":
+        notes.append(
+            "aggregator pom: there is no target/classes; run init inside a "
+            "module for an artifact check"
+        )
+    else:
+        oracles.append(_artifact("target/classes"))
     if binary == "./mvnw":
         notes.append("using the Maven wrapper")
     return Detection(stack="maven", oracles=oracles, notes=notes)

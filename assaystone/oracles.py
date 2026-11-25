@@ -950,8 +950,7 @@ class OracleRegistry:
         }
 
 
-def run_oracle(spec: OracleSpec, root: str | Path) -> OracleResult:
-    root = Path(root).resolve()
+def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
     if spec.type == "command":
         outcome = _command(spec, root)
     elif spec.type == "file":
@@ -967,7 +966,20 @@ def run_oracle(spec: OracleSpec, root: str | Path) -> OracleResult:
     elif spec.type == "shadow":
         outcome = _shadow(spec, root)
     else:
-        outcome = _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
+        return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
+    return outcome
+
+
+def run_oracle(spec: OracleSpec, root: str | Path) -> OracleResult:
+    root = Path(root).resolve()
+    try:
+        outcome = _dispatch(spec, root)
+    except Exception as exc:  # noqa: BLE001 - a gate must never crash
+        outcome = _result(
+            spec,
+            "escalate",
+            [f"oracle error: {type(exc).__name__}: {exc}"],
+        )
     outcome.digest = result_digest(
         spec, outcome.outcome, outcome.reasons, outcome.evidence, outcome.output
     )

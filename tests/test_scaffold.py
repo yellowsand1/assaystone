@@ -52,6 +52,15 @@ class ScaffoldTest(unittest.TestCase):
         ids = [item["id"] for item in data["oracles"]]
         self.assertNotIn("tests", ids)
 
+    def test_aggregator_pom_has_no_artifact_oracle(self):
+        (self.root / "pom.xml").write_text(
+            "<project><packaging>pom</packaging></project>", encoding="utf-8"
+        )
+        data, detection = build_manifest(self.root)
+        ids = [item["id"] for item in data["oracles"]]
+        self.assertEqual(ids, ["build"])
+        self.assertTrue(any("aggregator" in note for note in detection.notes))
+
     def test_maven_wrapper_is_used(self):
         self.touch("pom.xml")
         self.touch("mvnw")

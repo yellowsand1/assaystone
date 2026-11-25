@@ -35,6 +35,10 @@
   declares no approvals and no rollback claim, because inventing either would
   be the unchecked assertion this project argues against. Detection lives in
   `scaffold.py`, outside the plane.
+- **Fail closed under bad payloads.** A malformed timeout, an invalid regex, a
+  non-UTF-8 artifact, or any other primitive error becomes `escalate` with the
+  exception name; the gate never crashes. `trail append` refuses to extend a
+  chain that does not verify.
 - **Rollback is checked, not claimed.** A policy with `rollback_required`
   must name a `rollback` oracle; without one the manifest is invalid. The gate
   runs it as a required check, so a production decision carries the evidence

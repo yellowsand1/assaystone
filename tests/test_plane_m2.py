@@ -497,6 +497,40 @@ class ShadowOracleTest(unittest.TestCase):
         self.assertEqual(result.outcome, "escalate")
 
 
+class FailClosedTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def test_bad_payload_value_escalates_instead_of_crashing(self):
+        result = run_oracle(
+            spec("command", {"command": ["true"], "timeout": "soon"}),
+            self.root,
+        )
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("oracle error", result.reasons[0])
+
+    def test_invalid_regex_escalates(self):
+        (self.root / "a.txt").write_text("x", encoding="utf-8")
+        result = run_oracle(
+            spec(
+                "file",
+                {"path": "a.txt", "mode": "regex", "pattern": "("},
+            ),
+            self.root,
+        )
+        self.assertEqual(result.outcome, "escalate")
+
+    def test_non_utf8_file_escalates(self):
+        (self.root / "a.bin").write_bytes(b"\xff\xfe\x00")
+        result = run_oracle(
+            spec("file", {"path": "a.bin", "mode": "json"}),
+            self.root,
+        )
+        self.assertEqual(result.outcome, "escalate")
+
+
 class RegistryTest(unittest.TestCase):
     def registry_dict(self, version=2, command=None):
         return {
@@ -736,6 +770,7 @@ class RollbackTest(unittest.TestCase):
         entry = trail.entry_for(gate, actor="ci", at="2026-11-25T00:00:00Z")
         self.assertTrue(entry["rollback_required"])
         self.assertEqual(entry["rollback"], "rollback")
+        self.assertEqual(entry["manifest_lifecycle"], "shadow")
         self.assertIn(
             "rollback", [item["id"] for item in entry["oracles"]]
         )
@@ -779,6 +814,16 @@ class TrailTest(unittest.TestCase):
         check = trail.verify(path)
         self.assertFalse(check.ok)
         self.assertTrue(any("hash mismatch" in item for item in check.errors))
+
+    def test_append_refuses_a_broken_trail(self):
+        path = self.root / "trail.jsonl"
+        trail.append(path, self.gate(), actor="ci", at="2026-11-25T00:00:00Z")
+        lines = path.read_text(encoding="utf-8").splitlines()
+        entry = json.loads(lines[0])
+        entry["outcome"] = "fail"
+        path.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        with self.assertRaises(trail.TrailError):
+            trail.append(path, self.gate(), actor="ci")
 
     def test_deleted_middle_entry_breaks_the_chain(self):
         path = self.root / "trail.jsonl"

@@ -324,6 +324,7 @@ class GateResult:
     strict: bool = False
     rollback_required: bool = False
     rollback: str = ""
+    manifest_lifecycle: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -339,6 +340,7 @@ class GateResult:
             "strict": self.strict,
             "rollback_required": self.rollback_required,
             "rollback": self.rollback,
+            "manifest_lifecycle": self.manifest_lifecycle,
         }
 
 
@@ -376,6 +378,7 @@ def evaluate_gate(
             outcome="escalate",
             reasons=[f"no policy for stage {stage!r}"],
             strict=strict,
+            manifest_lifecycle=manifest.lifecycle,
         )
     by_id = {item.id: item for item in manifest.oracles}
     required = list(
@@ -435,6 +438,7 @@ def evaluate_gate(
         strict=strict,
         rollback_required=policy.rollback_required,
         rollback=policy.rollback,
+        manifest_lifecycle=manifest.lifecycle,
     )
 
 
