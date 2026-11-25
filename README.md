@@ -285,6 +285,7 @@ what evidence, and whether a human must look. Agents fail silently; a green test
 suite is not an acceptance criterion.
 
 The longer argument: [Verification is the bottleneck](docs/why.md).
+The product: [What we are building](docs/vision.md).
 
 Field note: [What 162 real Claude Code sessions say about verification](docs/case-study-2026-11.md)
 or read the [hosted version](https://yellowsand1.github.io/assaystone/blog/162-claude-code-sessions/).
@@ -629,6 +630,7 @@ examples/hooks/        # Claude Code Stop hook settings
 examples/third_party_pack/ # a verifier implemented outside the package
 failure_zoo/           # labeled failure corpus (seed)
 docs/why.md            # the longer argument
+docs/vision.md         # the product spec: four layers and the domain-pack boundary
 docs/protocol.md       # the verifier ABI and the three schemas
 docs/acceptance-ir.md  # the criterion language above the verifiers
 docs/protocol.json     # generated catalog of every conformant verifier

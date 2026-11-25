@@ -49,6 +49,9 @@
 - **Adoption script.** [docs/adoption.md](docs/adoption.md) is the 45-minute
   design-partner script: who to ask, the invitation, the agenda, and what to
   collect.
+- **Product spec.** [docs/vision.md](docs/vision.md) states the four layers
+  (acceptance IR, verifier algebra, adversarial scoreboard, runtime), the
+  domain-pack boundary, and what the product is not.
 - **Acceptance IR.** Contracts can carry typed `criteria` (precondition,
   invariant, postcondition, forbidden_action, evidence) with a statement, a
   defect tag, an optional verifier binding, severity, and `on_unknown`. Coverage
