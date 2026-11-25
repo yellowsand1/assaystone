@@ -411,6 +411,29 @@ The full run is in
 [case-study-lifecycle.md](case-study-lifecycle.md): a green build, a broken API,
 an escalated promotion, and a verified `git revert`.
 
+## Hand the criteria to the agent
+
+A gate is post-hoc unless the agent knows what it will be judged on. The manifest
+already holds the criteria; render them as the agent's brief:
+
+```bash
+assaystone capability brief --manifest .assaystone/capability.json \
+  --task "Rename the accessor and keep the module compiling." \
+  --out .assaystone/brief.md
+```
+
+The brief contains the criteria, the oracle binding, the current stage's
+requirements, the exact gate command, and three rules: do not edit tests, CI, or
+the manifest to pass; stop and explain a conflict with a criterion; a pass is
+evidence, not a claim.
+
+In the [lifecycle case study](case-study-lifecycle.md#the-same-task-with-the-criteria-in-the-input),
+the same task was run twice. Without the brief, the agent renamed a public
+accessor, reported a verified build, and failed the API oracle. With the brief,
+it ran the gate three times, reverted its own edit, and reported the conflict
+instead of claiming success. The brief is a view of the manifest, not a new
+source of truth.
+
 ## Self-weakening and forged approvals
 
 Two attacks are specific to a gate that reads its own inputs from the working
