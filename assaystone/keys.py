@@ -11,8 +11,13 @@ clear error; the HMAC path is unaffected and the core stays dependency-free.
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import os
 from pathlib import Path
+from typing import Any
+
+from .oracles import canonical_json
 
 
 class SigningKeyError(ValueError):
@@ -110,3 +115,48 @@ def verify(body: bytes, signature: str, public_path: str | Path) -> bool:
     except invalid:
         return False
     return True
+
+
+def sign_body(
+    body: dict[str, Any],
+    key: str = "",
+    private_key_path: str | Path | None = None,
+) -> str:
+    """Sign a canonical JSON body with Ed25519 or HMAC-SHA256."""
+    payload = canonical_json(body).encode("utf-8")
+    if private_key_path:
+        return sign(payload, private_key_path)
+    if not key:
+        raise SigningKeyError("a signing key is required")
+    return "hmac-sha256:" + hmac.new(
+        key.encode("utf-8"), payload, hashlib.sha256
+    ).hexdigest()
+
+
+def verify_body(
+    body: dict[str, Any],
+    signature_value: str,
+    key: str = "",
+    public_key_path: str | Path | None = None,
+) -> str:
+    """Return an error message, or ``""`` when the signature verifies."""
+    payload = canonical_json(body).encode("utf-8")
+    if signature_value.startswith("ed25519:"):
+        if not public_key_path:
+            return "an ed25519 signature needs a public key"
+        try:
+            return "" if verify(payload, signature_value, public_key_path) else (
+                "signature does not verify"
+            )
+        except SigningKeyError as exc:
+            return str(exc)
+    if signature_value.startswith("hmac-sha256:"):
+        if not key:
+            return "no verification key"
+        expected = "hmac-sha256:" + hmac.new(
+            key.encode("utf-8"), payload, hashlib.sha256
+        ).hexdigest()
+        if not hmac.compare_digest(signature_value, expected):
+            return "signature does not verify"
+        return ""
+    return "missing or unknown signature"

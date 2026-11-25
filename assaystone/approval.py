@@ -12,15 +12,13 @@ agent.
 """
 from __future__ import annotations
 
-import hashlib
-import hmac
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .oracles import canonical_json
+from . import keys
 from .plane import CapabilityManifest, manifest_digest
 
 VERSION = 1
@@ -46,12 +44,6 @@ def approval_path_for(manifest: CapabilityManifest) -> Path | None:
     return source.parent / APPROVAL_FILENAME
 
 
-def signature(body: dict[str, Any], key: str) -> str:
-    payload = canonical_json(body).encode("utf-8")
-    digest = hmac.new(key.encode("utf-8"), payload, hashlib.sha256).hexdigest()
-    return f"hmac-sha256:{digest}"
-
-
 def _unsigned(approval: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in approval.items() if key != "signature"}
 
@@ -59,10 +51,11 @@ def _unsigned(approval: dict[str, Any]) -> dict[str, Any]:
 def create_approval(
     manifest: CapabilityManifest,
     approver: str,
-    key: str,
+    key: str = "",
     at: str | None = None,
+    private_key_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    if not key:
+    if not key and not private_key_path:
         raise ApprovalError("an owner approval needs a signing key")
     if not manifest.manifest_approval:
         raise ApprovalError(
@@ -75,7 +68,10 @@ def create_approval(
         "approved_by": approver,
         "at": at or _now(),
     }
-    body["signature"] = signature(body, key)
+    try:
+        body["signature"] = keys.sign_body(body, key, private_key_path)
+    except keys.SigningKeyError as exc:
+        raise ApprovalError(str(exc)) from exc
     return body
 
 
@@ -100,8 +96,9 @@ def load_approval(path: str | Path) -> dict[str, Any]:
 
 def verify_approval(
     approval: dict[str, Any],
-    key: str,
-    manifest: CapabilityManifest,
+    key: str = "",
+    manifest: CapabilityManifest | None = None,
+    public_key_path: str | Path | None = None,
 ) -> ApprovalCheck:
     errors: list[str] = []
     info = {
@@ -110,26 +107,34 @@ def verify_approval(
         "manifest_digest": approval.get("manifest_digest"),
         "required": True,
         "verified": False,
+        "scheme": (
+            "ed25519"
+            if str(approval.get("signature") or "").startswith("ed25519:")
+            else "hmac-sha256"
+        ),
     }
     if approval.get("version") != VERSION:
         errors.append(f"unsupported approval version: {approval.get('version')!r}")
-    if approval.get("capability") != manifest.capability:
-        errors.append(
-            f"approval is for {approval.get('capability')!r}, "
-            f"not {manifest.capability!r}"
-        )
-    current = manifest_digest(manifest)
-    if approval.get("manifest_digest") != current:
-        errors.append("approval does not match the current manifest digest")
-    value = str(approval.get("signature") or "")
-    if not value.startswith("hmac-sha256:"):
-        errors.append("missing or unknown approval signature")
-    elif not key:
-        errors.append("no owner key available")
+    if manifest is None:
+        errors.append("no manifest to verify against")
     else:
-        expected = signature(_unsigned(approval), key)
-        if not hmac.compare_digest(value, expected):
-            errors.append("approval signature does not verify")
+        if approval.get("capability") != manifest.capability:
+            errors.append(
+                f"approval is for {approval.get('capability')!r}, "
+                f"not {manifest.capability!r}"
+            )
+        current = manifest_digest(manifest)
+        if approval.get("manifest_digest") != current:
+            errors.append("approval does not match the current manifest digest")
+    value = str(approval.get("signature") or "")
+    error = keys.verify_body(
+        _unsigned(approval),
+        value,
+        key,
+        public_key_path=public_key_path,
+    )
+    if error:
+        errors.append(f"approval {error}")
     info["verified"] = not errors
     return ApprovalCheck(ok=not errors, info=info, errors=errors)
 

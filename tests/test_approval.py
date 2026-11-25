@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from assaystone import cli, trail
+from assaystone import cli, keys, trail
 from assaystone.approval import (
     ApprovalError,
     approval_path_for,
@@ -18,6 +18,13 @@ from assaystone.approval import (
 )
 from assaystone.plane import CapabilityManifest, evaluate_gate
 from assaystone.receipt import create_receipt
+
+try:
+    import cryptography  # noqa: F401
+
+    HAVE_CRYPTO = True
+except ImportError:  # pragma: no cover
+    HAVE_CRYPTO = False
 
 OWNER_KEY = "owner-key"
 
@@ -115,7 +122,7 @@ class ApprovalTest(unittest.TestCase):
     def test_gate_requires_a_valid_approval(self):
         escalation = evaluate_gate(self.manifest, "shadow", self.root)
         self.assertEqual(escalation.outcome, "escalate")
-        self.assertIn("owner approval", escalation.reasons[0])
+        self.assertIn("approval", escalation.reasons[0])
 
         approval_path = approval_path_for(self.manifest)
         approval_path.write_text(
@@ -123,7 +130,7 @@ class ApprovalTest(unittest.TestCase):
         )
         no_key = evaluate_gate(self.manifest, "shadow", self.root)
         self.assertEqual(no_key.outcome, "escalate")
-        self.assertIn("owner key", no_key.reasons[0])
+        self.assertIn("key", no_key.reasons[0])
 
         allowed = evaluate_gate(
             self.manifest,
@@ -173,6 +180,77 @@ class ApprovalTest(unittest.TestCase):
             receipt["manifest_approval"]["approved_by"], "owner-1"
         )
         self.assertTrue(receipt["manifest_approval"]["verified"])
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_ed25519_owner_approval(self):
+        private = self.root / "owner.key"
+        public = self.root / "owner.pub"
+        keys.generate(private, public)
+        approval = create_approval(
+            self.manifest,
+            "owner-1",
+            private_key_path=private,
+            at="2026-11-25T00:00:00Z",
+        )
+        (self.root / "capability.approval.json").write_text(
+            json.dumps(approval), encoding="utf-8"
+        )
+        gate = evaluate_gate(
+            self.manifest, "shadow", self.root, owner_public_key=public
+        )
+        self.assertEqual(gate.outcome, "pass", gate.reasons)
+        self.assertTrue(gate.manifest_approval["verified"])
+        self.assertEqual(gate.manifest_approval["scheme"], "ed25519")
+
+        missing = evaluate_gate(self.manifest, "shadow", self.root)
+        self.assertEqual(missing.outcome, "escalate")
+        self.assertIn("public key", missing.reasons[0])
+
+        other_private = self.root / "other.key"
+        other_public = self.root / "other.pub"
+        keys.generate(other_private, other_public)
+        wrong = evaluate_gate(
+            self.manifest, "shadow", self.root, owner_public_key=other_public
+        )
+        self.assertEqual(wrong.outcome, "escalate")
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_cli_ed25519_accept_and_gate(self):
+        private = self.root / "owner.key"
+        public = self.root / "owner.pub"
+        keys.generate(private, public)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = cli.main(
+                    [
+                        "capability",
+                        "accept",
+                        "--manifest",
+                        str(self.manifest_path),
+                        "--approver",
+                        "owner-1",
+                        "--private-key-file",
+                        str(private),
+                    ]
+                )
+        self.assertEqual(code, 0)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = cli.main(
+                    [
+                        "gate",
+                        "--manifest",
+                        str(self.manifest_path),
+                        "--stage",
+                        "shadow",
+                        "--root",
+                        str(self.root),
+                        "--owner-public-key",
+                        str(public),
+                        "--json",
+                    ]
+                )
+        self.assertEqual(code, 0)
 
     def test_cli_accept_and_gate(self):
         out = io.StringIO()

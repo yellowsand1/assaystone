@@ -626,6 +626,7 @@ def _cmd_capability_list(args: argparse.Namespace) -> int:
         args.root,
         owner_key=os.environ.get(args.owner_key_env) or "",
         receipt_key=os.environ.get(args.receipt_key_env) or "",
+        owner_public_key=args.owner_public_key,
     )
     if args.json:
         print(json.dumps(portfolio.to_dict(), indent=2))
@@ -645,8 +646,11 @@ def _cmd_capability_waive(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     key = os.environ.get(args.key_env) or ""
-    if not key:
-        print(f"error: set {args.key_env} to sign the waiver", file=sys.stderr)
+    if not key and not args.private_key_file:
+        print(
+            f"error: set {args.key_env} or pass --private-key-file",
+            file=sys.stderr,
+        )
         return 2
     try:
         entry = create_waiver(
@@ -656,6 +660,7 @@ def _cmd_capability_waive(args: argparse.Namespace) -> int:
             args.approver or manifest.owner,
             key,
             args.expires,
+            private_key_path=args.private_key_file,
         )
     except WaiverError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -710,6 +715,7 @@ def _cmd_capability_status(args: argparse.Namespace) -> int:
         receipt_path=args.receipt,
         approval_path=args.approval,
         owner_key=os.environ.get(args.owner_key_env) or "",
+        owner_public_key=args.owner_public_key,
         receipt_key=os.environ.get(args.receipt_key_env) or "",
     )
     if args.json:
@@ -728,12 +734,18 @@ def _cmd_capability_accept(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     key = os.environ.get(args.key_env) or ""
-    if not key:
-        print(f"error: set {args.key_env} to sign the approval", file=sys.stderr)
+    if not key and not args.private_key_file:
+        print(
+            f"error: set {args.key_env} or pass --private-key-file",
+            file=sys.stderr,
+        )
         return 2
     try:
         approval = create_approval(
-            manifest, args.approver or manifest.owner, key
+            manifest,
+            args.approver or manifest.owner,
+            key,
+            private_key_path=args.private_key_file,
         )
     except ApprovalError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -792,6 +804,7 @@ def cmd_gate(args: argparse.Namespace) -> int:
             trail_path=args.audit,
             approval_path=args.manifest_approval,
             owner_key=os.environ.get(args.owner_key_env) or "",
+            owner_public_key=args.owner_public_key,
             waivers_path=args.waivers,
         )
     except PlaneError as exc:
@@ -1623,6 +1636,9 @@ def _parser() -> argparse.ArgumentParser:
         "--key-env", default=DEFAULT_OWNER_KEY_ENV
     )
     capability_accept.add_argument(
+        "--private-key-file", default=None, metavar="PATH"
+    )
+    capability_accept.add_argument(
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
     )
     capability_accept.set_defaults(func=cmd_capability)
@@ -1642,6 +1658,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_status.add_argument(
         "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV
+    )
+    capability_status.add_argument(
+        "--owner-public-key", default=None, metavar="PATH"
     )
     capability_status.add_argument(
         "--receipt-key-env", default=DEFAULT_KEY_ENV
@@ -1665,6 +1684,9 @@ def _parser() -> argparse.ArgumentParser:
         "--key-env", default=DEFAULT_OWNER_KEY_ENV
     )
     capability_waive.add_argument(
+        "--private-key-file", default=None, metavar="PATH"
+    )
+    capability_waive.add_argument(
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
     )
     capability_waive.set_defaults(func=cmd_capability)
@@ -1675,6 +1697,9 @@ def _parser() -> argparse.ArgumentParser:
     capability_list.add_argument("--root", default=".")
     capability_list.add_argument(
         "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV
+    )
+    capability_list.add_argument(
+        "--owner-public-key", default=None, metavar="PATH"
     )
     capability_list.add_argument(
         "--receipt-key-env", default=DEFAULT_KEY_ENV
@@ -1736,7 +1761,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     gate_parser.add_argument(
         "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV,
-        help="environment variable holding the owner key",
+        help="environment variable holding the owner HMAC key",
+    )
+    gate_parser.add_argument(
+        "--owner-public-key", default=None, metavar="PATH",
+        help="Ed25519 public key for owner approvals and waivers",
     )
     gate_parser.add_argument(
         "--waivers", metavar="PATH", default=None,

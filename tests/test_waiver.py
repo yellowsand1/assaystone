@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest import mock
 
-from assaystone import cli, trail
+from assaystone import cli, keys, trail
 from assaystone.card import build_card
 from assaystone.plane import CapabilityManifest, evaluate_gate
 from assaystone.receipt import create_receipt
@@ -22,6 +22,13 @@ from assaystone.waiver import (
 )
 
 KEY = "owner-key"
+
+try:
+    import cryptography  # noqa: F401
+
+    HAVE_CRYPTO = True
+except ImportError:  # pragma: no cover
+    HAVE_CRYPTO = False
 
 
 def manifest_data(two_criteria=False):
@@ -213,6 +220,97 @@ class WaiverTest(unittest.TestCase):
             )
         )
         self.assertEqual(entry["criterion"], "ok")
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_ed25519_waiver(self):
+        private = self.root / "owner.key"
+        public = self.root / "owner.pub"
+        keys.generate(private, public)
+        expires = (date.today() + timedelta(days=30)).isoformat()
+        entry = create_waiver(
+            self.manifest,
+            "ok",
+            "migration window",
+            "owner-1",
+            "",
+            expires,
+            private_key_path=private,
+            at="2026-11-25T00:00:00Z",
+        )
+        payload = {
+            "version": entry["version"],
+            "capability": entry["capability"],
+            "manifest_digest": entry["manifest_digest"],
+            "waivers": [entry],
+        }
+        self.waiver_path.write_text(json.dumps(payload), encoding="utf-8")
+        gate = evaluate_gate(
+            self.manifest,
+            "canary",
+            self.root,
+            owner_public_key=public,
+        )
+        self.assertEqual(gate.outcome, "pass", gate.reasons)
+        self.assertEqual(gate.waived[0]["criterion"], "ok")
+
+        missing = evaluate_gate(self.manifest, "canary", self.root)
+        self.assertEqual(missing.outcome, "escalate")
+
+        other_private = self.root / "other.key"
+        other_public = self.root / "other.pub"
+        keys.generate(other_private, other_public)
+        wrong = evaluate_gate(
+            self.manifest,
+            "canary",
+            self.root,
+            owner_public_key=other_public,
+        )
+        self.assertEqual(wrong.outcome, "fail")
+
+    @unittest.skipUnless(HAVE_CRYPTO, "cryptography is not installed")
+    def test_cli_ed25519_waive_and_gate(self):
+        private = self.root / "owner.key"
+        public = self.root / "owner.pub"
+        keys.generate(private, public)
+        expires = (date.today() + timedelta(days=30)).isoformat()
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = cli.main(
+                    [
+                        "capability",
+                        "waive",
+                        "--manifest",
+                        str(self.manifest_path),
+                        "--criterion",
+                        "ok",
+                        "--reason",
+                        "migration window",
+                        "--expires",
+                        expires,
+                        "--approver",
+                        "owner-1",
+                        "--private-key-file",
+                        str(private),
+                    ]
+                )
+        self.assertEqual(code, 0)
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = cli.main(
+                    [
+                        "gate",
+                        "--manifest",
+                        str(self.manifest_path),
+                        "--stage",
+                        "canary",
+                        "--root",
+                        str(self.root),
+                        "--owner-public-key",
+                        str(public),
+                        "--json",
+                    ]
+                )
+        self.assertEqual(code, 0)
 
     def test_cli_waive_gate_and_status(self):
         expires = (date.today() + timedelta(days=30)).isoformat()
