@@ -521,11 +521,11 @@ def test_agent_run(assaystone):
 ### GitHub Action
 
 ```yaml
-- uses: yellowsand1/assaystone@v0.6.0
+- uses: yellowsand1/assaystone@v0.7.0
   with:
     contract: .assaystone/contract.json
     traces: .assaystone/traces
-    install: assaystone==0.6.0   # optional; default installs the action repo
+    install: assaystone==0.7.0   # optional; default installs the action repo
 ```
 
 Failures become PR annotations; a Markdown summary is written to the job summary.
@@ -729,7 +729,7 @@ tests/                 # unit + integration tests
 
 ## Status and roadmap
 
-`v0.6.0` — alpha. The core is domain-agnostic, and the acceptance plane now
+`v0.7.0` — alpha. The core is domain-agnostic, and the acceptance plane now
 gates a capability at shadow, canary, and production.
 
 - [x] audit: Claude Code and Codex CLI transcripts, message exports, trace JSON
@@ -750,6 +750,7 @@ gates a capability at shadow, canary, and production.
 - [x] oracle registry (versioned, pinned, fingerprinted)
 - [x] acceptance plane: capability manifests, nine oracle primitives, lifecycle gates
 - [x] hash-chained gate trail, manifest-digest continuity, signed approvals
+- [x] chained stages: production requires a recorded, verified canary pass
 - [x] checked rollback evidence and `capability init`
 - [ ] TypeScript port
 

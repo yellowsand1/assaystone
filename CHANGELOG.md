@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.7.0 — 2026-11-25
+
 - **Chained lifecycle stages.** A policy can require a recorded pass of an
   earlier stage: `"production": {"after": "canary"}`. The gate reads the trail,
   takes the most recent entry for the same capability and stage, and escalates
