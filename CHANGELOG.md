@@ -2,12 +2,18 @@
 
 ## Unreleased
 
+- **`transcript` oracle `ignore`.** Paths or globs excluded from the session
+  artifacts, so the gate's own `.assaystone/` tooling is not counted as agent
+  output. The real-agent run in the case study found this: an untracked
+  `api_diff.py` produced a false `no_debug_prints` finding.
 - **Lifecycle case study.** A real Maven module was taken through shadow, a
   public-API defect that compilation and an empty test suite cannot see, an
   escalation for a missing approval, a chained canary → production promotion,
   and a verified `git revert`. A second SQL/shadow domain ran on the same core.
   The write-up, with what it does and does not prove, is
-  [docs/case-study-lifecycle.md](docs/case-study-lifecycle.md).
+  [docs/case-study-lifecycle.md](docs/case-study-lifecycle.md). A real Claude
+  Code agent then made the same class of change in a fresh clone: it reported a
+  verified build, and the gate still failed at the API oracle.
 - **Java public-API oracle example.** `examples/capability/java_api_diff.py`
   compares `javap -public` against a git baseline in a temporary worktree. It is
   a command payload, not a new primitive.
