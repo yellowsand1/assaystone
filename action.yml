@@ -1,5 +1,5 @@
 name: Assaystone
-description: Verify recorded AI agent traces with acceptance contracts and annotate the job.
+description: Verify agent traces with a contract, or gate a capability with a manifest.
 author: Assaystone contributors
 branding:
   icon: check-circle
@@ -7,24 +7,50 @@ branding:
 
 outputs:
   verdict:
-    description: Overall verdict: pass, fail, or escalate.
-    value: ${{ steps.verify.outputs.verdict }}
+    description: "Overall verdict: pass, fail, or escalate."
+    value: ${{ steps.run.outputs.verdict }}
   findings:
-    description: Number of failed or escalated verifier verdicts.
-    value: ${{ steps.verify.outputs.findings }}
+    description: Failed or escalated verifier verdicts, or failed oracles in gate mode.
+    value: ${{ steps.run.outputs.findings }}
   traces:
-    description: Number of traces evaluated.
-    value: ${{ steps.verify.outputs.traces }}
+    description: Number of traces evaluated (0 in gate mode).
+    value: ${{ steps.run.outputs.traces }}
 
 inputs:
   contract:
     description: Path to the acceptance contract JSON file.
-    required: true
+    required: false
+    default: ""
   traces:
     description: Trace file or directory of trace JSON files.
-    required: true
+    required: false
+    default: ""
+  manifest:
+    description: Capability manifest to gate. Use with stage and root instead of contract and traces.
+    required: false
+    default: ""
+  stage:
+    description: Lifecycle stage to gate. One of design, shadow, canary, production, incident, retired.
+    required: false
+    default: "shadow"
+  root:
+    description: Project root the gate runs in.
+    required: false
+    default: "."
+  audit:
+    description: Trail file to read and append. Required for a stage with an `after` chain.
+    required: false
+    default: ""
+  actor:
+    description: Actor recorded in the trail. Defaults to ASSAYSTONE_ACTOR or USER.
+    required: false
+    default: ""
+  strict:
+    description: Escalate when a critical criterion is not gated at this stage.
+    required: false
+    default: "false"
   baseline:
-    description: Path to the baseline repository.
+    description: Path to the baseline repository (verify mode).
     required: false
     default: "."
   python-version:
@@ -32,7 +58,7 @@ inputs:
     required: false
     default: "3.11"
   install:
-    description: Optional pip install spec, for example "assaystone==0.5.0". Defaults to installing this action's repository.
+    description: Optional pip install spec, for example "assaystone==0.7.0" or "." for the current checkout.
     required: false
     default: ""
 
@@ -56,10 +82,44 @@ runs:
           fi
           python -m pip install "assaystone @ git+https://github.com/${repo}@${ref}"
         fi
-    - name: Verify agent traces
-      id: verify
+    - name: Run Assaystone
+      id: run
       shell: bash
       run: |
+        set -uo pipefail
+
+        if [ -n "${{ inputs.manifest }}" ]; then
+          if [ -n "${{ inputs.contract }}" ] || [ -n "${{ inputs.traces }}" ]; then
+            echo "::error::use either manifest/stage or contract/traces, not both"
+            exit 2
+          fi
+          argv=(
+            gate
+            --manifest "${{ inputs.manifest }}"
+            --stage "${{ inputs.stage }}"
+            --root "${{ inputs.root }}"
+            --json
+          )
+          if [ -n "${{ inputs.audit }}" ]; then
+            argv+=(--audit "${{ inputs.audit }}")
+          fi
+          if [ -n "${{ inputs.actor }}" ]; then
+            argv+=(--actor "${{ inputs.actor }}")
+          fi
+          if [ "${{ inputs.strict }}" = "true" ]; then
+            argv+=(--strict)
+          fi
+          report="$RUNNER_TEMP/assaystone-gate.json"
+          code=0
+          assaystone "${argv[@]}" > "$report" || code=$?
+          python "$GITHUB_ACTION_PATH/scripts/action_gate.py" "$report"
+          exit "$code"
+        fi
+
+        if [ -z "${{ inputs.contract }}" ] || [ -z "${{ inputs.traces }}" ]; then
+          echo "::error::provide manifest+stage, or contract+traces"
+          exit 2
+        fi
         assaystone verify \
           --contract "${{ inputs.contract }}" \
           --trace "${{ inputs.traces }}" \

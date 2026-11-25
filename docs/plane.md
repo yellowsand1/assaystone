@@ -435,7 +435,21 @@ the trail with no domain-specific code.
 
 ## In CI
 
-A gate is a command, so it fits any pipeline:
+A gate is a command, so it fits any pipeline. The bundled Action wraps it:
+
+```yaml
+- uses: yellowsand1/assaystone@v0.7.0
+  with:
+    manifest: .assaystone/capability.json
+    stage: canary
+    root: .
+    audit: .assaystone/trail.jsonl
+    actor: ${{ github.actor }}
+```
+
+The action writes the oracle table to the step summary, sets `verdict` and
+`findings` outputs, and exits non-zero on `fail` or `escalate`. The raw form is
+equivalent:
 
 ```yaml
 - run: pip install assaystone
