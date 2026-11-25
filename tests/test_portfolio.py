@@ -128,6 +128,56 @@ class PortfolioTest(unittest.TestCase):
             )
         self.assertEqual(code, 0)
 
+    def test_stage_gap_is_not_a_portfolio_defect(self):
+        directory = self.root / ".assaystone" / "cap-c"
+        directory.mkdir(parents=True)
+        data = manifest_data("cap-c")
+        data["criteria"].append(
+            {
+                "id": "approved",
+                "kind": "evidence",
+                "statement": "approved later",
+                "oracle": "approve",
+                "severity": "critical",
+            }
+        )
+        data["oracles"].append(
+            {"id": "approve", "type": "command", "payload": {"command": ["true"]}}
+        )
+        data["policies"]["production"] = {
+            "require": ["approve"],
+            "allow_merge": True,
+            "allow_deploy": True,
+        }
+        path = directory / "capability.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        shadow = evaluate_gate(manifest, "shadow", self.root)
+        trail.append(
+            directory / "trail.jsonl",
+            shadow,
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        production = evaluate_gate(manifest, "production", self.root)
+        trail.append(
+            directory / "trail.jsonl",
+            production,
+            actor="ci",
+            at="2026-11-25T00:01:00Z",
+        )
+        portfolio = build_portfolio(
+            self.root
+        )
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-c"
+        )
+        self.assertEqual(entry.critical, [])
+        self.assertNotEqual(entry.card.stage_gap, [])
+        self.assertEqual(portfolio.critical_count(), 2)
+
     def test_invalid_manifest_is_a_critical_entry(self):
         broken = self.root / ".assaystone" / "broken" / "capability.json"
         broken.parent.mkdir(parents=True)

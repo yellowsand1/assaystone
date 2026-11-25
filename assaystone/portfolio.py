@@ -80,12 +80,10 @@ def _critical(card: StatusCard) -> list[str]:
             issues.append(
                 f"criterion `{item['criterion']}` is gated by no stage"
             )
-    for item in card.stage_gap:
-        if item["severity"] == "critical":
-            issues.append(
-                f"criterion `{item['criterion']}` is not gated at "
-                f"`{card.stage}`"
-            )
+    # A criterion that is gated by a later stage is not a portfolio defect at
+    # the current lifecycle stage. The per-stage gap stays on the card as
+    # information; strict mode only requires that every declared stage has a
+    # passing decision and that every critical criterion is gated somewhere.
     if card.approval.get("required") and not card.approval.get("ok"):
         issues.append("owner approval is not valid")
     if card.trail.get("present") and not card.trail.get("ok"):
