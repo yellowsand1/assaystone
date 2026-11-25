@@ -1,38 +1,44 @@
 """The acceptance plane: capability manifests, generic oracles, and gates.
 
-The core knows only four oracle primitives: ``command``, ``file``, ``git``, and
-``human``. A domain — Java/Maven, a refund workflow, a data pipeline — is a
-manifest that binds criteria to those primitives. Nothing here knows what
-``mvn`` is; it is a command payload.
+The core knows only seven oracle primitives: ``command``, ``file``, ``git``,
+``human``, ``http``, ``sql``, and ``shadow``. A domain — Java/Maven, a refund
+workflow, a pricing pipeline — is a manifest that binds criteria to those
+primitives. Nothing here knows what ``mvn`` is; it is a command payload.
 
-This is deliberately small. It is the shape of the plane, not the whole plane.
+Oracles can be declared inline or referenced from a versioned registry, so a
+platform team owns the definitions and capability authors pin them.
 """
 from __future__ import annotations
 
+import hashlib
 import json
-import re
-import shlex
-import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .oracles import (  # noqa: F401 - re-exported for compatibility
+    ORACLE_TYPES,
+    OracleDefinition,
+    OracleError,
+    OracleRegistry,
+    OracleResult,
+    OracleSpec,
+    canonical_json,
+    check_read_only_sql,
+    oracle_fingerprint,
+    result_digest,
+    run_oracle,
+)
+
 RISKS = ("low", "medium", "high", "critical")
 STAGES = ("design", "shadow", "canary", "production", "incident", "retired")
-ORACLE_TYPES = ("command", "file", "git", "human")
 OUTCOMES = ("pass", "fail", "escalate")
+GATING_SEVERITIES = ("critical",)
+PRIMARY_SEVERITIES = ("critical", "high")
 
 
 class PlaneError(ValueError):
     """The manifest cannot be used."""
-
-
-@dataclass
-class OracleSpec:
-    id: str
-    type: str
-    description: str = ""
-    payload: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -66,32 +72,45 @@ class CapabilityManifest:
     policies: dict[str, StagePolicy]
     criteria: list[ManifestCriterion] = field(default_factory=list)
     retention: str = ""
+    registry: str = ""
+    registry_fingerprint: str = ""
 
     @classmethod
-    def load(cls, path: str | Path) -> "CapabilityManifest":
+    def load(
+        cls,
+        path: str | Path,
+        registry: OracleRegistry | None = None,
+    ) -> "CapabilityManifest":
+        file_path = Path(path).resolve()
         try:
-            data = json.loads(Path(path).read_text(encoding="utf-8"))
+            data = json.loads(file_path.read_text(encoding="utf-8"))
         except FileNotFoundError as exc:
             raise PlaneError(f"manifest not found: {path}") from exc
         except json.JSONDecodeError as exc:
             raise PlaneError(f"invalid manifest JSON in {path}: {exc}") from exc
-        return cls.from_dict(data, source=str(path))
+        if registry is None and isinstance(data, dict) and data.get("registry"):
+            try:
+                registry = OracleRegistry.load(file_path.parent / data["registry"])
+            except OracleError as exc:
+                raise PlaneError(str(exc)) from exc
+        return cls.from_dict(data, source=str(path), registry=registry)
 
     @classmethod
     def from_dict(
-        cls, data: dict[str, Any], source: str = "capability"
+        cls,
+        data: dict[str, Any],
+        source: str = "capability",
+        registry: OracleRegistry | None = None,
     ) -> "CapabilityManifest":
         if not isinstance(data, dict):
             raise PlaneError(f"manifest must be an object: {source}")
-        oracles = [
-            OracleSpec(
-                id=str(item["id"]),
-                type=str(item["type"]),
-                description=str(item.get("description") or ""),
-                payload=dict(item.get("payload") or {}),
+        declared_registry = str(data.get("registry") or "")
+        if registry is None and declared_registry:
+            raise PlaneError(
+                "manifest declares a registry but none was loaded; use "
+                "CapabilityManifest.load() or pass a registry"
             )
-            for item in data.get("oracles") or []
-        ]
+        oracles = [_oracle_spec(item, registry) for item in data.get("oracles") or []]
         policies = {
             str(name): StagePolicy(
                 require=[str(item) for item in (value.get("require") or [])],
@@ -112,6 +131,10 @@ class CapabilityManifest:
             )
             for item in data.get("criteria") or []
         ]
+        fingerprint = ""
+        if registry is not None:
+            body = canonical_json(registry.to_dict()).encode("utf-8")
+            fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()[:16]
         manifest = cls(
             capability=str(data.get("capability") or ""),
             owner=str(data.get("owner") or ""),
@@ -126,6 +149,8 @@ class CapabilityManifest:
             policies=policies,
             criteria=criteria,
             retention=str(data.get("retention") or ""),
+            registry=declared_registry or (registry.source if registry else ""),
+            registry_fingerprint=fingerprint,
         )
         errors = manifest.validate()
         if errors:
@@ -151,9 +176,7 @@ class CapabilityManifest:
             if not oracle.id.strip():
                 errors.append("oracle id is empty")
             if oracle.type not in ORACLE_TYPES:
-                errors.append(
-                    f"oracle {oracle.id}: unknown type {oracle.type!r}"
-                )
+                errors.append(f"oracle {oracle.id}: unknown type {oracle.type!r}")
         criterion_ids = [item.id for item in self.criteria]
         if len(set(criterion_ids)) != len(criterion_ids):
             errors.append("duplicate criterion id")
@@ -164,18 +187,26 @@ class CapabilityManifest:
                 errors.append(
                     f"criterion {criterion.id}: unknown oracle {criterion.oracle!r}"
                 )
+            if criterion.kind not in (
+                "precondition",
+                "invariant",
+                "postcondition",
+                "forbidden_action",
+                "evidence",
+            ):
+                errors.append(
+                    f"criterion {criterion.id}: unknown kind {criterion.kind!r}"
+                )
         for stage, policy in self.policies.items():
             if stage not in STAGES:
                 errors.append(f"policy stage {stage!r} is unknown")
             for oracle_id in policy.require + policy.approvals:
                 if oracle_id not in oracle_ids:
-                    errors.append(
-                        f"policy {stage}: unknown oracle {oracle_id!r}"
-                    )
+                    errors.append(f"policy {stage}: unknown oracle {oracle_id!r}")
         return errors
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             "capability": self.capability,
             "owner": self.owner,
             "systems": list(self.systems),
@@ -200,6 +231,9 @@ class CapabilityManifest:
                     "type": item.type,
                     "description": item.description,
                     "payload": item.payload,
+                    "ref": item.ref,
+                    "version": item.version,
+                    "fingerprint": item.fingerprint,
                 }
                 for item in self.oracles
             ],
@@ -214,206 +248,54 @@ class CapabilityManifest:
                 for name, policy in sorted(self.policies.items())
             },
         }
+        if self.registry:
+            data["registry"] = self.registry
+            data["registry_fingerprint"] = self.registry_fingerprint
+        return data
 
 
-@dataclass
-class OracleResult:
-    oracle: str
-    type: str
-    outcome: str
-    reasons: list[str] = field(default_factory=list)
-    evidence: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "oracle": self.oracle,
-            "type": self.type,
-            "outcome": self.outcome,
-            "reasons": list(self.reasons),
-            "evidence": list(self.evidence),
-        }
-
-
-def _result(
-    spec: OracleSpec,
-    outcome: str,
-    reasons: list[str] | None = None,
-    evidence: list[str] | None = None,
-) -> OracleResult:
-    return OracleResult(
-        oracle=spec.id,
-        type=spec.type,
-        outcome=outcome,
-        reasons=list(reasons or []),
-        evidence=list(evidence or []),
-    )
-
-
-def _tail(text: str, limit: int = 800) -> str:
-    text = (text or "").strip()
-    return text[-limit:] if len(text) > limit else text
-
-
-def _command(spec: OracleSpec, root: Path) -> OracleResult:
-    payload = spec.payload
-    command = payload.get("command")
-    if not command:
-        return _result(spec, "escalate", ["command payload is empty"])
-    if isinstance(command, str):
-        command = shlex.split(command)
-    cwd = root
-    if payload.get("cwd"):
-        cwd = (root / str(payload["cwd"])).resolve()
-        if not cwd.is_relative_to(root.resolve()):
-            return _result(spec, "escalate", ["cwd escapes the root"])
-    timeout = float(payload.get("timeout", 600))
-    expected = int(payload.get("expect_exit", 0))
-    try:
-        proc = subprocess.run(
-            [str(part) for part in command],
-            cwd=cwd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-    except FileNotFoundError:
-        return _result(spec, "escalate", [f"command not found: {command[0]}"])
-    except subprocess.TimeoutExpired:
-        return _result(spec, "escalate", ["command timed out"])
-    output = _tail((proc.stdout or "") + (proc.stderr or ""))
-    evidence = [f"exit={proc.returncode}", output] if output else [f"exit={proc.returncode}"]
-    if proc.returncode == expected:
-        return _result(spec, "pass", [], evidence)
-    return _result(
-        spec,
-        "fail",
-        [f"exit {proc.returncode} != expected {expected}"],
-        evidence,
-    )
-
-
-def _file(spec: OracleSpec, root: Path) -> OracleResult:
-    payload = spec.payload
-    path = payload.get("path")
-    if not path:
-        return _result(spec, "escalate", ["file payload has no path"])
-    target = (root / str(path)).resolve()
-    if not target.is_relative_to(root.resolve()):
-        return _result(spec, "escalate", ["path escapes the root"])
-    mode = str(payload.get("mode") or "exists")
-    if mode == "exists":
-        if target.exists():
-            return _result(spec, "pass", [], [str(path)])
-        return _result(spec, "fail", [f"missing: {path}"])
-    try:
-        text = target.read_text(encoding="utf-8")
-    except (FileNotFoundError, OSError):
-        return _result(spec, "fail", [f"cannot read: {path}"])
-    if mode == "json":
+def _oracle_spec(
+    item: Any, registry: OracleRegistry | None
+) -> OracleSpec:
+    if not isinstance(item, dict):
+        raise PlaneError("oracle must be an object")
+    ref = str(item.get("ref") or "")
+    oracle_id = str(item.get("id") or ref or "")
+    if not oracle_id:
+        raise PlaneError("oracle has an empty id")
+    if ref:
+        if item.get("type") or item.get("payload"):
+            raise PlaneError(
+                f"oracle {oracle_id}: a ref cannot also declare type or payload; "
+                "the registry owns the definition"
+            )
+        if registry is None:
+            raise PlaneError(
+                f"oracle {oracle_id}: ref {ref!r} needs an oracle registry"
+            )
         try:
-            json.loads(text)
-        except json.JSONDecodeError as exc:
-            return _result(spec, "fail", [f"invalid JSON: {exc}"])
-        return _result(spec, "pass", [], [str(path)])
-    if mode == "contains":
-        needle = str(payload.get("needle") or "")
-        if needle and needle in text:
-            return _result(spec, "pass", [], [str(path)])
-        return _result(spec, "fail", [f"does not contain {needle!r}"])
-    if mode == "regex":
-        pattern = str(payload.get("pattern") or "")
-        if pattern and re.search(pattern, text):
-            return _result(spec, "pass", [], [str(path)])
-        return _result(spec, "fail", [f"does not match {pattern!r}"])
-    return _result(spec, "escalate", [f"unknown file mode: {mode!r}"])
-
-
-def _git(spec: OracleSpec, root: Path) -> OracleResult:
-    payload = spec.payload
-    mode = str(payload.get("mode") or "clean")
-    try:
-        inside = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True,
-            timeout=30,
+            definition = registry.resolve(ref, item.get("version"))
+        except OracleError as exc:
+            raise PlaneError(str(exc)) from exc
+        return OracleSpec(
+            id=oracle_id,
+            type=definition.type,
+            description=str(item.get("description") or definition.description),
+            payload=definition.payload,
+            ref=ref,
+            version=definition.version,
+            fingerprint=definition.fingerprint,
         )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return _result(spec, "escalate", ["git is not available"])
-    if inside.returncode != 0:
-        return _result(spec, "escalate", ["not a git repository"])
-    if mode == "clean":
-        status = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if status.returncode != 0:
-            return _result(spec, "escalate", ["git status failed"])
-        if status.stdout.strip():
-            return _result(
-                spec,
-                "fail",
-                ["working tree is not clean"],
-                [_tail(status.stdout, 400)],
-            )
-        return _result(spec, "pass", [], ["clean"])
-    if mode == "branch":
-        current = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--abbrev-ref", "HEAD"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        name = current.stdout.strip()
-        expected = str(payload.get("expected") or "")
-        if expected and (name == expected or name.startswith(expected)):
-            return _result(spec, "pass", [], [name])
-        return _result(spec, "fail", [f"branch {name!r} != {expected!r}"])
-    return _result(spec, "escalate", [f"unknown git mode: {mode!r}"])
-
-
-def _human(spec: OracleSpec, root: Path) -> OracleResult:
-    payload = spec.payload
-    action = str(payload.get("action") or "")
-    record = (root / str(payload.get("record") or "approvals.json")).resolve()
-    if not record.is_relative_to(root.resolve()):
-        return _result(spec, "escalate", ["record path escapes the root"])
-    try:
-        data = json.loads(record.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return _result(spec, "escalate", [f"no approval record: {record.name}"])
-    except json.JSONDecodeError as exc:
-        return _result(spec, "escalate", [f"invalid approval record: {exc}"])
-    approvals = data.get("approvals") if isinstance(data, dict) else data
-    if not isinstance(approvals, list):
-        return _result(spec, "escalate", ["approvals must be a list"])
-    for item in approvals:
-        if not isinstance(item, dict) or item.get("action") != action:
-            continue
-        if item.get("approved"):
-            return _result(
-                spec,
-                "pass",
-                [],
-                [str(item.get("approver") or "unknown approver")],
-            )
-        return _result(spec, "fail", [f"{action}: approval denied"])
-    return _result(spec, "escalate", [f"{action}: no approval recorded"])
-
-
-def run_oracle(spec: OracleSpec, root: str | Path) -> OracleResult:
-    root = Path(root).resolve()
-    if spec.type == "command":
-        return _command(spec, root)
-    if spec.type == "file":
-        return _file(spec, root)
-    if spec.type == "git":
-        return _git(spec, root)
-    if spec.type == "human":
-        return _human(spec, root)
-    return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
+    return OracleSpec(
+        id=oracle_id,
+        type=str(item.get("type") or ""),
+        description=str(item.get("description") or ""),
+        payload=dict(item.get("payload") or {}),
+        version=item.get("version") if isinstance(item.get("version"), int) else None,
+        fingerprint=oracle_fingerprint(
+            str(item.get("type") or ""), dict(item.get("payload") or {})
+        ),
+    )
 
 
 @dataclass
@@ -426,6 +308,8 @@ class GateResult:
     reasons: list[str] = field(default_factory=list)
     merge_allowed: bool = False
     deploy_allowed: bool = False
+    gap: list[dict[str, Any]] = field(default_factory=list)
+    strict: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -437,13 +321,32 @@ class GateResult:
             "reasons": list(self.reasons),
             "merge_allowed": self.merge_allowed,
             "deploy_allowed": self.deploy_allowed,
+            "gap": list(self.gap),
+            "strict": self.strict,
         }
+
+
+def _assurance_gap(
+    manifest: CapabilityManifest, policy: StagePolicy
+) -> list[dict[str, Any]]:
+    gated = set(policy.require) | set(policy.approvals)
+    return [
+        {
+            "criterion": item.id,
+            "severity": item.severity,
+            "oracle": item.oracle,
+            "statement": item.statement,
+        }
+        for item in manifest.criteria
+        if item.oracle not in gated
+    ]
 
 
 def evaluate_gate(
     manifest: CapabilityManifest,
     stage: str,
     root: str | Path,
+    strict: bool = False,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -454,6 +357,7 @@ def evaluate_gate(
             stage=stage,
             outcome="escalate",
             reasons=[f"no policy for stage {stage!r}"],
+            strict=strict,
         )
     by_id = {item.id: item for item in manifest.oracles}
     required = list(dict.fromkeys(policy.require + policy.approvals))
@@ -466,9 +370,17 @@ def evaluate_gate(
             continue
         results.append(run_oracle(spec, root))
 
+    gap = _assurance_gap(manifest, policy)
+    blocking_gap = [
+        item
+        for item in gap
+        if item["severity"] in GATING_SEVERITIES and stage not in ("design",)
+    ]
     if any(item.outcome == "fail" for item in results):
         outcome = "fail"
     elif missing or any(item.outcome == "escalate" for item in results):
+        outcome = "escalate"
+    elif strict and blocking_gap:
         outcome = "escalate"
     else:
         outcome = "pass"
@@ -476,6 +388,16 @@ def evaluate_gate(
     reasons = [f"{stage} requires: {', '.join(required) or 'nothing'}"]
     for oracle_id in missing:
         reasons.append(f"missing oracle: {oracle_id}")
+    if gap:
+        reasons.append(
+            f"{len(gap)} declared criteria are not gated at {stage}"
+        )
+    if strict:
+        for item in blocking_gap:
+            reasons.append(
+                f"strict: {item['severity']} criterion {item['criterion']!r} "
+                f"is not gated at {stage}"
+            )
     if policy.rollback_required and outcome == "pass":
         reasons.append("rollback plan required")
     return GateResult(
@@ -487,6 +409,8 @@ def evaluate_gate(
         reasons=reasons,
         merge_allowed=policy.allow_merge and outcome == "pass",
         deploy_allowed=policy.allow_deploy and outcome == "pass",
+        gap=gap,
+        strict=strict,
     )
 
 
@@ -509,6 +433,14 @@ def render_gate(result: GateResult) -> str:
         )
     for oracle_id in result.missing:
         lines.append(f"{oracle_id:<20} {'-':<9} {'missing':<10} not in manifest")
+    if result.gap:
+        lines.append("")
+        lines.append("assurance gap (declared, not gated at this stage):")
+        for item in result.gap:
+            lines.append(
+                f"  {item['criterion']:<24} {item['severity']:<9} {item['statement']}"
+            )
+    lines.append("")
     for reason in result.reasons:
         lines.append(f"  {reason}")
     return "\n".join(lines)

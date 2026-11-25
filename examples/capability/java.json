@@ -7,6 +7,7 @@
   "risk": "high",
   "lifecycle": "shadow",
   "retention": "90d",
+  "registry": "oracles.json",
   "criteria": [
     {"id": "compiles", "kind": "postcondition", "statement": "The Java project compiles.", "oracle": "compile", "severity": "critical"},
     {"id": "tests-pass", "kind": "postcondition", "statement": "The test suite passes.", "oracle": "tests", "severity": "critical"},
@@ -15,12 +16,12 @@
     {"id": "feature-branch", "kind": "precondition", "statement": "The change is on a feature branch.", "oracle": "branch", "severity": "high"}
   ],
   "oracles": [
-    {"id": "compile", "type": "command", "description": "Maven compile", "payload": {"command": ["mvn", "-q", "-DskipTests", "compile"], "timeout": 600}},
-    {"id": "tests", "type": "command", "description": "Maven test", "payload": {"command": ["mvn", "-q", "test"], "timeout": 900}},
-    {"id": "migration", "type": "command", "description": "Flyway validate", "payload": {"command": ["mvn", "-q", "flyway:validate"], "timeout": 300}},
-    {"id": "classes", "type": "file", "description": "compile output exists", "payload": {"path": "target/classes", "mode": "exists"}},
-    {"id": "dba", "type": "human", "description": "DBA approval", "payload": {"action": "ddl", "record": "approvals.json"}},
-    {"id": "branch", "type": "git", "description": "feature branch", "payload": {"mode": "branch", "expected": "feature/"}}
+    {"id": "compile", "ref": "java.maven.compile", "version": 2},
+    {"id": "tests", "ref": "java.maven.test"},
+    {"id": "migration", "ref": "java.maven.flyway_validate"},
+    {"id": "classes", "ref": "java.classes"},
+    {"id": "branch", "ref": "java.feature_branch"},
+    {"id": "dba", "type": "human", "description": "DBA approval", "payload": {"action": "ddl", "record": "approvals.json"}}
   ],
   "policies": {
     "shadow": {"require": ["compile", "tests", "classes", "branch"], "allow_merge": false},

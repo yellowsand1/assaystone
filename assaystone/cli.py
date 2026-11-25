@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from . import __version__, demo
+from . import trail as audit_trail
 from .audit import AuditError, audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .compose import compose, render_plan
@@ -36,6 +37,7 @@ from .leaderboard import LeaderboardError, run_leaderboard
 from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
+from .oracles import OracleError, OracleRegistry
 from .plane import CapabilityManifest, PlaneError, evaluate_gate, render_gate
 from .protocol import (
     check_contract,
@@ -446,10 +448,16 @@ def cmd_protocol(args: argparse.Namespace) -> int:
     return 0
 
 
+def _registry(path: str | None) -> OracleRegistry | None:
+    return OracleRegistry.load(path) if path else None
+
+
 def cmd_capability(args: argparse.Namespace) -> int:
     try:
-        manifest = CapabilityManifest.load(args.manifest)
-    except PlaneError as exc:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     if args.json:
@@ -465,27 +473,73 @@ def cmd_capability(args: argparse.Namespace) -> int:
             f"criteria={len(manifest.criteria)} "
             f"policies={len(manifest.policies)}"
         )
+        if manifest.registry:
+            print(
+                f"  registry={manifest.registry} "
+                f"fingerprint={manifest.registry_fingerprint}"
+            )
     return 0
 
 
 def cmd_gate(args: argparse.Namespace) -> int:
     try:
-        manifest = CapabilityManifest.load(args.manifest)
-    except PlaneError as exc:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     try:
-        result = evaluate_gate(manifest, args.stage, args.root)
+        result = evaluate_gate(
+            manifest, args.stage, args.root, strict=args.strict
+        )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    entry = None
+    if args.audit:
+        actor = (
+            args.actor
+            or os.environ.get("ASSAYSTONE_ACTOR")
+            or os.environ.get("USER")
+            or "unknown"
+        )
+        try:
+            entry = audit_trail.append(args.audit, result, actor=actor)
+        except (OSError, audit_trail.TrailError) as exc:
+            print(f"error: cannot write trail: {exc}", file=sys.stderr)
+            return 2
     if args.json:
-        print(json.dumps(result.to_dict(), indent=2))
+        data = result.to_dict()
+        if entry is not None:
+            data["trail"] = {
+                "path": args.audit,
+                "seq": entry["seq"],
+                "hash": entry["hash"],
+            }
+        print(json.dumps(data, indent=2))
     else:
         print(render_gate(result))
+        if entry is not None:
+            print(
+                f"\ntrail: {args.audit} entry {entry['seq']} "
+                f"hash {entry['hash'][:23]}..."
+            )
     if result.outcome == "pass":
         return 0
     return 1 if result.outcome == "fail" else 2
+
+
+def cmd_trail(args: argparse.Namespace) -> int:
+    if args.trail_command != "verify":
+        print(f"error: unknown trail command {args.trail_command!r}", file=sys.stderr)
+        return 2
+    check = audit_trail.verify(args.path, expected_head=args.expect)
+    if args.json:
+        print(json.dumps(check.to_dict(), indent=2))
+    else:
+        print(audit_trail.render_check(check))
+    return 0 if check.ok else 1
 
 
 def cmd_leaderboard(args: argparse.Namespace) -> int:
@@ -1088,6 +1142,9 @@ def _parser() -> argparse.ArgumentParser:
         "validate", help="check a capability manifest"
     )
     capability_validate.add_argument("--manifest", required=True, metavar="PATH")
+    capability_validate.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
     capability_validate.add_argument("--json", action="store_true")
     capability_validate.set_defaults(func=cmd_capability)
 
@@ -1107,8 +1164,35 @@ def _parser() -> argparse.ArgumentParser:
         choices=["design", "shadow", "canary", "production", "incident", "retired"],
     )
     gate_parser.add_argument("--root", default=".")
+    gate_parser.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    gate_parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="escalate when a critical criterion is not gated at this stage",
+    )
+    gate_parser.add_argument(
+        "--audit", metavar="PATH", default=None, help="append to this trail file"
+    )
+    gate_parser.add_argument("--actor", default=None, help="who ran the gate")
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)
+
+    trail_parser = sub.add_parser(
+        "trail", help="verify a hash-chained gate audit trail"
+    )
+    trail_sub = trail_parser.add_subparsers(dest="trail_command", required=True)
+    trail_verify = trail_sub.add_parser("verify", help="check the hash chain")
+    trail_verify.add_argument("path", metavar="PATH")
+    trail_verify.add_argument(
+        "--expect",
+        default=None,
+        metavar="HASH",
+        help="anchored head hash; detects truncation of the tail",
+    )
+    trail_verify.add_argument("--json", action="store_true")
+    trail_verify.set_defaults(func=cmd_trail)
 
     compose_parser = sub.add_parser(
         "compose",

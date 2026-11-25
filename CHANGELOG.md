@@ -2,6 +2,42 @@
 
 ## Unreleased
 
+### Acceptance plane: two more primitive families, a registry, and a trail
+
+- **`http`, `sql`, and `shadow` oracles.** The plane now has seven generic
+  primitives. `http` reads a status, a JSON path, or a matcher, resolves
+  credentials from the environment, refuses to follow redirects, requires
+  `allow_write` for mutating methods, and bypasses environment proxies for
+  loopback hosts. `sql` accepts one read-only `SELECT`/`WITH` statement, opens
+  SQLite with `mode=ro` and `query_only`, uses a read-only MySQL session when
+  `pymysql` is installed, caps results, and escalates on an absent driver.
+  `shadow` runs an old and a new implementation on the same input and compares
+  text, JSON (ignored paths, numeric tolerance), or exit outcomes; divergence
+  fails, a broken baseline escalates.
+- **Oracle registry.** Shared oracle definitions live in a versioned
+  `oracles.json`. Manifests reference them with a version pin; a ref cannot
+  override `type` or `payload`, so a capability cannot quietly weaken a shared
+  oracle. Every oracle carries a fingerprint, and the manifest records the
+  registry fingerprint. `examples/capability/java.json` now resolves its Maven,
+  artifact, and branch oracles from `examples/capability/oracles.json`.
+- **Audit trail.** `gate --audit PATH --actor NAME` appends a hash-chained JSONL
+  entry naming the capability, stage, actor, outcome, per-oracle evidence
+  digests, missing oracles, and the assurance gap. `assaystone trail verify`
+  recomputes the chain and reports where it broke; `--expect HASH` detects
+  truncation when the head is anchored externally. The documentation states
+  what a local chain cannot prove.
+- **Assurance gap at the gate.** Every gate reports declared criteria the stage
+  does not gate. `--strict` escalates when a critical criterion is ungated; a
+  failure still outranks the gap.
+- **Third domain, manifest only.** `pricing.json` checks a fee refactor with a
+  `shadow` parity oracle, a `sql` ledger oracle, a `command` test oracle, and a
+  human publish approval. `pricing_project` is deterministic and needs no
+  network, JVM, or database server. `plane.py` gained no domain-specific code.
+- **Proxy fix.** A loopback `http` oracle no longer routes through
+  `http_proxy`; a refused local connection used to arrive as a proxy error page
+  and read as a failure instead of an escalation.
+- **Coverage of the new surface.** 59 new tests, 350 total.
+
 ### Verifier protocol and adversarial measurement
 
 - **Verifier protocol v1.** Every verifier now declares `claim`, `catches`,

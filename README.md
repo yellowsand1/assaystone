@@ -284,23 +284,38 @@ It reports the selected checks, the cost against the budget, classes that no che
 decides, and classes that rest on a single check. The last list is the useful one:
 a contract can cover every declared class and still have no redundancy.
 
-## Capability gates (preview)
+## Acceptance plane
 
-A capability manifest binds criteria to four generic oracles — `command`,
-`file`, `git`, `human` — and a lifecycle policy:
+A capability manifest binds criteria to generic oracles — `command`, `file`,
+`git`, `human`, `http`, `sql`, `shadow` — and a lifecycle policy:
 
 ```bash
-assaystone capability validate --manifest examples/capability/java.json
-assaystone gate --manifest examples/capability/java.json --stage shadow --root .
+assaystone capability validate --manifest examples/capability/pricing.json
+assaystone gate --manifest examples/capability/pricing.json --stage shadow \
+  --root examples/capability/pricing_project --audit trail.jsonl --actor ci
+assaystone trail verify trail.jsonl
 ```
 
 `shadow` can pass but cannot merge; `canary` and `production` add approvals.
 The core does not know Maven: `mvn -q -DskipTests compile` is a command payload.
+A SQL check is a single read-only query. A `shadow` check runs the old and the
+new implementation on the same input and fails when the output diverges, which
+is the missing oracle for refactors, migrations, and model swaps.
 
-Two templates ship: `java.json` (Maven) and `java_local.json` (`javac`, used by
-the tests). `support.json` is a second domain — a refund request with a policy
-limit and a manager approval — running on the **same core** with a different
-manifest. A new domain is a manifest, not a new code path.
+Three domains run on the same core:
+
+- `java.json` — Maven template. Oracles come from a versioned registry
+  (`oracles.json`) and the manifest pins versions; a registry update cannot
+  silently change what a capability verifies.
+- `support.json` — a refund request with a policy limit and a manager approval.
+- `pricing.json` — a fee refactor. `shadow` proves parity, `sql` checks the
+  ledger, and a critical criterion missing from a stage is reported as an
+  assurance gap (`--strict` escalates it).
+
+`gate` appends to a hash-chained trail: actor, stage, outcome, missing oracles,
+the assurance gap, and a digest of every oracle it ran. `trail verify` detects
+edits and deleted entries; pass `--expect HASH` with an externally anchored head
+to detect truncation as well. Reference: [docs/plane.md](docs/plane.md).
 
 ## External tools
 
@@ -646,6 +661,9 @@ assaystone/protocol.py # verifier ABI, JSON Schemas, conformance check
 assaystone/coverage.py # declared defects vs. decided coverage vs. residual risk
 assaystone/goodhart.py # adversarial suite: resistance and declared escapes
 assaystone/reportcard.py # conformance + coverage + recall + resistance on one page
+assaystone/plane.py    # capability manifests, lifecycle gates, assurance gap
+assaystone/oracles.py  # seven generic primitives + versioned registry
+assaystone/trail.py    # hash-chained gate audit trail
 assaystone/corpus.py   # add a labelled trace or transcript to a family
 assaystone/leaderboard.py # compare several contracts on one page
 assaystone/packs/external.py # pytest / ruff adapters (optional, fail closed)
@@ -660,11 +678,13 @@ examples/audit/        # a Claude Code transcript that deletes the failing test
 examples/importers/    # LangSmith / Langfuse / OTel export fixtures
 examples/hooks/        # Claude Code Stop hook settings
 examples/third_party_pack/ # a verifier implemented outside the package
+examples/capability/   # three domains on one plane: Java, refund, pricing
 failure_zoo/           # labeled failure corpus (seed)
 docs/why.md            # the longer argument
 docs/vision.md         # the product spec: four layers and the domain-pack boundary
 docs/protocol.md       # the verifier ABI and the three schemas
 docs/acceptance-ir.md  # the criterion language above the verifiers
+docs/plane.md          # acceptance plane: oracles, registry, gates, trail
 docs/protocol.json     # generated catalog of every conformant verifier
 docs/corpus.md         # how to add a labelled case
 docs/adoption.md       # the 45-minute design-partner script
