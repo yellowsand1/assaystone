@@ -53,6 +53,14 @@ from .protocol import (
     render_protocol,
     write_schemas,
 )
+from .receipt import (
+    DEFAULT_KEY_ENV,
+    ReceiptError,
+    create_receipt,
+    load_receipt,
+    render_check,
+    verify_receipt,
+)
 from .replay import git_preimage, is_git_repo
 from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
@@ -602,6 +610,21 @@ def cmd_gate(args: argparse.Namespace) -> int:
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    actor = (
+        args.actor
+        or os.environ.get("ASSAYSTONE_ACTOR")
+        or os.environ.get("USER")
+        or "unknown"
+    )
+    receipt_key = ""
+    if args.receipt:
+        receipt_key = os.environ.get(args.receipt_key_env) or ""
+        if not receipt_key:
+            print(
+                f"error: --receipt needs {args.receipt_key_env}",
+                file=sys.stderr,
+            )
+            return 2
     entry = None
     if args.audit:
         previous = audit_trail.last_manifest_digest(
@@ -619,17 +642,29 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 "manifest changed since the last gate on this trail; review "
                 "the diff and re-run with --accept-manifest-change"
             )
-        actor = (
-            args.actor
-            or os.environ.get("ASSAYSTONE_ACTOR")
-            or os.environ.get("USER")
-            or "unknown"
-        )
         try:
             entry = audit_trail.append(args.audit, result, actor=actor)
         except (OSError, audit_trail.TrailError) as exc:
             print(f"error: cannot write trail: {exc}", file=sys.stderr)
             return 2
+    receipt = None
+    if args.receipt:
+        try:
+            receipt = create_receipt(
+                result,
+                args.root,
+                receipt_key,
+                actor=actor,
+                trail_path=args.audit,
+            )
+        except ReceiptError as exc:
+            print(f"error: cannot sign receipt: {exc}", file=sys.stderr)
+            return 2
+        target = Path(args.receipt)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            json.dumps(receipt, indent=2) + "\n", encoding="utf-8"
+        )
     if args.json:
         data = result.to_dict()
         if entry is not None:
@@ -637,6 +672,13 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 "path": args.audit,
                 "seq": entry["seq"],
                 "hash": entry["hash"],
+            }
+        if receipt is not None:
+            data["receipt"] = {
+                "path": args.receipt,
+                "signature": receipt["signature"],
+                "commit": receipt["commit"],
+                "trail_head": receipt["trail_head"],
             }
         print(json.dumps(data, indent=2))
     else:
@@ -646,9 +688,41 @@ def cmd_gate(args: argparse.Namespace) -> int:
                 f"\ntrail: {args.audit} entry {entry['seq']} "
                 f"hash {entry['hash'][:23]}..."
             )
+        if receipt is not None:
+            print(
+                f"receipt: {args.receipt} commit {receipt['commit'] or '-'} "
+                f"signature {receipt['signature'][:31]}..."
+            )
     if result.outcome == "pass":
         return 0
     return 1 if result.outcome == "fail" else 2
+
+
+def cmd_receipt(args: argparse.Namespace) -> int:
+    if args.receipt_command != "verify":
+        print(
+            f"error: unknown receipt command {args.receipt_command!r}",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        data = load_receipt(args.path)
+    except ReceiptError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    key = os.environ.get(args.key_env) or ""
+    check = verify_receipt(
+        data,
+        key,
+        expected_commit=args.commit,
+        expected_manifest_digest=args.manifest_digest,
+        expected_outcome=args.outcome,
+    )
+    if args.json:
+        print(json.dumps(check.to_dict(), indent=2))
+    else:
+        print(render_check(check))
+    return 0 if check.ok else 1
 
 
 def cmd_trail(args: argparse.Namespace) -> int:
@@ -1337,6 +1411,14 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="record a reviewed manifest change instead of escalating",
     )
+    gate_parser.add_argument(
+        "--receipt", metavar="PATH", default=None,
+        help="write a signed receipt for this decision",
+    )
+    gate_parser.add_argument(
+        "--receipt-key-env", default=DEFAULT_KEY_ENV,
+        help="environment variable holding the receipt key",
+    )
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)
 
@@ -1354,6 +1436,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     trail_verify.add_argument("--json", action="store_true")
     trail_verify.set_defaults(func=cmd_trail)
+
+    receipt_parser = sub.add_parser(
+        "receipt", help="verify a signed gate receipt"
+    )
+    receipt_sub = receipt_parser.add_subparsers(
+        dest="receipt_command", required=True
+    )
+    receipt_verify = receipt_sub.add_parser("verify", help="check a receipt")
+    receipt_verify.add_argument("path", metavar="PATH")
+    receipt_verify.add_argument("--key-env", default=DEFAULT_KEY_ENV)
+    receipt_verify.add_argument("--commit", default=None)
+    receipt_verify.add_argument("--manifest-digest", default=None)
+    receipt_verify.add_argument(
+        "--outcome", default=None, choices=["pass", "fail", "escalate"]
+    )
+    receipt_verify.add_argument("--json", action="store_true")
+    receipt_verify.set_defaults(func=cmd_receipt)
 
     compose_parser = sub.add_parser(
         "compose",

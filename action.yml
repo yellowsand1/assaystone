@@ -49,6 +49,14 @@ inputs:
     description: Escalate when a critical criterion is not gated at this stage.
     required: false
     default: "false"
+  receipt:
+    description: Path to write a signed gate receipt (gate mode).
+    required: false
+    default: ""
+  receipt-key-env:
+    description: Environment variable holding the receipt key.
+    required: false
+    default: "ASSAYSTONE_RECEIPT_KEY"
   baseline:
     description: Path to the baseline repository (verify mode).
     required: false
@@ -108,6 +116,12 @@ runs:
           fi
           if [ "${{ inputs.strict }}" = "true" ]; then
             argv+=(--strict)
+          fi
+          if [ -n "${{ inputs.receipt }}" ]; then
+            argv+=(
+              --receipt "${{ inputs.receipt }}"
+              --receipt-key-env "${{ inputs.receipt-key-env }}"
+            )
           fi
           report="$RUNNER_TEMP/assaystone-gate.json"
           code=0

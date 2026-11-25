@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-No changes yet.
+- **Signed gate receipts.** `gate --receipt` writes an HMAC-SHA256 receipt bound
+  to the commit, the manifest digest, the trail head, and every oracle digest.
+  `receipt verify` checks it offline and fails on any changed field, wrong key,
+  or a commit/manifest/outcome mismatch. The gate refuses to sign a broken trail
+  and refuses to write a receipt without a key. The Action takes a `receipt`
+  input and the CI job verifies the result. The trust model is symmetric: the
+  receipt proves the signer held the key, not public verifiability.
 
 ## 0.9.0 — 2026-11-25
 
