@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.19.0 — 2026-11-25
+
 - **`capability diff`.** Compare two manifest versions the way a reviewer reads
   them: criteria added, removed, or changed, oracle fingerprints, per-stage
   requirements, approvals, rollback, and chain. A change that removes or lowers
