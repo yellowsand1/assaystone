@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.27.0 — 2026-11-26
+
 - **`canary` oracle (thirteenth primitive): compare distributions, not single
   measurements.** Samples the incumbent and the candidate, bootstraps an interval
   for the difference with a fixed seed, and fails only when the relative change
