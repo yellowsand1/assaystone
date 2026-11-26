@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Canary, documented and tested.** `shadow` already compares two HTTP
+  endpoints, so a canary is `<incumbent>` vs `<candidate>` with `ignore` for
+  version strings and timestamps and `tolerance` for numeric noise; an `http`
+  oracle with a numeric threshold covers a metric that is already aggregated. A
+  test now pins the pattern. No new primitive was needed.
 - **`capability propose`: the standard grows with the repository.** Re-running
   the inference against an existing manifest lists criteria the repository now
   implies and the manifest lacks, with the evidence for each. `--apply` adds

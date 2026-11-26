@@ -95,6 +95,10 @@ class HttpHandler(BaseHTTPRequestHandler):
                 200,
                 {"error_rate": 0.004, "p95_ms": 180, "ok": True},
             )
+        elif self.path == "/incumbent":
+            self._send(200, {"fee": 105, "served_by": "v1"})
+        elif self.path == "/candidate":
+            self._send(200, {"fee": 105, "served_by": "v2"})
         else:
             self._send(404, {"error": "not found"})
 
@@ -249,6 +253,29 @@ class HttpOracleTest(unittest.TestCase):
             self.root,
         )
         self.assertEqual(result.outcome, "escalate")
+
+    def test_a_canary_is_a_shadow_across_two_endpoints(self):
+        def canary(**compare):
+            return run_oracle(
+                spec(
+                    "shadow",
+                    {
+                        "old": {"type": "http", "payload": {
+                            "url": self.url("/incumbent")}},
+                        "new": {"type": "http", "payload": {
+                            "url": self.url("/candidate")}},
+                        "compare": {"mode": "json", **compare},
+                    },
+                ),
+                self.root,
+            )
+
+        diverged = canary()
+        self.assertEqual(diverged.outcome, "fail")
+        self.assertIn("served_by", diverged.reasons[0])
+
+        ignored = canary(ignore=["served_by"])
+        self.assertEqual(ignored.outcome, "pass", ignored.reasons)
 
     def test_numeric_thresholds(self):
         def check(**matcher):
