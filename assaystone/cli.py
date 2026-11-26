@@ -59,6 +59,9 @@ from .plane import (
     render_gate,
 )
 from .portfolio import build_portfolio, render_portfolio
+from .propose import materialise as materialise_proposals
+from .propose import propose as propose_checks
+from .propose import scan as scan_repository
 from .protocol import (
     check_contract,
     check_manifest,
@@ -511,6 +514,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_drill(args)
     if args.capability_command == "utility":
         return _cmd_capability_utility(args)
+    if args.capability_command == "propose":
+        return _cmd_capability_propose(args)
     if args.capability_command == "list":
         return _cmd_capability_list(args)
     try:
@@ -630,6 +635,73 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_propose(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    facts = scan_repository(args.root)
+    known_criteria = {item.id for item in manifest.criteria}
+    known_oracles = {item.id for item in manifest.oracles}
+    new = [
+        item
+        for item in propose_checks(facts)
+        if item.id not in known_criteria
+        and item.oracle["id"] not in known_oracles
+    ]
+    if args.json:
+        print(json.dumps([item.to_dict() for item in new], indent=2))
+        return 0
+    if not new:
+        print(
+            f"{manifest.capability}: nothing new to propose from what is in "
+            f"{Path(args.root).resolve()}"
+        )
+        return 0
+    print(f"{manifest.capability}: {len(new)} proposed addition(s)")
+    for item in new:
+        print(f"  + {item.id} ({item.severity}) via `{item.oracle['id']}`")
+        print(f"    {item.statement}")
+        print(f"    why: {item.why}")
+    if not args.apply:
+        print(
+            "\nre-run with --apply to add them; the owner approval will then "
+            "need to be re-signed"
+        )
+        return 0
+    data = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    for item in new:
+        data.setdefault("oracles", []).append(item.oracle)
+        data.setdefault("criteria", []).append(
+            {
+                "id": item.id,
+                "kind": item.kind,
+                "statement": item.statement,
+                "oracle": item.oracle["id"],
+                "severity": item.severity,
+            }
+        )
+        for policy in (data.get("policies") or {}).values():
+            require = policy.setdefault("require", [])
+            if item.oracle["id"] not in require:
+                require.append(item.oracle["id"])
+    try:
+        CapabilityManifest.from_dict(data, source=str(args.manifest))
+    except PlaneError as exc:
+        print(f"error: the result would be invalid: {exc}", file=sys.stderr)
+        return 2
+    Path(args.manifest).write_text(json.dumps(data, indent=2) + "\n",
+                                   encoding="utf-8")
+    written = materialise_proposals(Path(args.root).resolve(), new)
+    for path in written:
+        print(f"wrote {path}")
+    print("updated the manifest; the owner approval must be re-signed")
     return 0
 
 
@@ -1891,6 +1963,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_utility.add_argument("--json", action="store_true")
     capability_utility.set_defaults(func=cmd_capability)
+
+    capability_propose = capability_sub.add_parser(
+        "propose",
+        help="propose criteria the repository implies but the manifest lacks",
+    )
+    capability_propose.add_argument("--manifest", required=True, metavar="PATH")
+    capability_propose.add_argument("--root", default=".")
+    capability_propose.add_argument("--apply", action="store_true")
+    capability_propose.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_propose.add_argument("--json", action="store_true")
+    capability_propose.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",
