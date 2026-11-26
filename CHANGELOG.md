@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.28.0 — 2026-11-26
+
 - **A team view without a service.** `capability list` accepts repeated `--root`
   and a `--index` file (`{"roots": ["api", "worker"]}`, resolved relative to the
   index). With several roots the table gains a `repo` column and critical risks
