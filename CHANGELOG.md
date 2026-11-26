@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.21.0 — 2026-11-26
+
 - **`capability drill` and the `drill` oracle: proof that the compensation
   works.** A manifest can declare `reversibility` (an action oracle, its
   compensation, and the state paths to compare). The drill hashes the state, runs
