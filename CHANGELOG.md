@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.20.0 — 2026-11-26
+
 - **Ten primitives.** The README, the plane reference, and the demo count the
   `runtime` oracle, so the numbers match the code again.
 - **The status card shows the runtime record.** A session record that is
