@@ -110,6 +110,12 @@ def _critical(card: StatusCard) -> list[str]:
                 f"the last `{card.lifecycle}` gate was "
                 f"`{current.get('outcome')}`"
             )
+        current_entry = last.get(card.lifecycle)
+        if current_entry and current_entry.get("stale"):
+            issues.append(
+                f"the last `{card.lifecycle}` decision is for a different "
+                "commit"
+            )
         for stage, entry in last.items():
             if stage == card.lifecycle:
                 continue
@@ -146,6 +152,7 @@ def build_portfolio(
 
         card = build_card(
             manifest,
+            root=root,
             trail_path=sidecar("trail.jsonl"),
             receipt_path=sidecar("receipt.json"),
             approval_path=sidecar("capability.approval.json"),

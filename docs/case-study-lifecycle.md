@@ -178,6 +178,12 @@ incident gate verifies cleanliness, parity, and the two signatures; it does not
 prove that a deployed system was restored. That still needs a real deployment and
 a compensation oracle.
 
+A later reading of the same trail found a more serious gap: the chain compared
+the capability and the manifest digest, but **not the commit**. Production could
+have chained to a canary pass recorded on different code. The gate now records
+`HEAD` in every trail entry and refuses to chain across commits, and the status
+card marks a decision on older code as stale.
+
 The trial also found a portfolio bug: `capability list --strict` treated a
 criterion gated only at a later stage as a critical defect at the current
 lifecycle. A capability at `shadow` is not expected to gate production criteria.

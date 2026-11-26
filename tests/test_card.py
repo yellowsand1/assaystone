@@ -212,6 +212,33 @@ class CardTest(unittest.TestCase):
             any("different trail head" in risk for risk in card.residual_risks)
         )
 
+    def test_a_decision_on_older_code_is_stale(self):
+        manifest_path = self.root / "capability.json"
+        manifest_path.write_text(json.dumps(manifest_data()), encoding="utf-8")
+        loaded = CapabilityManifest.load(manifest_path)
+        gate = evaluate_gate(loaded, "shadow", self.root)
+        trail.append(self.trail, gate, actor="ci", at="2026-11-25T00:00:00Z")
+        card = build_card(loaded, stage="shadow", trail_path=self.trail)
+        self.assertFalse(card.trail["last"]["shadow"]["stale"])
+        self.assertFalse(
+            any("different commit" in risk for risk in card.residual_risks)
+        )
+
+        (self.root / "later.txt").write_text("a later change\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=a@b.c", "-c", "user.name=t",
+             "commit", "-qm", "later"],
+            cwd=self.root,
+            check=True,
+        )
+        stale = build_card(loaded, stage="shadow", trail_path=self.trail)
+        self.assertTrue(stale.trail["last"]["shadow"]["stale"])
+        self.assertTrue(
+            any("different commit" in risk for risk in stale.residual_risks)
+        )
+        self.assertIn("[stale commit]", render_card(stale))
+
     def test_cli_json_and_text(self):
         manifest_path = self.base / "capability.json"
         manifest_path.write_text(json.dumps(manifest_data()), encoding="utf-8")

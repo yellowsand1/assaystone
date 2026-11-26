@@ -738,6 +738,7 @@ def _cmd_capability_status(args: argparse.Namespace) -> int:
         owner_key=os.environ.get(args.owner_key_env) or "",
         owner_public_key=args.owner_public_key,
         revocations_path=args.revocations,
+        root=args.root,
         receipt_key=os.environ.get(args.receipt_key_env) or "",
     )
     if args.json:
@@ -1702,6 +1703,9 @@ def _parser() -> argparse.ArgumentParser:
         "status", help="summarize the current state of acceptance"
     )
     capability_status.add_argument("--manifest", required=True, metavar="PATH")
+    capability_status.add_argument(
+        "--root", default=".", help="the code the decisions apply to"
+    )
     capability_status.add_argument("--trail", default=None, metavar="PATH")
     capability_status.add_argument("--receipt", default=None, metavar="PATH")
     capability_status.add_argument("--approval", default=None, metavar="PATH")

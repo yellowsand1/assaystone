@@ -1055,6 +1055,24 @@ class StageChainTest(unittest.TestCase):
         self.marker = self.root / "ok"
         self.marker.write_text("1\n", encoding="utf-8")
         self.trail = self.root / "trail.jsonl"
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        self.commit("init")
+
+    def commit(self, message):
+        subprocess.run(["git", "add", "-A"], cwd=self.root, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c", "user.email=a@b.c", "-c", "user.name=t",
+                "commit", "-qm", message,
+            ],
+            cwd=self.root,
+            check=True,
+        )
+        return subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
 
     def manifest(self, capability="chain", command=None):
         command = command or (
@@ -1157,6 +1175,59 @@ class StageChainTest(unittest.TestCase):
         with self.assertRaises(PlaneError) as caught:
             CapabilityManifest.from_dict(data)
         self.assertIn("circular", str(caught.exception))
+
+    def test_a_canary_pass_for_other_code_does_not_authorise_this_one(self):
+        manifest = self.manifest()
+        canary = evaluate_gate(manifest, "canary", self.root)
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        # New code lands after the canary decision.
+        (self.root / "note.txt").write_text("a later change\n", encoding="utf-8")
+        self.commit("a second commit")
+        production = evaluate_gate(
+            manifest, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "escalate")
+        reasons = " ".join(production.reasons)
+        self.assertIn("recorded for commit", reasons)
+        self.assertIn("re-run canary", reasons)
+        self.assertFalse(production.deploy_allowed)
+
+    def test_production_passes_once_canary_reruns_on_the_new_code(self):
+        manifest = self.manifest()
+        first = evaluate_gate(manifest, "canary", self.root)
+        trail.append(self.trail, first, actor="ci", at="2026-11-25T00:00:00Z")
+        (self.root / "note.txt").write_text("a later change\n", encoding="utf-8")
+        self.commit("a second commit")
+        second = evaluate_gate(manifest, "canary", self.root)
+        trail.append(self.trail, second, actor="ci", at="2026-11-25T00:01:00Z")
+        production = evaluate_gate(
+            manifest, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "pass", production.reasons)
+        self.assertTrue(production.deploy_allowed)
+        self.assertEqual(
+            production.prior["commit"],
+            subprocess.run(
+                ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip(),
+        )
+
+    def test_an_entry_without_a_commit_cannot_chain(self):
+        manifest = self.manifest()
+        canary = evaluate_gate(manifest, "canary", self.root)
+        trail.append(self.trail, canary, actor="ci", at="2026-11-25T00:00:00Z")
+        from assaystone.trail import _entry_hash
+
+        entry = json.loads(self.trail.read_text(encoding="utf-8"))
+        entry.pop("commit", None)
+        entry["hash"] = _entry_hash(entry)
+        self.trail.write_text(json.dumps(entry) + "\n", encoding="utf-8")
+        production = evaluate_gate(
+            manifest, "production", self.root, trail_path=self.trail
+        )
+        self.assertEqual(production.outcome, "escalate")
+        self.assertIn("no commit", production.reasons[0])
 
     def test_another_capability_does_not_count(self):
         other = self.manifest(capability="other")

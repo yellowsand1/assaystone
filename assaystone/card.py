@@ -16,7 +16,7 @@ from .approval import (
     load_approval,
     verify_approval,
 )
-from .plane import CapabilityManifest
+from .plane import CapabilityManifest, repo_head_commit
 from .receipt import ReceiptError, load_receipt, verify_receipt
 from .revocation import read_revocations, revocation_path_for
 from .trail import TrailError
@@ -131,7 +131,9 @@ def _approval_status(
 
 
 def _trail_status(
-    manifest: CapabilityManifest, path: str | Path | None
+    manifest: CapabilityManifest,
+    path: str | Path | None,
+    root: str | Path | None = None,
 ) -> dict[str, Any]:
     if path is None:
         return {"present": False}
@@ -160,12 +162,24 @@ def _trail_status(
         stage = str(entry.get("stage") or "")
         if stage:
             last[stage] = entry
+    current = ""
+    if root is not None:
+        current = repo_head_commit(root)
+    if not current and manifest.source:
+        current = repo_head_commit(manifest.source)
+    info["current_commit"] = current
     info["last"] = {
         stage: {
             "seq": entry.get("seq"),
             "outcome": entry.get("outcome"),
             "at": entry.get("at"),
             "hash": entry.get("hash"),
+            "commit": entry.get("commit"),
+            "stale": bool(
+                current
+                and entry.get("commit")
+                and entry.get("commit") != current
+            ),
         }
         for stage, entry in last.items()
     }
@@ -242,6 +256,7 @@ def build_card(
     approval_path: str | Path | None = None,
     waivers_path: str | Path | None = None,
     revocations_path: str | Path | None = None,
+    root: str | Path | None = None,
     owner_key: str = "",
     owner_public_key: str | Path | None = None,
     receipt_key: str = "",
@@ -275,7 +290,7 @@ def build_card(
     card.approval = _approval_status(
         manifest, approval_path, owner_key, owner_public_key
     )
-    card.trail = _trail_status(manifest, trail_path)
+    card.trail = _trail_status(manifest, trail_path, root)
     card.receipt = _receipt_status(receipt_path, receipt_key)
     card.waivers = _waiver_status(
         manifest, waivers_path, owner_key, owner_public_key
@@ -335,6 +350,12 @@ def build_card(
                 f"`{current_entry.get('outcome')}`"
             )
         for stage_name, entry in last.items():
+            if entry.get("stale"):
+                risks.append(
+                    f"the last `{stage_name}` decision was made on a "
+                    f"different commit ({str(entry.get('commit'))[:12]} vs "
+                    f"{str(card.trail.get('current_commit'))[:12]})"
+                )
             if stage_name == card.lifecycle:
                 continue
             if entry.get("outcome") != "pass":
@@ -412,8 +433,11 @@ def render_card(card: StatusCard) -> str:
             f"chain intact, head {str(card.trail.get('head'))[:23]}..."
         )
         for stage, entry in sorted(card.trail.get("last", {}).items()):
+            marker = " [stale commit]" if entry.get("stale") else ""
             lines.append(
-                f"  last {stage}: {entry.get('outcome')} (seq {entry.get('seq')})"
+                f"  last {stage}: {entry.get('outcome')} (seq "
+                f"{entry.get('seq')}, {str(entry.get('commit'))[:12] or '-'})"
+                f"{marker}"
             )
 
     lines.extend(["", "Receipt"])
