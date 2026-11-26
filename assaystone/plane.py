@@ -382,6 +382,7 @@ class GateResult:
     manifest_approval: dict[str, Any] = field(default_factory=dict)
     waived: list[dict[str, Any]] = field(default_factory=list)
     revoked: list[dict[str, Any]] = field(default_factory=list)
+    dry_run: bool = False
     prior: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -404,6 +405,7 @@ class GateResult:
             "manifest_approval": dict(self.manifest_approval),
             "waived": list(self.waived),
             "revoked": list(self.revoked),
+            "dry_run": self.dry_run,
             "prior": dict(self.prior),
         }
 
@@ -602,6 +604,7 @@ def evaluate_gate(
     owner_public_key: str | Path | None = None,
     waivers_path: str | Path | None = None,
     revocations_path: str | Path | None = None,
+    dry_run: bool = False,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -616,6 +619,7 @@ def evaluate_gate(
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
             commit=_head_commit(root),
+            dry_run=dry_run,
         )
     commit = _head_commit(root)
     approval_error, approval_info = _manifest_approval_check(
@@ -633,6 +637,7 @@ def evaluate_gate(
             manifest_digest=manifest_digest(manifest),
             commit=commit,
             manifest_approval=approval_info,
+            dry_run=dry_run,
             rollback_required=policy.rollback_required,
             rollback=policy.rollback,
         )
@@ -666,6 +671,22 @@ def evaluate_gate(
         spec = by_id.get(oracle_id)
         if spec is None:
             missing.append(oracle_id)
+            continue
+        if dry_run and spec.payload.get("mutates"):
+            results.append(
+                OracleResult(
+                    oracle=spec.id,
+                    type=spec.type,
+                    outcome="escalate",
+                    reasons=[
+                        "not executed: a dry run does not perform an oracle "
+                        "that declares it mutates state"
+                    ],
+                    ref=spec.ref,
+                    version=spec.version,
+                    fingerprint=spec.fingerprint,
+                )
+            )
             continue
         results.append(run_oracle(spec, root))
 
@@ -776,6 +797,7 @@ def evaluate_gate(
             manifest_approval=approval_info,
             waived=waived,
             revoked=revoked,
+            dry_run=dry_run,
             prior=prior,
             rollback_required=policy.rollback_required,
             rollback=policy.rollback,
@@ -795,6 +817,7 @@ def evaluate_gate(
             commit=commit,
             manifest_approval=approval_info,
             waived=waived,
+            dry_run=dry_run,
             prior=prior,
             rollback_required=policy.rollback_required,
             rollback=policy.rollback,
@@ -803,8 +826,10 @@ def evaluate_gate(
         item.outcome == "fail" and item.oracle not in waived_oracles
         for item in results
     )
-    if effective_fail:
+    if effective_fail and not dry_run:
         outcome = "fail"
+    elif dry_run:
+        outcome = "escalate"
     elif missing or any(item.outcome == "escalate" for item in results):
         outcome = "escalate"
     elif strict and blocking_gap:
@@ -819,6 +844,11 @@ def evaluate_gate(
             f"until {item.get('expires_at')}"
         )
     reasons.extend(waiver_notes)
+    if dry_run:
+        reasons.append(
+            "dry run: this is not a decision; mutating oracles were not "
+            "executed"
+        )
     if policy.after:
         reasons.append(f"chained after a recorded {policy.after} pass")
     for oracle_id in missing:
@@ -854,6 +884,7 @@ def evaluate_gate(
         manifest_approval=approval_info,
         waived=waived,
         revoked=revoked,
+        dry_run=dry_run,
         prior=prior,
     )
 
@@ -863,6 +894,7 @@ def render_gate(result: GateResult) -> str:
         f"capability: {result.capability}",
         f"stage: {result.stage}",
         f"outcome: {result.outcome}",
+        f"dry run: {'yes' if getattr(result, 'dry_run', False) else 'no'}",
         f"merge allowed: {'yes' if result.merge_allowed else 'no'}",
         f"deploy allowed: {'yes' if result.deploy_allowed else 'no'}",
         "",
