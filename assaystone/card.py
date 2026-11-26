@@ -19,6 +19,7 @@ from .approval import (
 from .plane import CapabilityManifest, repo_head_commit
 from .receipt import ReceiptError, load_receipt, verify_receipt
 from .revocation import read_revocations, revocation_path_for
+from .session_record import DEFAULT_RECORD, RecordError, load_record, verify_record
 from .trail import TrailError
 from .trail import read as read_trail
 from .trail import verify as verify_trail
@@ -42,6 +43,7 @@ class StatusCard:
     receipt: dict[str, Any] = field(default_factory=dict)
     waivers: dict[str, Any] = field(default_factory=dict)
     revocations: dict[str, Any] = field(default_factory=dict)
+    runtime: dict[str, Any] = field(default_factory=dict)
     residual_risks: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -61,6 +63,7 @@ class StatusCard:
             "receipt": dict(self.receipt),
             "waivers": dict(self.waivers),
             "revocations": dict(self.revocations),
+            "runtime": dict(self.runtime),
             "residual_risks": list(self.residual_risks),
         }
 
@@ -256,6 +259,7 @@ def build_card(
     approval_path: str | Path | None = None,
     waivers_path: str | Path | None = None,
     revocations_path: str | Path | None = None,
+    runtime_path: str | Path | None = None,
     root: str | Path | None = None,
     owner_key: str = "",
     owner_public_key: str | Path | None = None,
@@ -311,6 +315,38 @@ def build_card(
         hit = revocations.is_revoked(item.get("key_id"))
         if hit:
             hits.append({**hit, "artifact": f"waiver for `{item['criterion']}`"})
+    record_path = runtime_path or (
+        Path(manifest.source).parent / DEFAULT_RECORD
+        if manifest.source
+        else None
+    )
+    if record_path is not None and Path(record_path).exists():
+        try:
+            record = load_record(record_path)
+            check = verify_record(
+                record, root or Path(record_path).parent.parent
+            )
+        except RecordError as exc:
+            card.runtime = {"present": True, "ok": False, "reasons": [str(exc)]}
+        else:
+            card.runtime = {
+                "present": True,
+                "path": str(record_path),
+                "ok": check.ok,
+                "session": record.get("session_id"),
+                "at": record.get("at"),
+                "commit": record.get("commit"),
+                "gate_outcome": (record.get("gate") or {}).get("outcome"),
+                "files": len(record.get("files") or {}),
+                "reasons": list(check.reasons),
+            }
+        if not card.runtime.get("ok"):
+            detail = (card.runtime.get("reasons") or ["invalid"])[0]
+            card.residual_risks.append(
+                f"the runtime record does not describe this code: {detail}"
+            )
+    else:
+        card.runtime = {"present": False}
     card.revocations = {
         "present": bool(
             (revocations_path or revocation_path_for(manifest.source or None))
@@ -473,6 +509,20 @@ def render_card(card: StatusCard) -> str:
             for item in card.stage_gap
         )
         lines.extend(["", f"Stage gap at `{card.stage}`", f"  {gap}"])
+
+    lines.extend(["", "Runtime record"])
+    if not card.runtime.get("present"):
+        lines.append("  none")
+    elif not card.runtime.get("ok"):
+        detail = (card.runtime.get("reasons") or ["invalid"])[0]
+        lines.append(f"  NOT CURRENT: {detail}")
+    else:
+        lines.append(
+            f"  {card.runtime.get('session') or '-'} at "
+            f"{card.runtime.get('at') or '-'}, "
+            f"{card.runtime.get('files', 0)} file(s), gate "
+            f"{card.runtime.get('gate_outcome') or '-'}"
+        )
 
     lines.extend(["", "Revocations"])
     if not card.revocations.get("present"):
