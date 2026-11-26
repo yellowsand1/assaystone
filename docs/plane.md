@@ -753,6 +753,8 @@ It reports:
 - static assurance gaps and the critical gaps at the current stage;
 - **stale evidence**: a stage decision recorded for a different commit than the
   code at `--root` is marked `[stale commit]` and listed as residual risk;
+- **the runtime record**: whether a supervisor record exists, which session and
+  commit it names, and whether it still describes this code;
 - each stage's requirements, approvals, rollback oracle, and chain;
 - whether the owner approval is present and valid;
 - the trail chain, its head, and the last outcome per stage;

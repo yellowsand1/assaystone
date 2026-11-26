@@ -73,6 +73,7 @@ class CardTest(unittest.TestCase):
         self.base = Path(self._tmp.name)
         self.root = self.base / "repo"
         self.root.mkdir()
+        (self.root / "app.py").write_text("x = 1\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
         subprocess.run(
             [
@@ -238,6 +239,35 @@ class CardTest(unittest.TestCase):
             any("different commit" in risk for risk in stale.residual_risks)
         )
         self.assertIn("[stale commit]", render_card(stale))
+
+    def test_the_card_reports_a_runtime_record(self):
+        from assaystone.session_record import write_record
+
+        manifest_path = self.root / "capability.json"
+        manifest_path.write_text(json.dumps(manifest_data()), encoding="utf-8")
+        loaded = CapabilityManifest.load(manifest_path)
+        write_record(
+            self.root,
+            session_id="card-session",
+            relative_paths=["app.py"],
+            gate=evaluate_gate(loaded, "shadow", self.root),
+            commit=subprocess.run(
+                ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip(),
+        )
+        card = build_card(loaded, stage="shadow", root=self.root)
+        self.assertTrue(card.runtime["present"])
+        self.assertTrue(card.runtime["ok"], card.runtime.get("reasons"))
+        self.assertIn("card-session", render_card(card))
+
+        (self.root / "app.py").write_text("x = 2\n", encoding="utf-8")
+        stale = build_card(loaded, stage="shadow", root=self.root)
+        self.assertFalse(stale.runtime["ok"])
+        self.assertTrue(
+            any("runtime record" in risk for risk in stale.residual_risks)
+        )
+        self.assertIn("NOT CURRENT", render_card(stale))
 
     def test_cli_json_and_text(self):
         manifest_path = self.base / "capability.json"

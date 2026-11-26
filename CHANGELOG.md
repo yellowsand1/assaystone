@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **The status card shows the runtime record.** A session record that is
+  present but no longer describes the code is listed as residual risk, next to
+  the trail, receipt, approval, and waivers. `capability status --runtime-record`
+  overrides the default path.
 - **`runtime` oracle: evidence the supervisor wrote.** The Stop hook records
   the commit, the session id, a content hash for every file it saw, the gate
   outcome, and the audit count. The new oracle decides against that record: a

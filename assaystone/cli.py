@@ -738,6 +738,7 @@ def _cmd_capability_status(args: argparse.Namespace) -> int:
         owner_key=os.environ.get(args.owner_key_env) or "",
         owner_public_key=args.owner_public_key,
         revocations_path=args.revocations,
+        runtime_path=args.runtime_record,
         root=args.root,
         receipt_key=os.environ.get(args.receipt_key_env) or "",
     )
@@ -1719,6 +1720,9 @@ def _parser() -> argparse.ArgumentParser:
     capability_status.add_argument("--waivers", default=None, metavar="PATH")
     capability_status.add_argument(
         "--revocations", default=None, metavar="PATH"
+    )
+    capability_status.add_argument(
+        "--runtime-record", default=None, metavar="PATH"
     )
     capability_status.add_argument(
         "--stage",
