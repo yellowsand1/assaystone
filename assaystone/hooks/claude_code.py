@@ -127,6 +127,39 @@ def _is_duplicate(session_id: str, message: str) -> bool:
     return False
 
 
+def _write_runtime_record(
+    cwd: Path,
+    config: dict[str, Any],
+    payload: dict[str, Any],
+    gate_result: Any | None,
+    findings: int,
+) -> None:
+    """Record what this supervisor saw. Never claims more than it observed."""
+    if config.get("record") is False:
+        return
+    try:
+        from ..session_record import write_record
+
+        paths = {
+            str(item)
+            for item in (config.get("record_paths") or [])
+            if isinstance(item, str)
+        }
+        if is_git_root(cwd):
+            for artifact in artifacts_from_git(cwd):
+                paths.add(artifact.path)
+        write_record(
+            cwd,
+            session_id=str(payload.get("session_id") or ""),
+            relative_paths=paths,
+            gate=gate_result,
+            findings=findings,
+            commit=str(getattr(gate_result, "commit", "") or ""),
+        )
+    except Exception:  # noqa: BLE001 - a hook must not break the session
+        return
+
+
 def _compact_gate(result: Any) -> str:
     lines = [
         f"Assaystone gate: {result.capability} at {result.stage} -> {result.outcome}"
@@ -186,6 +219,7 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
         gate_message = _compact_gate(gate_result)
 
     transcript = payload.get("transcript_path")
+    audit_findings = 0
     audit_message = ""
     audit_blocked = False
     audit_error = ""
@@ -232,6 +266,7 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
             if report is None:
                 report = audit_traces(contract, traces, cwd)
             report = _filter_report(report, config)
+            audit_findings = len(report.findings)
             if report.findings:
                 audit_message = _compact_message(report)
                 fail_on = (
@@ -268,6 +303,7 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
         parts.append(audit_error)
     message = "\n\n".join(parts)
 
+    _write_runtime_record(cwd, config, payload, gate_result, audit_findings)
     if mode == "block" and (gate_failed or audit_blocked):
         return 2, message + (
             "\n\nAssaystone blocked the stop. Fix the gate or set "

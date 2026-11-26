@@ -14,3 +14,5 @@ htmlcov/
 .assaystone/receipt.json
 .assaystone/release-trail.jsonl
 .assaystone/release-receipt.json
+# runtime records are machine-local evidence
+.assaystone/runtime/

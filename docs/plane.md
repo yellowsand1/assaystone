@@ -112,6 +112,7 @@ ran can return `pass` or `fail`.
 | `shadow` | old and new implementations agree on the same input | `old`, `new`, `compare` |
 | `transcript` | the agent's recorded session passes the audit | `transcript`, `baseline`, `fail_on` |
 | `verifier` | a declared verifier decides the working-tree diff | `name`, `params`, `test_command` |
+| `runtime` | the session's supervisor record still describes this code | `record`, `require_outcome`, `max_age_minutes` |
 
 ### `http`
 
@@ -243,6 +244,39 @@ the same result. `compare.mode` is `text` (whitespace-normalised, optional
 For an intentional behaviour change, assert the new expected output directly
 with a `file`, `sql`, or `command` oracle; shadow is for "nothing should have
 changed".
+
+### `runtime`
+
+The transcript oracle reads a file the agent's harness wrote, so it is treated
+as testimony. This oracle reads what the **supervisor** observed:
+
+```json
+{"id": "session", "type": "runtime",
+ "payload": {"record": ".assaystone/runtime/last.json",
+             "require_outcome": "pass", "max_age_minutes": 60}}
+```
+
+The Claude Code Stop hook writes that record when a session ends: the commit,
+the session id, a content hash for every file it saw, the gate outcome it
+triggered, and the audit finding count. The oracle decides:
+
+| condition | outcome |
+|---|---|
+| record missing, unreadable, or not `source: runtime` | escalate |
+| the session ended with a gate outcome other than required | **fail** |
+| the record has no observed files, or no commit | escalate |
+| the record is older than `max_age_minutes` | escalate |
+| the record's commit is not `HEAD` of `--root` | escalate |
+| a recorded file's hash changed since the session ended | escalate |
+
+The distinction matters. A failed session is a decision (`fail`); evidence that
+does not apply to this code is not a decision (`escalate`). The record is
+unsigned — it is supervisor observation next to the work, not a receipt. If you
+need a signed decision, that is `gate --receipt`.
+
+`.assaystone/runtime/` is machine-local: add it to `.gitignore`. Keep
+`record: false` in `.assaystone/hook.json` if you do not want the hook to write
+one.
 
 ### `verifier`
 

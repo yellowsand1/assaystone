@@ -42,6 +42,7 @@ ORACLE_TYPES = (
     "shadow",
     "transcript",
     "verifier",
+    "runtime",
 )
 READ_ONLY_HTTP = ("GET", "HEAD", "OPTIONS")
 SQL_TIMEOUT_SECONDS = 15
@@ -1215,6 +1216,51 @@ def _verifier(spec: OracleSpec, root: Path) -> OracleResult:
 
 
 # ---------------------------------------------------------------------------
+# runtime: what the supervisor observed, not what the agent claimed
+# ---------------------------------------------------------------------------
+
+
+def _runtime(spec: OracleSpec, root: Path) -> OracleResult:
+    from .session_record import RecordError, load_record, verify_record
+
+    payload = spec.payload
+    target = payload.get("record")
+    if not target:
+        return _result(spec, "escalate", ["runtime payload has no record"])
+    path = _inside(root, str(target))
+    if path is None:
+        return _result(spec, "escalate", ["record escapes the root"])
+    if not path.exists():
+        return _result(
+            spec,
+            "escalate",
+            [
+                f"no runtime record at {target}; the session has no "
+                "supervisor evidence"
+            ],
+        )
+    try:
+        record = load_record(path)
+    except RecordError as exc:
+        return _result(spec, "escalate", [str(exc)])
+    max_age = payload.get("max_age_minutes")
+    check = verify_record(
+        record,
+        root,
+        require_outcome=str(payload.get("require_outcome") or "pass"),
+        require_commit=bool(payload.get("require_commit", True)),
+        max_age_minutes=float(max_age) if max_age is not None else None,
+    )
+    return _result(
+        spec,
+        check.outcome,
+        check.reasons,
+        check.evidence,
+        canonical_json(record.get("gate") or {}),
+    )
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -1338,6 +1384,8 @@ def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
         outcome = _transcript(spec, root)
     elif spec.type == "verifier":
         outcome = _verifier(spec, root)
+    elif spec.type == "runtime":
+        outcome = _runtime(spec, root)
     else:
         return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
     return outcome

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`runtime` oracle: evidence the supervisor wrote.** The Stop hook records
+  the commit, the session id, a content hash for every file it saw, the gate
+  outcome, and the audit count. The new oracle decides against that record: a
+  failed session is `fail`; a record for other code, older than the window, or
+  naming a file that changed afterwards is `escalate`. The transcript oracle
+  stays testimony; this is the other half of "runtime writes the evidence".
+  `.assaystone/runtime/` is git-ignored and can be disabled with
+  `record: false`.
 - **`gate --dry-run`.** Executes only the oracles that do not declare
   `"mutates": true`. A dry run never returns `pass`, reports a read-only failure
   as `escalate` rather than `fail`, and refuses `--receipt`, so it cannot
