@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.25.0 — 2026-11-26
+
 - **Canary, documented and tested.** `shadow` already compares two HTTP
   endpoints, so a canary is `<incumbent>` vs `<candidate>` with `ignore` for
   version strings and timestamps and `tolerance` for numeric noise; an `http`
