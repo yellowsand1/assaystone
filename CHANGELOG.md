@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.26.0 — 2026-11-26
+
 - **`gate --sandbox`: do not judge a tree you have modified.** Workspace oracles
   run in a disposable copy, so a seed, a migration, or a build does not touch the
   repository being judged; only checks that reach outside the workspace (`git`,
