@@ -9,6 +9,7 @@ second source of truth: every cell comes from the capability card.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -47,30 +48,67 @@ class PortfolioEntry:
     card: StatusCard | None = None
     error: str = ""
     critical: list[str] = field(default_factory=list)
+    root: Path | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "path": str(self.path),
+            "root": str(self.root) if self.root else "",
             "error": self.error,
             "critical": list(self.critical),
             "card": self.card.to_dict() if self.card else None,
         }
 
+    def label(self) -> str:
+        """How to name this capability in a multi-repository report."""
+        if self.card is not None:
+            return self.card.capability
+        return f"{self.path.parent.parent.name}/{self.path.parent.name}"
+
 
 @dataclass
 class Portfolio:
-    root: Path
+    roots: list[Path] = field(default_factory=list)
     entries: list[PortfolioEntry] = field(default_factory=list)
+
+    @property
+    def root(self) -> Path:
+        return self.roots[0] if self.roots else Path(".")
 
     def critical_count(self) -> int:
         return sum(1 for entry in self.entries if entry.critical)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "root": str(self.root),
+            "roots": [str(item) for item in self.roots],
             "capabilities": [entry.to_dict() for entry in self.entries],
             "critical": self.critical_count(),
         }
+
+
+def load_index(path: str | Path) -> list[Path]:
+    """Read a list of repository roots from a JSON index file.
+
+    The index is a file, not a service: it names where the repositories are, and
+    every path in it is resolved relative to the index itself.
+    """
+    index = Path(path).resolve()
+    try:
+        data = json.loads(index.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"index not found: {path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid index JSON in {path}: {exc}") from exc
+    entries = data.get("roots") if isinstance(data, dict) else data
+    if not isinstance(entries, list) or not entries:
+        raise ValueError("an index must list at least one root")
+    roots: list[Path] = []
+    for item in entries:
+        candidate = Path(str(item))
+        if not candidate.is_absolute():
+            candidate = index.parent / candidate
+        roots.append(candidate.resolve())
+    return roots
 
 
 def _critical(card: StatusCard) -> list[str]:
@@ -127,18 +165,25 @@ def _critical(card: StatusCard) -> list[str]:
 
 
 def build_portfolio(
-    root: str | Path,
+    roots: str | Path | list[str | Path],
     owner_key: str = "",
     receipt_key: str = "",
     owner_public_key: str | Path | None = None,
 ) -> Portfolio:
-    root = Path(root).resolve()
-    portfolio = Portfolio(root=root)
-    for path in discover(root):
+    if isinstance(roots, (str, Path)):
+        roots = [roots]
+    resolved: list[Path] = []
+    for item in roots:
+        candidate = Path(item).resolve()
+        if candidate not in resolved:
+            resolved.append(candidate)
+    portfolio = Portfolio(roots=resolved)
+    for root in resolved:
+      for path in discover(root):
         try:
             manifest = CapabilityManifest.load(path)
         except PlaneError as exc:
-            entry = PortfolioEntry(path=path, error=str(exc))
+            entry = PortfolioEntry(path=path, error=str(exc), root=root)
             entry.critical = [f"manifest is invalid: {exc}"]
             portfolio.entries.append(entry)
             continue
@@ -163,7 +208,9 @@ def build_portfolio(
             receipt_key=receipt_key,
         )
         portfolio.entries.append(
-            PortfolioEntry(path=path, card=card, critical=_critical(card))
+            PortfolioEntry(
+                path=path, card=card, critical=_critical(card), root=root
+            )
         )
     return portfolio
 
@@ -180,19 +227,25 @@ def _last(card: StatusCard) -> str:
 
 def render_portfolio(portfolio: Portfolio) -> str:
     if not portfolio.entries:
+        where = ", ".join(str(item) for item in portfolio.roots)
         return (
-            f"No capabilities found under {portfolio.root}. "
+            f"No capabilities found under {where}. "
             "A capability is a `.assaystone/capability.json`."
         )
+    multi = len(portfolio.roots) > 1
+    repo_head = f"{'repo':<18} " if multi else ""
     rows = [
-        f"{'capability':<24} {'owner':<16} {'risk':<8} {'lifecycle':<10} "
-        f"{'criteria':<9} {'last':<28} {'approval':<9} {'receipt':<8} "
-        f"{'critical':>8}"
+        f"{repo_head}{'capability':<24} {'owner':<16} {'risk':<8} "
+        f"{'lifecycle':<10} {'criteria':<9} {'last':<28} {'approval':<9} "
+        f"{'receipt':<8} {'critical':>8}"
     ]
     for entry in portfolio.entries:
+        repo = f"{entry.root.name:<18} " if multi and entry.root else (
+            " " * 19 if multi else ""
+        )
         if entry.card is None:
             rows.append(
-                f"{entry.path.parent.name:<24} {'-':<16} {'-':<8} "
+                f"{repo}{entry.label():<24} {'-':<16} {'-':<8} "
                 f"{'-':<10} {'-':<9} {'-':<28} {'-':<9} {'-':<8} "
                 f"{len(entry.critical):>8}"
             )
@@ -209,7 +262,7 @@ def render_portfolio(portfolio: Portfolio) -> str:
             else ("ok" if card.receipt.get("ok") else "invalid")
         )
         rows.append(
-            f"{card.capability:<24} {card.owner:<16} {card.risk:<8} "
+            f"{repo}{card.capability:<24} {card.owner:<16} {card.risk:<8} "
             f"{card.lifecycle:<10} "
             f"{card.gated_by_some_stage}/{card.criteria:<7} "
             f"{_last(card):<28} {approval:<9} {receipt:<8} "
@@ -221,7 +274,9 @@ def render_portfolio(portfolio: Portfolio) -> str:
         f"{portfolio.critical_count()} with critical risks"
     )
     for entry in portfolio.entries:
-        label = entry.card.capability if entry.card else str(entry.path)
+        label = entry.label()
+        if multi and entry.root:
+            label = f"{entry.root.name}/{label}"
         for issue in entry.critical:
             rows.append(f"  {label}: {issue}")
     return "\n".join(rows)

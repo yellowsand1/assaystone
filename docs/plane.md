@@ -853,6 +853,29 @@ The registry is read-only and creates no second source of truth: every cell come
 from the capability card. It is how a team answers "where do we stand?" without
 opening each repository.
 
+### Several repositories
+
+Aggregate without a service — pass more roots, or an index file:
+
+```bash
+assaystone capability list --root ../api --root ../worker --strict
+assaystone capability list --index .assaystone/repos.json
+```
+
+```json
+{"roots": ["api", "worker", "services/billing"]}
+```
+
+Paths in the index resolve relative to the index file. With more than one root the
+table gains a `repo` column and every critical risk is prefixed with its
+repository. Duplicate roots are counted once; `--strict` exits `1` if any
+capability in any repository has a critical risk.
+
+Evidence verification needs the keys: without `ASSAYSTONE_OWNER_KEY` (or
+`--owner-public-key`) and the receipt key, an approval or receipt that requires
+one is reported as unverified, which is the honest answer rather than a green
+tick.
+
 ## Reviewing a change to the criteria
 
 An owner approval is bound to a digest, so any edit forces a new review. The
