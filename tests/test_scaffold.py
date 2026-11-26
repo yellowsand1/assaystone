@@ -40,7 +40,7 @@ class ScaffoldTest(unittest.TestCase):
         data, detection = build_manifest(self.root, owner="platform-team")
         self.assertEqual(detection.stack, "maven")
         ids = [item["id"] for item in data["oracles"]]
-        self.assertEqual(ids, ["build", "tests", "artifact"])
+        self.assertEqual(ids[:3], ["build", "tests", "artifact"])
         self.assertIn("mvn", data["oracles"][0]["payload"]["command"])
         self.assertIn("target/classes", data["oracles"][2]["payload"]["path"])
         manifest = CapabilityManifest.from_dict(data)
@@ -59,7 +59,8 @@ class ScaffoldTest(unittest.TestCase):
         )
         data, detection = build_manifest(self.root)
         ids = [item["id"] for item in data["oracles"]]
-        self.assertEqual(ids, ["build"])
+        self.assertEqual(ids[0], "build")
+        self.assertNotIn("artifact", ids)
         self.assertTrue(any("aggregator" in note for note in detection.notes))
 
     def test_maven_wrapper_is_used(self):
@@ -89,7 +90,7 @@ class ScaffoldTest(unittest.TestCase):
         data, detection = build_manifest(self.root)
         self.assertEqual(detection.stack, "node")
         ids = [item["id"] for item in data["oracles"]]
-        self.assertEqual(ids, ["build", "tests"])
+        self.assertEqual(ids[:2], ["build", "tests"])
 
     def test_node_without_scripts_is_rejected(self):
         (self.root / "package.json").write_text("{}", encoding="utf-8")

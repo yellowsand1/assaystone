@@ -30,6 +30,8 @@ class Detection:
     stack: str
     oracles: list[dict[str, Any]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    proposals: list[Any] = field(default_factory=list)
+    helpers: list[str] = field(default_factory=list)
 
 
 def _command(oracle_id: str, command: list[str], timeout: int) -> dict[str, Any]:
@@ -209,6 +211,11 @@ def detect(root: str | Path) -> Detection:
             "write the manifest by hand or run this inside a module"
         )
     detection.oracles.extend(_branch_oracle(root, notes))
+    from .propose import propose, scan
+
+    facts = scan(root, stack=detection.stack)
+    detection.proposals = propose(facts)
+    notes.extend(f"proposed {item.id}: {item.why}" for item in detection.proposals)
     return detection
 
 
@@ -222,7 +229,6 @@ def build_manifest(
 ) -> tuple[dict[str, Any], Detection]:
     root = Path(root).resolve()
     detection = detect(root)
-    oracle_ids = [item["id"] for item in detection.oracles]
     severity = {"build": "critical", "tests": "critical", "artifact": "critical"}
     criteria = [
         {
@@ -239,6 +245,18 @@ def build_manifest(
         }
         for item in detection.oracles
     ]
+    for proposal in detection.proposals:
+        detection.oracles.append(proposal.oracle)
+        criteria.append(
+            {
+                "id": proposal.id,
+                "kind": proposal.kind,
+                "statement": proposal.statement,
+                "oracle": proposal.oracle["id"],
+                "severity": proposal.severity,
+            }
+        )
+    oracle_ids = [item["id"] for item in detection.oracles]
     data = {
         "capability": _slug(root.name),
         "owner": owner,
@@ -355,6 +373,12 @@ def init_capability(
             _ci_workflow(manifest_rel, trail_rel, __version__),
             encoding="utf-8",
         )
+    from .propose import materialise
+
+    detection.helpers = [
+        str(path.relative_to(root))
+        for path in materialise(root, detection.proposals)
+    ]
     if hook:
         hook_path = root / ".assaystone" / "hook.json"
         config: dict[str, Any] = {}
@@ -389,6 +413,10 @@ def next_steps(data: dict[str, Any]) -> list[str]:
     )
     steps.append(
         "run the gate and inspect every escalation before trusting the draft"
+    )
+    steps.append(
+        "read each proposed criterion and delete the ones your repository does "
+        "not actually need"
     )
     return steps
 

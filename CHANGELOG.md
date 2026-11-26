@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **`capability init` proposes the checks the repository implies.** A Java
+  module gets "the public API is unchanged" (`javap` against the baseline), a
+  test tree gets `tests.integrity`, `.github/workflows` gets `diff.ci_surface`, a
+  dependency manifest gets a dependency-set check, and a migration directory gets
+  "every new migration declares a down path". Each proposal states why it
+  applies, and the payload scripts it needs are written into
+  `.assaystone/checks/`. The draft now checks what the repository has instead of
+  three build commands.
+- **`command` gains `unknown_exit`.** An exit code that means "the check could
+  not decide" escalates instead of failing — the API check uses it when the
+  baseline will not build.
 No changes yet.
 
 ## 0.24.0 — 2026-11-26
