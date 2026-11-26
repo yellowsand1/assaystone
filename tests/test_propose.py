@@ -1,11 +1,13 @@
 """Criteria proposed from what the repository already contains."""
 
+import json
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
+from assaystone import cli
 from assaystone.plane import CapabilityManifest
 from assaystone.propose import Proposal, materialise, propose, scan
 from assaystone.scaffold import build_manifest, init_capability
@@ -154,6 +156,103 @@ class HelperScriptTest(unittest.TestCase):
         result = self.run_helper("migrations_down.py")
         self.assertEqual(result.returncode, 1)
         self.assertIn("V2__bad.sql", result.stdout)
+
+
+class ProposeCliTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        (self.root / "tests").mkdir()
+        (self.root / "tests" / "test_a.py").write_text("", encoding="utf-8")
+        (self.root / ".github/workflows").mkdir(parents=True)
+        (self.root / ".github/workflows/ci.yml").write_text(
+            "name: ci\n", encoding="utf-8"
+        )
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        self.manifest = self.root / "capability.json"
+        self.manifest.write_text(
+            json.dumps(
+                {
+                    "capability": "grown",
+                    "owner": "team",
+                    "systems": ["git"],
+                    "data_classes": [],
+                    "irreversible_actions": [],
+                    "risk": "low",
+                    "lifecycle": "shadow",
+                    "criteria": [
+                        {
+                            "id": "build",
+                            "kind": "postcondition",
+                            "statement": "It builds.",
+                            "oracle": "build",
+                            "severity": "critical",
+                        }
+                    ],
+                    "oracles": [
+                        {
+                            "id": "build",
+                            "type": "command",
+                            "payload": {"command": ["true"]},
+                        }
+                    ],
+                    "policies": {"shadow": {"require": ["build"]}},
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def run_cli(self, *extra):
+        import contextlib
+        import io
+
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(
+                ["capability", "propose", "--manifest", str(self.manifest),
+                 "--root", str(self.root), *extra]
+            )
+        return code, out.getvalue()
+
+    def test_it_reports_what_the_repository_implies(self):
+        code, out = self.run_cli()
+        self.assertEqual(code, 0)
+        self.assertIn("tests-intact", out)
+        self.assertIn("ci-intact", out)
+        self.assertIn("why: a test tree exists", out)
+        self.assertIn("re-run with --apply", out)
+        data = json.loads(self.manifest.read_text(encoding="utf-8"))
+        self.assertEqual(len(data["criteria"]), 1)
+
+    def test_apply_adds_and_is_idempotent(self):
+        code, _ = self.run_cli("--apply")
+        self.assertEqual(code, 0)
+        data = json.loads(self.manifest.read_text(encoding="utf-8"))
+        ids = {item["id"] for item in data["criteria"]}
+        self.assertIn("tests-intact", ids)
+        self.assertIn("ci-intact", ids)
+        required = set(data["policies"]["shadow"]["require"])
+        self.assertTrue({"tests_intact", "ci_intact"} <= required)
+        CapabilityManifest.from_dict(data)
+
+        code, out = self.run_cli()
+        self.assertEqual(code, 0)
+        self.assertIn("nothing new to propose", out)
+
+    def test_json_output(self):
+        code, out = self.run_cli("--json")
+        self.assertEqual(code, 0)
+        payload = json.loads(out)
+        self.assertTrue(any(item["id"] == "tests-intact" for item in payload))
+        self.assertIn("why", payload[0])
+
+    def test_apply_writes_the_helper_scripts(self):
+        (self.root / "pom.xml").write_text("<project/>", encoding="utf-8")
+        self.run_cli("--apply")
+        self.assertTrue(
+            (self.root / ".assaystone/checks/deps_diff.py").exists()
+        )
 
 
 class DraftTest(unittest.TestCase):

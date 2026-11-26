@@ -44,6 +44,26 @@ actually has, instead of three build commands. That is the difference between
 "an expert writes the standard" and "the standard is already visible"; the owner
 still deletes the ones that do not apply.
 
+The same inference works on a manifest that already exists, so the standard can
+grow as the repository does:
+
+```bash
+assaystone capability propose --manifest .assaystone/capability.json --root .
+```
+
+```text
+grown: 3 proposed addition(s)
+  + tests-intact (critical) via `tests_intact`
+    No test was deleted, weakened, or replaced.
+    why: a test tree exists: a suite that passes because the failing test
+    disappeared is the canonical agent failure
+```
+
+`--apply` adds them to the criteria, the oracles, and every policy's `require`
+list, writes the helper scripts, and refuses to write a manifest that would not
+validate. The owner approval is then stale — which is the correct consequence,
+and `capability validate` says so.
+
 It also looks for a build or test surface — `pom.xml`, Gradle, `package.json`
 scripts, `pyproject.toml` plus tests, `go.mod`, `Cargo.toml` — and writes
 `.assaystone/capability.json` with a build oracle, a test oracle where it found

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`capability propose`: the standard grows with the repository.** Re-running
+  the inference against an existing manifest lists criteria the repository now
+  implies and the manifest lacks, with the evidence for each. `--apply` adds
+  them, writes their helper scripts, refuses to produce an invalid manifest, and
+  says the owner approval must be re-signed.
 - **`mutation` oracle: do the tests cover the change?** It injects one plausible
   defect at a time into the **added** lines (`git diff -U0`), runs the suite, and
   requires most mutants to be killed. Test files are never mutated; a red baseline
