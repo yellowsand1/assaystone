@@ -121,6 +121,7 @@ def create_receipt(
         "gap": [item["criterion"] for item in gate.gap],
         "prior": dict(gate.prior or {}),
         "rollback": str(gate.rollback or ""),
+        "cost_usd": round(float(getattr(gate, "cost_usd", 0.0) or 0.0), 6),
     }
     if private_key_path:
         try:
