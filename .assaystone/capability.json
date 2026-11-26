@@ -43,6 +43,13 @@
       "statement": "The release commit can be reversed.",
       "oracle": "rollback",
       "severity": "critical"
+    },
+    {
+      "id": "build-reversible",
+      "kind": "invariant",
+      "statement": "A drill proved the release build can be undone.",
+      "oracle": "reversibility",
+      "severity": "critical"
     }
   ],
   "oracles": [
@@ -105,6 +112,44 @@
         ],
         "timeout": 60
       }
+    },
+    {
+      "id": "build_pkg",
+      "type": "command",
+      "description": "build the distribution",
+      "payload": {
+        "command": [
+          "python3",
+          "-m",
+          "build",
+          "--outdir",
+          "dist"
+        ],
+        "mutates": true,
+        "timeout": 300
+      }
+    },
+    {
+      "id": "clean_dist",
+      "type": "command",
+      "description": "remove the built distribution",
+      "payload": {
+        "command": [
+          "rm",
+          "-rf",
+          "dist"
+        ],
+        "mutates": true
+      }
+    },
+    {
+      "id": "reversibility",
+      "type": "drill",
+      "description": "a drill proved the build can be undone",
+      "payload": {
+        "manifest": ".assaystone/capability.json",
+        "id": "build-dist"
+      }
     }
   ],
   "policies": {
@@ -120,7 +165,8 @@
       "require": [
         "tests",
         "lint",
-        "benchmark"
+        "benchmark",
+        "reversibility"
       ],
       "allow_merge": true,
       "allow_deploy": true,
@@ -128,5 +174,16 @@
       "rollback": "rollback"
     }
   },
-  "manifest_approval": true
+  "manifest_approval": true,
+  "reversibility": [
+    {
+      "id": "build-dist",
+      "action": "build_pkg",
+      "compensation": "clean_dist",
+      "state": [
+        "dist"
+      ],
+      "note": "the release build leaves only dist/, which is removable"
+    }
+  ]
 }

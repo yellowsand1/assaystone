@@ -148,6 +148,19 @@
         ],
         "timeout": 60
       }
+    },
+    {
+      "id": "unseed",
+      "type": "command",
+      "description": "remove the ledger built by seed",
+      "payload": {
+        "command": [
+          "rm",
+          "-f",
+          "ledger.db"
+        ],
+        "mutates": true
+      }
     }
   ],
   "policies": {
@@ -188,5 +201,16 @@
       "rollback": "rollback",
       "after": "canary"
     }
-  }
+  },
+  "reversibility": [
+    {
+      "id": "ledger-seed",
+      "action": "seed",
+      "compensation": "unseed",
+      "state": [
+        "ledger.db"
+      ],
+      "note": "the seeded ledger can be removed and rebuilt"
+    }
+  ]
 }

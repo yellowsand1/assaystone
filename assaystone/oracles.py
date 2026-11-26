@@ -43,6 +43,7 @@ ORACLE_TYPES = (
     "transcript",
     "verifier",
     "runtime",
+    "drill",
 )
 READ_ONLY_HTTP = ("GET", "HEAD", "OPTIONS")
 SQL_TIMEOUT_SECONDS = 15
@@ -1261,6 +1262,74 @@ def _runtime(spec: OracleSpec, root: Path) -> OracleResult:
 
 
 # ---------------------------------------------------------------------------
+# drill: a recorded proof that the compensation restores the state
+# ---------------------------------------------------------------------------
+
+
+def _drill(spec: OracleSpec, root: Path) -> OracleResult:
+    from .drill import DrillError, load_record, record_path, verify_record
+    from .plane import CapabilityManifest
+
+    payload = spec.payload
+    manifest_source = payload.get("manifest")
+    if not manifest_source:
+        return _result(spec, "escalate", ["drill payload has no manifest"])
+    manifest_path = _inside(root, str(manifest_source))
+    if manifest_path is None:
+        return _result(spec, "escalate", ["manifest escapes the root"])
+    try:
+        manifest = CapabilityManifest.load(manifest_path)
+    except Exception as exc:  # noqa: BLE001 - the manifest is input
+        return _result(spec, "escalate", [f"cannot load the manifest: {exc}"])
+    drill_id = str(payload.get("id") or "")
+    if not drill_id:
+        return _result(spec, "escalate", ["drill payload has no id"])
+    path = payload.get("record")
+    target = (
+        _inside(root, str(path))
+        if path
+        else record_path(root, drill_id)
+    )
+    if target is None:
+        return _result(spec, "escalate", ["record escapes the root"])
+    if not target.exists():
+        return _result(
+            spec,
+            "escalate",
+            [
+                f"no drill record for {drill_id!r}; run "
+                f"`assaystone capability drill --id {drill_id}`"
+            ],
+        )
+    try:
+        record = load_record(target)
+    except DrillError as exc:
+        return _result(spec, "escalate", [str(exc)])
+    max_age = payload.get("max_age_minutes")
+    check = verify_record(
+        record,
+        manifest,
+        root,
+        drill_id,
+        require_commit=bool(payload.get("require_commit", True)),
+        max_age_minutes=float(max_age) if max_age is not None else None,
+    )
+    return _result(
+        spec,
+        check.outcome,
+        check.reasons,
+        check.evidence,
+        canonical_json(
+            {
+                "action": record.get("action"),
+                "compensation": record.get("compensation"),
+                "outcome": record.get("outcome"),
+            }
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -1386,6 +1455,8 @@ def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
         outcome = _verifier(spec, root)
     elif spec.type == "runtime":
         outcome = _runtime(spec, root)
+    elif spec.type == "drill":
+        outcome = _drill(spec, root)
     else:
         return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
     return outcome

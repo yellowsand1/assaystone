@@ -16,3 +16,5 @@ htmlcov/
 .assaystone/release-receipt.json
 # runtime records are machine-local evidence
 .assaystone/runtime/
+# drill records bind to a commit; they are machine-local evidence
+.assaystone/drills/
