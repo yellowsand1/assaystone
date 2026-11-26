@@ -217,6 +217,20 @@ def _command(spec: OracleSpec, root: Path) -> OracleResult:
         evidence.append(_tail(output))
     if proc.returncode == expected:
         return _result(spec, "pass", [], evidence, output)
+    unknown = payload.get("unknown_exit") or []
+    if isinstance(unknown, int):
+        unknown = [unknown]
+    if proc.returncode in {int(item) for item in unknown}:
+        return _result(
+            spec,
+            "escalate",
+            [
+                f"exit {proc.returncode} means the check could not decide; "
+                "it is not a verdict"
+            ],
+            evidence,
+            output,
+        )
     return _result(
         spec,
         "fail",

@@ -562,6 +562,27 @@ class FailClosedTest(unittest.TestCase):
         self.assertEqual(result.outcome, "escalate")
         self.assertIn("oracle error", result.reasons[0])
 
+    def test_unknown_exit_escalates_instead_of_failing(self):
+        spec_ = spec(
+            "command",
+            {
+                "command": [sys.executable, "-c", "raise SystemExit(2)"],
+                "unknown_exit": [2],
+            },
+        )
+        result = run_oracle(spec_, self.root)
+        self.assertEqual(result.outcome, "escalate")
+        self.assertIn("could not decide", result.reasons[0])
+
+        failing = spec(
+            "command",
+            {
+                "command": [sys.executable, "-c", "raise SystemExit(2)"],
+                "unknown_exit": [3],
+            },
+        )
+        self.assertEqual(run_oracle(failing, self.root).outcome, "fail")
+
     def test_invalid_regex_escalates(self):
         (self.root / "a.txt").write_text("x", encoding="utf-8")
         result = run_oracle(

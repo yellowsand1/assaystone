@@ -26,7 +26,24 @@ See it in one screen: `assaystone demo plane`.
 assaystone capability init --root . --owner platform-team --ci --hook
 ```
 
-`init` looks for a build or test surface — `pom.xml`, Gradle, `package.json`
+`init` reads the repository and proposes the criteria its own structure
+implies, with the evidence for each:
+
+| what is in the repository | what is proposed |
+|---|---|
+| `src/main/java` and a Maven module | **the public API is unchanged** (`javap` against the baseline) |
+| a test tree | **no test was deleted or weakened** (`tests.integrity`) |
+| `.github/workflows` | **the CI configuration is unchanged** (`diff.ci_surface`) |
+| a dependency manifest | **the dependency set is unchanged** (supply chain) |
+| `db/migration` and friends | **every new migration declares a down path** |
+
+Each proposal names why it applies, and `init` writes the small payload scripts
+they need into `.assaystone/checks/`. The draft then checks what this repository
+actually has, instead of three build commands. That is the difference between
+"an expert writes the standard" and "the standard is already visible"; the owner
+still deletes the ones that do not apply.
+
+It also looks for a build or test surface — `pom.xml`, Gradle, `package.json`
 scripts, `pyproject.toml` plus tests, `go.mod`, `Cargo.toml` — and writes
 `.assaystone/capability.json` with a build oracle, a test oracle where it found
 tests, an artifact check for compiled stacks, and a branch check that follows
@@ -106,7 +123,7 @@ ran can return `pass` or `fail`.
 
 | Primitive | What it asserts | Payload |
 |---|---|---|
-| `command` | a process exits as expected | `command`, `expect_exit`, `cwd`, `timeout` |
+| `command` | a process exits as expected | `command`, `expect_exit`, `unknown_exit`, `cwd`, `timeout` |
 | `file` | an artifact exists / parses / contains | `path`, `mode`: `exists`, `json`, `contains`, `regex` |
 | `git` | the change is on a branch / the tree is clean | `mode`: `branch`, `clean` |
 | `human` | a named action was approved | `action`, `record` |
