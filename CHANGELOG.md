@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.24.0 — 2026-11-26
+
 - **The session and the decision point at each other.** A `runtime` payload can
   name a `trail`; the oracle then checks that the decision the record cites is
   really on it, for the same commit. Oracles publish `facts` (session, record
