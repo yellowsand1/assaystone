@@ -259,8 +259,14 @@ class DrillTest(unittest.TestCase):
             }
         )
         data["policies"] = {
-            "production": {"require": ["drill"], "allow_merge": True,
-                           "allow_deploy": True}
+            "production": {
+                "require": ["drill"],
+                "approvals": ["undo"],
+                "allow_merge": True,
+                "allow_deploy": True,
+                "rollback_required": True,
+                "rollback": "undo",
+            }
         }
         (self.root / "capability.json").write_text(
             json.dumps(data), encoding="utf-8"

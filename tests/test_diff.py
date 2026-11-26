@@ -37,13 +37,18 @@ def base():
         "oracles": [
             {"id": "build", "type": "command", "payload": {"command": ["true"]}},
             {"id": "audit", "type": "command", "payload": {"command": ["true"]}},
+            {"id": "approve", "type": "command", "payload": {"command": ["true"]}},
+            {"id": "rollback", "type": "command", "payload": {"command": ["true"]}},
         ],
         "policies": {
             "shadow": {"require": ["build"], "allow_merge": False},
             "production": {
                 "require": ["build", "audit"],
+                "approvals": ["approve"],
                 "allow_merge": True,
                 "allow_deploy": True,
+                "rollback_required": True,
+                "rollback": "rollback",
             },
         },
     }

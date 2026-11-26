@@ -760,6 +760,7 @@ class RollbackTest(unittest.TestCase):
     def manifest(self, rollback_command=None, policy_extra=None):
         oracles = [
             {"id": "ok", "type": "command", "payload": {"command": ["true"]}},
+            {"id": "approve", "type": "command", "payload": {"command": ["true"]}},
         ]
         if rollback_command is not None:
             oracles.append(
@@ -773,6 +774,7 @@ class RollbackTest(unittest.TestCase):
             )
         policy = {
             "require": ["ok"],
+            "approvals": ["approve"],
             "allow_merge": True,
             "allow_deploy": True,
             "rollback_required": True,
@@ -1091,6 +1093,11 @@ class StageChainTest(unittest.TestCase):
                     "type": "command",
                     "payload": {"command": ["true"]},
                 },
+                {
+                    "id": "rollback",
+                    "type": "command",
+                    "payload": {"command": ["true"]},
+                },
             ],
             {
                 "canary": {"require": ["ok"], "allow_merge": True},
@@ -1099,6 +1106,8 @@ class StageChainTest(unittest.TestCase):
                     "approvals": ["approval"],
                     "allow_merge": True,
                     "allow_deploy": True,
+                    "rollback_required": True,
+                    "rollback": "rollback",
                     "after": "canary",
                 },
             },

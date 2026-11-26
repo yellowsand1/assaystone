@@ -210,8 +210,17 @@ class GateTest(unittest.TestCase):
     def test_canary_fails_on_a_failing_oracle(self):
         manifest = CapabilityManifest.from_dict(
             base(
-                [command_oracle("bad", "raise SystemExit(2)")],
-                {"canary": {"require": ["bad"], "allow_merge": True}},
+                [
+                    command_oracle("bad", "raise SystemExit(2)"),
+                    command_oracle("approve", "print('ok')"),
+                ],
+                {
+                    "canary": {
+                        "require": ["bad"],
+                        "approvals": ["approve"],
+                        "allow_merge": True,
+                    }
+                },
             )
         )
         result = evaluate_gate(manifest, "canary", self.root)
@@ -228,6 +237,8 @@ class GateTest(unittest.TestCase):
                         "approvals": ["dba"],
                         "allow_merge": True,
                         "allow_deploy": True,
+                        "rollback_required": True,
+                        "rollback": "dba",
                     }
                 },
             )

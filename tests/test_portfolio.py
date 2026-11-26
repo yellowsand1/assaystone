@@ -147,8 +147,11 @@ class PortfolioTest(unittest.TestCase):
         )
         data["policies"]["production"] = {
             "require": ["approve"],
+            "approvals": ["approve"],
             "allow_merge": True,
             "allow_deploy": True,
+            "rollback_required": True,
+            "rollback": "approve",
         }
         path = directory / "capability.json"
         path.write_text(json.dumps(data), encoding="utf-8")
@@ -178,8 +181,11 @@ class PortfolioTest(unittest.TestCase):
         data = manifest_data("cap-d")
         data["policies"]["production"] = {
             "require": ["ok"],
+            "approvals": ["ok"],
             "allow_merge": True,
             "allow_deploy": True,
+            "rollback_required": True,
+            "rollback": "ok",
         }
         path = directory / "capability.json"
         path.write_text(json.dumps(data), encoding="utf-8")
@@ -222,8 +228,11 @@ class PortfolioTest(unittest.TestCase):
         data["lifecycle"] = "production"
         data["policies"]["production"] = {
             "require": ["ok"],
+            "approvals": ["ok"],
             "allow_merge": True,
             "allow_deploy": True,
+            "rollback_required": True,
+            "rollback": "ok",
         }
         path = directory / "capability.json"
         path.write_text(json.dumps(data), encoding="utf-8")
