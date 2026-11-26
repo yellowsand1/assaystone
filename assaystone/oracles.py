@@ -45,6 +45,7 @@ ORACLE_TYPES = (
     "runtime",
     "drill",
     "mutation",
+    "canary",
 )
 READ_ONLY_HTTP = ("GET", "HEAD", "OPTIONS")
 SQL_TIMEOUT_SECONDS = 15
@@ -1470,6 +1471,79 @@ def _mutation(spec: OracleSpec, root: Path) -> OracleResult:
 
 
 # ---------------------------------------------------------------------------
+# canary: is the candidate worse than the incumbent, or is it noise?
+# ---------------------------------------------------------------------------
+
+
+def _canary_side(spec_dict: Any, name: str) -> OracleSpec:
+    if not isinstance(spec_dict, dict):
+        raise OracleError(f"{name} side must be an object")
+    type_ = str(spec_dict.get("type") or "")
+    if type_ in ("canary", "shadow"):
+        raise OracleError(f"{name}: {type_} cannot be nested inside canary")
+    if type_ not in ORACLE_TYPES:
+        raise OracleError(f"{name}: unknown oracle type {type_!r}")
+    payload = spec_dict.get("payload") or {}
+    if not isinstance(payload, dict):
+        raise OracleError(f"{name}: payload must be an object")
+    return OracleSpec(id=name, type=type_, payload=payload)
+
+
+def _canary(spec: OracleSpec, root: Path) -> OracleResult:
+    from .canary import extract, run_comparison
+
+    payload = spec.payload
+    sides: dict[str, OracleSpec] = {}
+    for name in ("baseline", "candidate"):
+        try:
+            sides[name] = _canary_side(payload.get(name), name)
+        except OracleError as exc:
+            return _result(spec, "escalate", [str(exc)])
+    json_path = str(payload.get("json_path") or "")
+
+    def sample_side(name: str) -> tuple[float | None, str]:
+        result = run_oracle(sides[name], root)
+        if result.outcome != "pass":
+            detail = result.reasons[0] if result.reasons else result.outcome
+            return None, f"{name} did not answer: {detail}"
+        try:
+            return extract(result, json_path), ""
+        except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            return None, f"{name} did not produce a number: {exc}"
+
+    comparison = run_comparison(
+        sample_side,
+        samples=int(payload.get("samples", 10)),
+        max_relative_increase=float(payload.get("max_relative_increase", 0.10)),
+        confidence=float(payload.get("confidence", 0.95)),
+        allow_errors=int(payload.get("allow_errors", 0)),
+    )
+    facts = {
+        "baseline_median": str(comparison.baseline.to_dict()["median"]),
+        "candidate_median": str(comparison.candidate.to_dict()["median"]),
+        "relative_change": f"{comparison.change:+.4f}",
+        "ci_low": f"{comparison.low:.4f}",
+        "ci_high": f"{comparison.high:.4f}",
+        "samples": str(payload.get("samples", 10)),
+    }
+    return _result(
+        spec,
+        comparison.outcome,
+        comparison.reasons,
+        comparison.evidence,
+        canonical_json(
+            {
+                "baseline": comparison.baseline.to_dict(),
+                "candidate": comparison.candidate.to_dict(),
+                "change": round(comparison.change, 6),
+                "ci": [round(comparison.low, 6), round(comparison.high, 6)],
+            }
+        ),
+        facts=facts,
+    )
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -1599,6 +1673,8 @@ def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
         outcome = _drill(spec, root)
     elif spec.type == "mutation":
         outcome = _mutation(spec, root)
+    elif spec.type == "canary":
+        outcome = _canary(spec, root)
     else:
         return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
     return outcome
