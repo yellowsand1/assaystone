@@ -642,6 +642,39 @@ oracle, a stage, an approval, a rollback, or lowers a risk rating is flagged as
 The diff never decides anything; it tells the owner what they are being asked to
 re-approve.
 
+## Try it before you run it
+
+A gate can be expensive or destructive: it seeds a ledger, applies a migration,
+calls a staging endpoint. `--dry-run` executes only the oracles that do not
+declare a mutation, and **never returns pass**:
+
+```bash
+assaystone gate --manifest .assaystone/capability.json \
+  --stage shadow --root . --dry-run
+```
+
+```text
+outcome: escalate
+dry run: yes
+seed      command  escalate  not executed: a dry run does not perform an oracle that declares it mutates state
+tests     command  pass
+ledger    sql      escalate  database not found: ledger.db
+parity    shadow   pass
+```
+
+An oracle declares `"mutates": true` in its payload when it changes state — a
+seed command, a write request, a migration. Everything else runs.
+
+Three rules make dry-run safe to use as a first step:
+
+* it never returns `pass` — a dry run is not a decision;
+* a real failure in a read-only oracle is reported as `escalate`, not `fail`, so
+  a dry run cannot impersonate a red build either;
+* `--receipt` is refused, so a dry run cannot leave signed evidence behind.
+
+What it tells you: whether the manifest is sane, which oracles are read-only,
+and what would change. What it does not: whether the mutating oracle works.
+
 ## The capability card
 
 The gate answers one run; the card answers the operator's question.

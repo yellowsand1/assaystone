@@ -830,9 +830,16 @@ def cmd_gate(args: argparse.Namespace) -> int:
             owner_public_key=args.owner_public_key,
             waivers_path=args.waivers,
             revocations_path=args.revocations,
+            dry_run=args.dry_run,
         )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.dry_run and args.receipt:
+        print(
+            "error: a dry run cannot produce a receipt; it is not a decision",
+            file=sys.stderr,
+        )
         return 2
     actor = (
         args.actor
@@ -1848,6 +1855,14 @@ def _parser() -> argparse.ArgumentParser:
     gate_parser.add_argument(
         "--revocations", metavar="PATH", default=None,
         help="keys that must no longer be trusted",
+    )
+    gate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "run read-only oracles only; never returns pass and cannot sign "
+            "a receipt"
+        ),
     )
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)
