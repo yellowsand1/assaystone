@@ -975,9 +975,17 @@ def cmd_gate(args: argparse.Namespace) -> int:
             waivers_path=args.waivers,
             revocations_path=args.revocations,
             dry_run=args.dry_run,
+            sandbox=args.sandbox,
         )
     except PlaneError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.dry_run and args.sandbox:
+        print(
+            "error: --dry-run skips mutating oracles, so --sandbox has "
+            "nothing to protect",
+            file=sys.stderr,
+        )
         return 2
     if args.dry_run and args.receipt:
         print(
@@ -2041,6 +2049,14 @@ def _parser() -> argparse.ArgumentParser:
     gate_parser.add_argument(
         "--revocations", metavar="PATH", default=None,
         help="keys that must no longer be trusted",
+    )
+    gate_parser.add_argument(
+        "--sandbox",
+        action="store_true",
+        help=(
+            "run oracles that declare mutates: true in a disposable copy, so "
+            "the gate does not modify the tree it judges"
+        ),
     )
     gate_parser.add_argument(
         "--dry-run",
