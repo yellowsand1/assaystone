@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **`capability utility`: which required checks have ever observed a failure.**
+  Reads the trail and reports per-oracle runs, passes, failures, escalations, and
+  the last outcome, plus the stage mix, checks required but never recorded,
+  checks that have never failed, and oracles no policy uses. It states that
+  "never failed" is a fact rather than a verdict: an oracle you have never seen
+  reject anything is untested, not proven. This is the empirical half of "price
+  the verification".
 No changes yet.
 
 ## 0.22.0 — 2026-11-26
