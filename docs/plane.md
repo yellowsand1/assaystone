@@ -328,12 +328,16 @@ A stage declares what evidence it needs:
 * A stage with no policy escalates rather than passing by default.
 * `after` chains a stage to a recorded pass of an earlier one. `production`
   with `"after": "canary"` will not run unless the trail holds a passing
-  `canary` gate for the same capability and the same manifest digest. No trail,
-  no entry, a later failure, or a changed manifest escalates. The chain check
-  verifies the trail first: an edited trail cannot unlock the next stage.
-  Circular `after` policies are rejected when the manifest is validated. The
-  decision chain is evidence, not an assumption that someone ran the previous
-  stage.
+  `canary` gate for **the same capability, the same manifest digest, and the
+  same commit**. No trail, no entry, a later failure, a changed manifest, or
+  different code escalates. The chain check verifies the trail first: an edited
+  trail cannot unlock the next stage. Circular `after` policies are rejected
+  when the manifest is validated.
+
+  The commit matters: without it, a canary pass recorded on a benign commit
+  would authorise any later commit. The gate reads `HEAD` of `--root` and
+  compares it with the chain entry; a mismatch says *re-run canary on this
+  code*, because that is the only honest next step.
 
 ### Assurance gap and `--strict`
 
@@ -596,9 +600,10 @@ refunds       support high  shadow     3/3       canary:pass      ok        -   
 ```
 
 `--strict` exits `1` when any capability has a critical risk: no trail, no
-recorded gate for the capability's current lifecycle stage, a recorded stage
-whose last decision did not pass, an ungated critical criterion, an invalid
-approval, receipt, or waiver, or an invalid manifest. A future stage with no
+recorded gate for the capability's current lifecycle stage, a **current-stage
+decision made on a different commit**, a recorded stage whose last decision did
+not pass, an ungated critical criterion, an invalid approval, receipt, or
+waiver, or an invalid manifest. A future stage with no
 evidence yet is not a current defect; the per-stage gap stays on the card. `--json` returns the same data.
 
 The registry is read-only and creates no second source of truth: every cell comes
@@ -650,6 +655,8 @@ assaystone capability status --manifest .assaystone/capability.json \
 It reports:
 
 - static assurance gaps and the critical gaps at the current stage;
+- **stale evidence**: a stage decision recorded for a different commit than the
+  code at `--root` is marked `[stale commit]` and listed as residual risk;
 - each stage's requirements, approvals, rollback oracle, and chain;
 - whether the owner approval is present and valid;
 - the trail chain, its head, and the last outcome per stage;

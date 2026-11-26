@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -241,6 +242,48 @@ class PortfolioTest(unittest.TestCase):
         )
         self.assertTrue(
             any("no recorded `production` gate" in issue for issue in entry.critical)
+        )
+
+    def test_stale_evidence_for_the_current_lifecycle_is_critical(self):
+        repo = self.root
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        (repo / "a.txt").write_text("a\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=a@b.c", "-c", "user.name=t",
+             "commit", "-qm", "one"],
+            cwd=repo,
+            check=True,
+        )
+        directory = self.root / ".assaystone" / "cap-f"
+        directory.mkdir(parents=True)
+        path = directory / "capability.json"
+        path.write_text(json.dumps(manifest_data("cap-f")), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "shadow", repo),
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        self.assertEqual(build_portfolio(self.root).critical_count(), 2)
+
+        (repo / "b.txt").write_text("b\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=a@b.c", "-c", "user.name=t",
+             "commit", "-qm", "two"],
+            cwd=repo,
+            check=True,
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-f"
+        )
+        self.assertTrue(
+            any("different commit" in issue for issue in entry.critical)
         )
 
     def test_invalid_manifest_is_a_critical_entry(self):

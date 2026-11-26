@@ -378,6 +378,7 @@ class GateResult:
     rollback: str = ""
     manifest_lifecycle: str = ""
     manifest_digest: str = ""
+    commit: str = ""
     manifest_approval: dict[str, Any] = field(default_factory=dict)
     waived: list[dict[str, Any]] = field(default_factory=list)
     revoked: list[dict[str, Any]] = field(default_factory=list)
@@ -399,6 +400,7 @@ class GateResult:
             "rollback": self.rollback,
             "manifest_lifecycle": self.manifest_lifecycle,
             "manifest_digest": self.manifest_digest,
+            "commit": self.commit,
             "manifest_approval": dict(self.manifest_approval),
             "waived": list(self.waived),
             "revoked": list(self.revoked),
@@ -437,16 +439,46 @@ def _assurance_gap(
     ]
 
 
+def _head_commit(root: str | Path) -> str:
+    """The commit the gate is deciding about, or "" outside a repository."""
+    import subprocess
+
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def repo_head_commit(start: str | Path) -> str:
+    """HEAD of the repository containing ``start``, or "" outside a repo."""
+    path = Path(start)
+    if not path.is_dir():
+        path = path.parent
+    for candidate in [path, *path.parents]:
+        if (candidate / ".git").exists():
+            return _head_commit(candidate)
+    return ""
+
+
 def _chain_check(
     manifest: CapabilityManifest,
     stage: str,
     policy: StagePolicy,
     trail_path: str | Path | None,
+    commit: str = "",
 ) -> tuple[str, dict[str, Any]]:
     """A stage can require a recorded pass of an earlier stage on the trail.
 
-    The chain is scoped to the capability and compared against the current
-    manifest digest, so a pass under different acceptance rules does not count.
+    The chain is scoped to the capability, the manifest digest, and the commit.
+    A pass under different acceptance rules does not count, and neither does a
+    pass on different code: a canary that ran on one commit cannot authorise a
+    different one.
     """
     if not policy.after:
         return "", {}
@@ -495,6 +527,20 @@ def _chain_check(
     if not prior.get("manifest_digest"):
         return (
             f"the {policy.after} entry has no manifest digest; cannot chain",
+            info,
+        )
+    prior_commit = str(prior.get("commit") or "")
+    info["commit"] = prior_commit
+    if not prior_commit:
+        return (
+            f"the {policy.after} entry has no commit; cannot chain to code",
+            info,
+        )
+    if commit and prior_commit != commit:
+        return (
+            f"the {policy.after} pass was recorded for commit "
+            f"{prior_commit[:12]}, not {commit[:12]}; re-run {policy.after} "
+            "on this code",
             info,
         )
     if prior.get("manifest_digest") != manifest_digest(manifest):
@@ -569,7 +615,9 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+            commit=_head_commit(root),
         )
+    commit = _head_commit(root)
     approval_error, approval_info = _manifest_approval_check(
         manifest, approval_path, owner_key, owner_public_key
     )
@@ -583,11 +631,14 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+            commit=commit,
             manifest_approval=approval_info,
             rollback_required=policy.rollback_required,
             rollback=policy.rollback,
         )
-    chain_error, prior = _chain_check(manifest, stage, policy, trail_path)
+    chain_error, prior = _chain_check(
+        manifest, stage, policy, trail_path, commit
+    )
     if chain_error:
         return GateResult(
             capability=manifest.capability,
@@ -598,6 +649,7 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+            commit=commit,
             rollback_required=policy.rollback_required,
             rollback=policy.rollback,
             prior=prior,
@@ -720,6 +772,7 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+            commit=commit,
             manifest_approval=approval_info,
             waived=waived,
             revoked=revoked,
@@ -739,6 +792,7 @@ def evaluate_gate(
             strict=strict,
             manifest_lifecycle=manifest.lifecycle,
             manifest_digest=manifest_digest(manifest),
+            commit=commit,
             manifest_approval=approval_info,
             waived=waived,
             prior=prior,
@@ -796,6 +850,7 @@ def evaluate_gate(
         rollback=policy.rollback,
         manifest_lifecycle=manifest.lifecycle,
         manifest_digest=manifest_digest(manifest),
+        commit=commit,
         manifest_approval=approval_info,
         waived=waived,
         revoked=revoked,

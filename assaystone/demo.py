@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -287,6 +288,23 @@ def run_plane(output_dir: str | Path = ".") -> str:
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp) / "project"
         shutil.copytree(project, work)
+        # The stage chain binds to a commit: a canary pass for one commit cannot
+        # authorise different code. Give the demo a real commit to chain to.
+        try:
+            subprocess.run(["git", "init", "-q"], cwd=work, check=True,
+                           capture_output=True)
+            subprocess.run(["git", "add", "-A"], cwd=work, check=True,
+                           capture_output=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.email=demo@example.invalid",
+                    "-c", "user.name=demo", "commit", "-qm", "baseline",
+                ],
+                cwd=work, check=True, capture_output=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            lines.append("note: git is unavailable; the stage chain cannot "
+                         "bind to a commit")
 
         shadow = evaluate_gate(manifest, "shadow", work)
         gap = ", ".join(item["criterion"] for item in shadow.gap) or "none"

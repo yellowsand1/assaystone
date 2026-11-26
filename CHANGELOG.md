@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-No changes yet.
+- **A stage chain now binds the commit.** `after` compared the capability and
+  the manifest digest but not the code: a canary pass recorded on one commit
+  would authorise a different one. The gate reads `HEAD` of `--root`, records it
+  in the trail, and refuses to chain across commits — *re-run canary on this
+  code*.
+- **Stale evidence is visible.** `capability status` marks a stage decision
+  recorded for a different commit as `[stale commit]` and lists it as residual
+  risk; `capability list --strict` treats a stale decision for the current
+  lifecycle as critical. `capability status` takes `--root` to say which code
+  the decisions apply to.
 
 ## 0.19.0 — 2026-11-25
 
