@@ -484,6 +484,7 @@ class GateResult:
     waived: list[dict[str, Any]] = field(default_factory=list)
     revoked: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False
+    sandbox: bool = False
     skipped: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
     prior: dict[str, Any] = field(default_factory=dict)
@@ -509,6 +510,7 @@ class GateResult:
             "waived": list(self.waived),
             "revoked": list(self.revoked),
             "dry_run": self.dry_run,
+            "sandbox": self.sandbox,
             "skipped": list(self.skipped),
             "cost_usd": round(self.cost_usd, 6),
             "prior": dict(self.prior),
@@ -526,6 +528,15 @@ def _policy_cycle(policies: dict[str, StagePolicy]) -> list[str] | None:
             policy = policies.get(current)
             current = policy.after if policy else ""
     return None
+
+
+def _external(spec: OracleSpec) -> bool:
+    """True when the oracle reads something outside the workspace."""
+    if spec.type in ("git", "http", "human"):
+        return True
+    if spec.type == "sql":
+        return bool(spec.payload.get("dsn_env"))
+    return False
 
 
 def oracle_cost(spec: OracleSpec) -> float:
@@ -719,6 +730,7 @@ def evaluate_gate(
     dry_run: bool = False,
     budget_usd: float | None = None,
     skip_types: frozenset[str] | set[str] | None = None,
+    sandbox: bool = False,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -782,6 +794,24 @@ def evaluate_gate(
     results: list[OracleResult] = []
     missing: list[str] = []
     spent = 0.0
+    disposable = None
+    if sandbox:
+        import shutil
+        import tempfile
+
+        disposable = Path(tempfile.mkdtemp(prefix="assaystone-sandbox-"))
+        import atexit
+
+        # An early return (approval, revocation) must not leak the copy.
+        atexit.register(shutil.rmtree, disposable, True)
+        shutil.copytree(
+            Path(root).resolve(),
+            disposable / "repo",
+            ignore=shutil.ignore_patterns(
+                ".git", "__pycache__", ".venv", "venv", "node_modules",
+                "target", "dist", "build",
+            ),
+        )
     budget = policy.budget_usd if policy.budget_usd is not None else budget_usd
     budget_exhausted = ""
     skipped: list[str] = []
@@ -821,7 +851,14 @@ def evaluate_gate(
                 )
             )
             continue
-        results.append(run_oracle(spec, root))
+        target = root
+        if disposable is not None and not _external(spec):
+            # The workspace oracles judge and change the copy, so the gate never
+            # modifies the tree it is judging. Only checks that reach outside the
+            # workspace (git's repository metadata, an HTTP endpoint, a human
+            # approval queue, a remote database) use the real root.
+            target = disposable / "repo"
+        results.append(run_oracle(spec, target))
 
     gap = _assurance_gap(manifest, policy)
     blocking_gap = [
@@ -959,6 +996,10 @@ def evaluate_gate(
         item.outcome == "fail" and item.oracle not in waived_oracles
         for item in results
     )
+    if disposable is not None:
+        import shutil as _shutil
+
+        _shutil.rmtree(disposable, ignore_errors=True)
     if budget_exhausted:
         outcome = "escalate"
     elif effective_fail and not dry_run:
@@ -1027,6 +1068,7 @@ def evaluate_gate(
         waived=waived,
         revoked=revoked,
         dry_run=dry_run,
+        sandbox=sandbox,
         skipped=skipped,
         cost_usd=spent,
         prior=prior,
@@ -1039,6 +1081,7 @@ def render_gate(result: GateResult) -> str:
         f"stage: {result.stage}",
         f"outcome: {result.outcome}",
         f"dry run: {'yes' if getattr(result, 'dry_run', False) else 'no'}",
+        f"sandbox: {'yes' if getattr(result, 'sandbox', False) else 'no'}",
         f"cost: ${getattr(result, 'cost_usd', 0.0):.4f}",
         f"merge allowed: {'yes' if result.merge_allowed else 'no'}",
         f"deploy allowed: {'yes' if result.deploy_allowed else 'no'}",

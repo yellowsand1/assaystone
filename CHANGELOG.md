@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`gate --sandbox`: do not judge a tree you have modified.** Workspace oracles
+  run in a disposable copy, so a seed, a migration, or a build does not touch the
+  repository being judged; only checks that reach outside the workspace (`git`,
+  `http`, `human`, `sql` with `dsn_env`) use the real root. The result and the
+  trail record `sandbox: true`.
 No changes yet.
 
 ## 0.25.0 — 2026-11-26

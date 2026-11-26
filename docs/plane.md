@@ -849,6 +849,40 @@ oracle, a stage, an approval, a rollback, or lowers a risk rating is flagged as
 The diff never decides anything; it tells the owner what they are being asked to
 re-approve.
 
+## Do not judge a tree you have modified
+
+Several checks change the thing they check: a seed builds a database, a
+migration runs, a build writes an output directory. `--sandbox` runs those in a
+disposable copy:
+
+```bash
+assaystone gate --manifest .assaystone/capability.json --stage shadow \
+  --root . --sandbox
+```
+
+```text
+outcome: pass
+sandbox: yes
+seed      command  pass
+tests     command  pass
+ledger    sql      pass
+parity    shadow   pass
+```
+
+Afterwards the real tree is untouched — no `ledger.db`. The rule is explicit:
+
+* workspace checks (`command`, `file`, `sql` with a local database, `shadow`,
+  `verifier`, `runtime`, `drill`, `mutation`) run in the copy, so a seed and the
+  query that reads it see consistent state;
+* only checks that reach outside the workspace — `git` (repository metadata),
+  `http` (an endpoint), `human` (an approval queue), and `sql` with `dsn_env` —
+  use the real root.
+
+`--sandbox` and `--dry-run` are mutually exclusive: a dry run skips mutating
+oracles, so there is nothing to protect. The result and the trail record
+`sandbox: true`, because "this passed in a copy" is different evidence from
+"this passed here".
+
 ## Price the verification
 
 A stage can declare what its checks may cost, and an oracle can declare its own
