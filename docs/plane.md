@@ -642,6 +642,35 @@ oracle, a stage, an approval, a rollback, or lowers a risk rating is flagged as
 The diff never decides anything; it tells the owner what they are being asked to
 re-approve.
 
+## Price the verification
+
+A stage can declare what its checks may cost, and an oracle can declare its own
+price. The gate adds them up and stops honestly:
+
+```json
+{"shadow": {"require": ["build", "api", "soak"], "budget_usd": 0.50}}
+```
+
+```json
+{"id": "soak", "type": "command",
+ "payload": {"command": ["./soak.sh"], "cost_usd": 0.40, "timeout": 900}}
+```
+
+```text
+outcome: escalate
+cost: $0.0100
+  verification budget $0.5000 would be exceeded before `soak` ($0.4000);
+  spent $0.0100
+```
+
+* Declared order is preserved, because oracles often depend on each other (a
+  seed before a query). The gate does not reorder to cheap-first.
+* An exhausted budget **escalates**, never passes: an unchecked requirement is
+  not a satisfied one.
+* `cost_usd` reaches the gate result, the trail, and the receipt, so a reviewer
+  can see what a decision cost.
+* A non-numeric cost counts as zero; a negative budget is a manifest error.
+
 ## Try it before you run it
 
 A gate can be expensive or destructive: it seeds a ledger, applies a migration,
@@ -731,6 +760,12 @@ signature escalates. This is a governance decision, not a failed check.
 |---|---|---|
 | `ASSAYSTONE_OWNER_KEY` (HMAC) or the owner private key (Ed25519) | the capability owner | the manifest digest |
 | `ASSAYSTONE_RECEIPT_KEY` (HMAC) or the gate private key (Ed25519) | the gate runner (CI) | one gate decision |
+
+**The digest is stable across upgrades.** It covers only what you declared: keys
+that existed when approvals were first issued stay present even when empty, and
+a field added later appears only when it is set. Adding `budget_usd` changed
+every digest and invalidated an approval during development — the self-gate
+refused on CI — so the serialised shape is now frozen and pinned by a test.
 
 Keep them separate. The owner decides what "acceptable" means; CI records that
 the decision was made. HMAC is symmetric; Ed25519 lets CI hold only a public key,

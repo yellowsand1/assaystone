@@ -50,6 +50,7 @@ class StagePolicy:
     rollback_required: bool = False
     rollback: str = ""
     after: str = ""
+    budget_usd: float | None = None
 
 
 @dataclass
@@ -125,6 +126,11 @@ class CapabilityManifest:
                 rollback_required=bool(value.get("rollback_required", False)),
                 rollback=str(value.get("rollback") or ""),
                 after=str(value.get("after") or ""),
+                budget_usd=(
+                    float(value["budget_usd"])
+                    if isinstance(value.get("budget_usd"), (int, float))
+                    else None
+                ),
             )
             for name, value in (data.get("policies") or {}).items()
         }
@@ -221,6 +227,8 @@ class CapabilityManifest:
                     f"policy {stage}: unknown rollback oracle "
                     f"{policy.rollback!r}"
                 )
+            if policy.budget_usd is not None and policy.budget_usd < 0:
+                errors.append(f"policy {stage}: budget_usd is negative")
             if policy.rollback_required and not policy.rollback:
                 errors.append(
                     f"policy {stage}: rollback_required needs a rollback oracle"
@@ -288,15 +296,7 @@ class CapabilityManifest:
                 for item in self.oracles
             ],
             "policies": {
-                name: {
-                    "require": list(policy.require),
-                    "approvals": list(policy.approvals),
-                    "allow_merge": policy.allow_merge,
-                    "allow_deploy": policy.allow_deploy,
-                    "rollback_required": policy.rollback_required,
-                    "rollback": policy.rollback,
-                    "after": policy.after,
-                }
+                name: _policy_view(policy)
                 for name, policy in sorted(self.policies.items())
             },
         }
@@ -350,6 +350,27 @@ def _oracle_spec(
     )
 
 
+def _policy_view(policy: StagePolicy) -> dict[str, Any]:
+    """The serialised policy that the owner's digest covers.
+
+    The shape is frozen: keys that existed when approvals were first issued stay
+    present even when empty, and a field added later is emitted only when it is
+    set. A tool upgrade must not invalidate an approval.
+    """
+    view: dict[str, Any] = {
+        "require": list(policy.require),
+        "approvals": list(policy.approvals),
+        "allow_merge": policy.allow_merge,
+        "allow_deploy": policy.allow_deploy,
+        "rollback_required": policy.rollback_required,
+        "rollback": policy.rollback,
+        "after": policy.after,
+    }
+    if policy.budget_usd is not None:
+        view["budget_usd"] = policy.budget_usd
+    return view
+
+
 def manifest_digest(manifest: CapabilityManifest) -> str:
     """Identity of the acceptance rules, stable across machines.
 
@@ -383,6 +404,7 @@ class GateResult:
     waived: list[dict[str, Any]] = field(default_factory=list)
     revoked: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False
+    cost_usd: float = 0.0
     prior: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -406,6 +428,7 @@ class GateResult:
             "waived": list(self.waived),
             "revoked": list(self.revoked),
             "dry_run": self.dry_run,
+            "cost_usd": round(self.cost_usd, 6),
             "prior": dict(self.prior),
         }
 
@@ -421,6 +444,13 @@ def _policy_cycle(policies: dict[str, StagePolicy]) -> list[str] | None:
             policy = policies.get(current)
             current = policy.after if policy else ""
     return None
+
+
+def oracle_cost(spec: OracleSpec) -> float:
+    value = spec.payload.get("cost_usd", 0)
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return 0.0
 
 
 def _assurance_gap(
@@ -605,6 +635,7 @@ def evaluate_gate(
     waivers_path: str | Path | None = None,
     revocations_path: str | Path | None = None,
     dry_run: bool = False,
+    budget_usd: float | None = None,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -667,11 +698,22 @@ def evaluate_gate(
     )
     results: list[OracleResult] = []
     missing: list[str] = []
+    spent = 0.0
+    budget = policy.budget_usd if policy.budget_usd is not None else budget_usd
+    budget_exhausted = ""
     for oracle_id in required:
         spec = by_id.get(oracle_id)
         if spec is None:
             missing.append(oracle_id)
             continue
+        cost = oracle_cost(spec)
+        if budget is not None and spent + cost > budget:
+            budget_exhausted = (
+                f"verification budget ${budget:.4f} would be exceeded before "
+                f"`{oracle_id}` (${cost:.4f}); spent ${spent:.4f}"
+            )
+            break
+        spent += cost
         if dry_run and spec.payload.get("mutates"):
             results.append(
                 OracleResult(
@@ -826,7 +868,9 @@ def evaluate_gate(
         item.outcome == "fail" and item.oracle not in waived_oracles
         for item in results
     )
-    if effective_fail and not dry_run:
+    if budget_exhausted:
+        outcome = "escalate"
+    elif effective_fail and not dry_run:
         outcome = "fail"
     elif dry_run:
         outcome = "escalate"
@@ -844,6 +888,8 @@ def evaluate_gate(
             f"until {item.get('expires_at')}"
         )
     reasons.extend(waiver_notes)
+    if budget_exhausted:
+        reasons.append(budget_exhausted)
     if dry_run:
         reasons.append(
             "dry run: this is not a decision; mutating oracles were not "
@@ -885,6 +931,7 @@ def evaluate_gate(
         waived=waived,
         revoked=revoked,
         dry_run=dry_run,
+        cost_usd=spent,
         prior=prior,
     )
 
@@ -895,6 +942,7 @@ def render_gate(result: GateResult) -> str:
         f"stage: {result.stage}",
         f"outcome: {result.outcome}",
         f"dry run: {'yes' if getattr(result, 'dry_run', False) else 'no'}",
+        f"cost: ${getattr(result, 'cost_usd', 0.0):.4f}",
         f"merge allowed: {'yes' if result.merge_allowed else 'no'}",
         f"deploy allowed: {'yes' if result.deploy_allowed else 'no'}",
         "",

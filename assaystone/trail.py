@@ -73,6 +73,8 @@ def entry_for(
         ),
         "waived": list(getattr(gate, "waived", []) or []),
         "revoked": list(getattr(gate, "revoked", []) or []),
+        "dry_run": bool(getattr(gate, "dry_run", False)),
+        "cost_usd": round(float(getattr(gate, "cost_usd", 0.0) or 0.0), 6),
         "prior": dict(getattr(gate, "prior", {}) or {}),
         "oracles": [
             {
