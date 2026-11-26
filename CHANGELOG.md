@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **`mutation` oracle: do the tests cover the change?** It injects one plausible
+  defect at a time into the **added** lines (`git diff -U0`), runs the suite, and
+  requires most mutants to be killed. Test files are never mutated; a red baseline
+  escalates; a surviving mutant is a behaviour nobody checks. This is the
+  deterministic answer to "tests pass, so the behaviour must be fine", which was
+  the largest remaining hole.
+- **The draft proposes it** for a Python project with tests, priced at
+  `cost_usd: 0.05` so it counts against the stage budget.
 - **`capability init` proposes the checks the repository implies.** A Java
   module gets "the public API is unchanged" (`javap` against the baseline), a
   test tree gets `tests.integrity`, `.github/workflows` gets `diff.ci_surface`, a
