@@ -44,6 +44,7 @@ ORACLE_TYPES = (
     "verifier",
     "runtime",
     "drill",
+    "mutation",
 )
 READ_ONLY_HTTP = ("GET", "HEAD", "OPTIONS")
 SQL_TIMEOUT_SECONDS = 15
@@ -1415,6 +1416,60 @@ def _drill(spec: OracleSpec, root: Path) -> OracleResult:
 
 
 # ---------------------------------------------------------------------------
+# mutation: do the tests actually cover the change?
+# ---------------------------------------------------------------------------
+
+
+def _mutation(spec: OracleSpec, root: Path) -> OracleResult:
+    from .mutation_check import run_check
+
+    payload = spec.payload
+    command = payload.get("command")
+    if not command:
+        return _result(spec, "escalate", ["mutation payload has no command"])
+    if isinstance(command, str):
+        command = shlex.split(command)
+    try:
+        check = run_check(
+            root,
+            [str(part) for part in command],
+            against=str(payload.get("against") or "HEAD"),
+            threshold=float(payload.get("threshold", 0.5)),
+            max_mutants=int(payload.get("max_mutants", 8)),
+            timeout=float(payload.get("timeout", 600)),
+            paths=[str(item) for item in payload.get("paths") or []],
+        )
+    except Exception as exc:  # noqa: BLE001 - a gate must never crash
+        return _result(spec, "escalate", [f"mutation check failed: {exc}"])
+    evidence = [
+        f"score={check.score:.2f}",
+        f"killed={check.killed}",
+        f"survived={check.survived}",
+    ]
+    if check.invalid:
+        evidence.append(f"invalid={check.invalid}")
+    facts = {
+        "mutation_score": f"{check.score:.2f}",
+        "survivors": str(check.survived),
+        "files": ",".join(check.files),
+    }
+    return _result(
+        spec,
+        check.outcome,
+        check.reasons,
+        evidence,
+        canonical_json(
+            {
+                "score": round(check.score, 4),
+                "survivors": [item.to_dict() for item in check.survivors
+                              if item.status == "survived"],
+            }
+        ),
+        facts={key: value for key, value in facts.items() if value},
+    )
+
+
+# ---------------------------------------------------------------------------
 # registry
 # ---------------------------------------------------------------------------
 
@@ -1542,6 +1597,8 @@ def _dispatch(spec: OracleSpec, root: Path) -> OracleResult:
         outcome = _runtime(spec, root)
     elif spec.type == "drill":
         outcome = _drill(spec, root)
+    elif spec.type == "mutation":
+        outcome = _mutation(spec, root)
     else:
         return _result(spec, "escalate", [f"unknown oracle type: {spec.type!r}"])
     return outcome

@@ -4,7 +4,7 @@ A verifier answers "is this artifact acceptable?" for one artifact at one
 moment. A deployment needs more: *who* asked, at *which lifecycle stage*, with
 *which* evidence, *what* was not checked, and *where* the decision was recorded.
 
-The acceptance plane is that layer. Its core is domain-blind: eleven generic
+The acceptance plane is that layer. Its core is domain-blind: twelve generic
 oracle primitives, a manifest that binds declared criteria to them, lifecycle
 policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
@@ -35,6 +35,7 @@ implies, with the evidence for each:
 | a test tree | **no test was deleted or weakened** (`tests.integrity`) |
 | `.github/workflows` | **the CI configuration is unchanged** (`diff.ci_surface`) |
 | a dependency manifest | **the dependency set is unchanged** (supply chain) |
+| a Python test suite | **the change is covered by the tests** (mutation of the added lines) |
 | `db/migration` and friends | **every new migration declares a down path** |
 
 Each proposal names why it applies, and `init` writes the small payload scripts
@@ -134,6 +135,7 @@ ran can return `pass` or `fail`.
 | `verifier` | a declared verifier decides the working-tree diff | `name`, `params`, `test_command` |
 | `runtime` | the session's supervisor record still describes this code | `record`, `require_outcome`, `max_age_minutes` |
 | `drill` | a recorded proof that the compensation restores the state | `manifest`, `id`, `max_age_minutes` |
+| `mutation` | the tests actually cover the added lines | `command`, `against`, `threshold`, `max_mutants` |
 
 ### `http`
 
@@ -265,6 +267,30 @@ the same result. `compare.mode` is `text` (whitespace-normalised, optional
 For an intentional behaviour change, assert the new expected output directly
 with a `file`, `sql`, or `command` oracle; shadow is for "nothing should have
 changed".
+
+### `mutation`
+
+"Tests pass" says nothing about whether the tests *cover the change*. This oracle
+injects one plausible defect at a time into the **added** lines, runs the suite,
+and requires most mutants to be killed:
+
+```json
+{"id": "mutation", "type": "mutation",
+ "payload": {"command": ["python3", "-m", "pytest", "-q"],
+             "against": "HEAD", "threshold": 0.5, "max_mutants": 6}}
+```
+
+* Only lines this change added are mutated (`git diff -U0`); mutating the whole
+  file measures whether the file is covered, not whether the change is.
+* **Test files are never mutated.** A mutant of a test is a different test; whether
+  it passes says nothing about the change.
+* The suite must already pass on the unmutated code, or the check escalates: it
+  would only re-measure that failure.
+* A surviving mutant is a behaviour nobody checks. Below `threshold` the oracle
+  **fails** and names the survivors; no mutants at all escalates.
+* It is Python-only, and a survivor may be an equivalent mutant. It is the closest
+  a deterministic check gets to "the behaviour is verified", and the docs say what
+  it cannot do.
 
 ### `drill`
 
@@ -986,7 +1012,7 @@ Neither mechanism makes a compromised host safe. They make the decision
 ## Adapting a new domain
 
 1. Write the manifest: systems, irreversible actions, criteria, severity.
-2. Bind each criterion to one of the eleven primitives. If none fits, that is a
+2. Bind each criterion to one of the twelve primitives. If none fits, that is a
    finding about the domain, not a reason to add a code path.
 3. Put shared definitions in a registry and pin their versions.
 4. Declare what each lifecycle stage requires, and which approvals it accepts.

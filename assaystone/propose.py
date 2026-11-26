@@ -384,6 +384,38 @@ def propose(facts: Scan) -> list[Proposal]:
             )
         )
 
+    if facts.stack == "python" and facts.has_tests:
+        proposals.append(
+            Proposal(
+                id="change-covered",
+                kind="postcondition",
+                statement="The change is covered by the tests.",
+                severity="high",
+                oracle={
+                    "id": "mutation",
+                    "type": "mutation",
+                    "description": (
+                        "mutate the added lines and require the suite to "
+                        "kill most of them"
+                    ),
+                    "payload": {
+                        "command": ["python3", "-m", "pytest", "-q"],
+                        "against": "HEAD",
+                        "threshold": 0.5,
+                        "max_mutants": 6,
+                        "timeout": 900,
+                        "cost_usd": 0.05,
+                        "mutates": True,
+                    },
+                },
+                why=(
+                    "a Python test suite exists: passing tests do not prove "
+                    "the change is covered, and a surviving mutant is a "
+                    "behaviour nobody checks"
+                ),
+            )
+        )
+
     if facts.has_dependency_manifest:
         proposals.append(
             Proposal(
