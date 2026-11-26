@@ -361,8 +361,10 @@ public key, runs the oracles and the rollback check, signs an Ed25519 release
 receipt, and uploads the evidence. The Claude Code Stop hook can run the same
 gate and refuse to stop while it fails.
 
-Case study: [a green build, a broken API, a blocked promotion, and a verified
-rollback](docs/case-study-lifecycle.md). Reference: [docs/plane.md](docs/plane.md).
+Two pieces of evidence, both runnable:
+[a trial you can run](docs/trial.md) (the whole loop on a small service, with the
+gate refusing a change that looks done) and
+[a green build, a broken API, a blocked promotion, and a verified rollback](docs/case-study-lifecycle.md). Reference: [docs/plane.md](docs/plane.md).
 
 ## External tools
 

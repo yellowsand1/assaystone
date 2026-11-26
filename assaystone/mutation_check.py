@@ -87,7 +87,7 @@ def _changed_lines(root: Path, against: str) -> dict[str, set[int]]:
             lines[current].update(range(start, start + count))
     for name in run("ls-files", "--others", "--exclude-standard").splitlines():
         name = name.strip()
-        if not name or _is_test_path(name):
+        if not name or _is_test_path(name) or _is_excluded(name):
             continue
         path = root / name
         if path.is_file():
@@ -121,8 +121,20 @@ def _changed_python(root: Path, against: str) -> list[str]:
         for name in names
         if name.endswith(".py")
         and not _is_test_path(name)
+        and not _is_excluded(name)
         and (root / name).is_file()
     )
+
+
+# Paths the run copies without, so mutating them would fail to find the file.
+EXCLUDED_TOPS = frozenset({
+    ".git", ".assaystone", "node_modules", ".venv", "venv",
+    "__pycache__", "target", "dist", "build",
+})
+
+
+def _is_excluded(name: str) -> bool:
+    return name.split("/")[0] in EXCLUDED_TOPS
 
 
 TEST_MARKERS = ("/test_", "test_", "_test.py", "conftest.py", "/tests/", "tests/")

@@ -374,7 +374,14 @@ def propose(facts: Scan) -> list[Proposal]:
                     "id": "ci_intact",
                     "type": "verifier",
                     "description": "the diff.ci_surface check",
-                    "payload": {"name": "diff.ci_surface", "params": {}},
+                    "payload": {
+                        "name": "diff.ci_surface",
+                        "params": {
+                            "allowed_additions": [
+                                ".github/workflows/assaystone.yml"
+                            ]
+                        },
+                    },
                 },
                 why=(
                     ".github/workflows exists: weakening CI is cheaper than "
