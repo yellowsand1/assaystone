@@ -4,7 +4,7 @@ A verifier answers "is this artifact acceptable?" for one artifact at one
 moment. A deployment needs more: *who* asked, at *which lifecycle stage*, with
 *which* evidence, *what* was not checked, and *where* the decision was recorded.
 
-The acceptance plane is that layer. Its core is domain-blind: twelve generic
+The acceptance plane is that layer. Its core is domain-blind: thirteen generic
 oracle primitives, a manifest that binds declared criteria to them, lifecycle
 policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
@@ -156,6 +156,7 @@ ran can return `pass` or `fail`.
 | `runtime` | the session's supervisor record still describes this code | `record`, `require_outcome`, `max_age_minutes` |
 | `drill` | a recorded proof that the compensation restores the state | `manifest`, `id`, `max_age_minutes` |
 | `mutation` | the tests actually cover the added lines | `command`, `against`, `threshold`, `max_mutants` |
+| `canary` | the candidate is not worse than the incumbent, beyond noise | `baseline`, `candidate`, `samples`, `max_relative_increase` |
 
 ### `http`
 
@@ -288,7 +289,39 @@ For an intentional behaviour change, assert the new expected output directly
 with a `file`, `sql`, or `command` oracle; shadow is for "nothing should have
 changed".
 
-### Canary without a new primitive
+### `canary`
+
+One request is not a canary: two healthy services differ run to run. This oracle
+samples both sides and asks whether the difference is larger than the tolerance
+**and** supported by the data:
+
+```json
+{"id": "canary", "type": "canary", "payload": {
+  "baseline": {"type": "http", "payload": {"url": "https://prod.example.com/metrics"}},
+  "candidate": {"type": "http", "payload": {"url": "https://canary.example.com/metrics"}},
+  "json_path": "p95_ms", "samples": 12,
+  "max_relative_increase": 0.10, "confidence": 0.95}}
+```
+
+```text
+outcome: fail
+  the candidate is +30.0% worse than the baseline (limit +10.0%) and the 95%
+  interval for the difference is [26.1, 33.7], which excludes zero
+```
+
+* Each side is any oracle that produces a number; `json_path` reads it from the
+  output, or the first bare number in the text.
+* The interval is a **bootstrap** over the two samples with a fixed seed, so the
+  verdict is reproducible; a gate that flipped on a random draw would be worse
+  than no gate.
+* A regression needs both a relative change over the limit **and** an interval
+  that excludes zero. Noise does not fail; a large change with a wide interval
+  does not fail yet either, and the evidence says so.
+* Fewer than five usable measurements per side escalates: at that size a canary
+  cannot tell a regression from noise.
+* A side that does not answer, or produces no number, escalates.
+
+### Canary across two JSON bodies
 
 A canary asks one question: does the candidate behave like the incumbent? That is
 `shadow` with two endpoints:
@@ -300,6 +333,9 @@ A canary asks one question: does the candidate behave like the incumbent? That i
   "compare": {"mode": "json", "ignore": ["served_by", "generated_at"],
               "tolerance": 0.001}}}
 ```
+
+Use this when the whole body matters; use the `canary` oracle when one number
+does.
 
 `ignore` is what makes a live comparison usable: version strings, timestamps, and
 request ids always differ. `tolerance` absorbs floating-point noise. For a metric
@@ -1093,7 +1129,7 @@ Neither mechanism makes a compromised host safe. They make the decision
 ## Adapting a new domain
 
 1. Write the manifest: systems, irreversible actions, criteria, severity.
-2. Bind each criterion to one of the twelve primitives. If none fits, that is a
+2. Bind each criterion to one of the thirteen primitives. If none fits, that is a
    finding about the domain, not a reason to add a code path.
 3. Put shared definitions in a registry and pin their versions.
 4. Declare what each lifecycle stage requires, and which approvals it accepts.

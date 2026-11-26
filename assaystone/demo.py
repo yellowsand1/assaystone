@@ -282,7 +282,7 @@ def run_plane(output_dir: str | Path = ".") -> str:
     manifest = CapabilityManifest.load(root / "capability.json")
     lines = [
         "Assaystone demo — acceptance plane",
-        "domain: pricing; twelve generic oracles; plane.py unchanged",
+        "domain: pricing; thirteen generic oracles; plane.py unchanged",
         "",
     ]
     with tempfile.TemporaryDirectory() as tmp:

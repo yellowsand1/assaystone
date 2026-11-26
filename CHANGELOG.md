@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`canary` oracle (thirteenth primitive): compare distributions, not single
+  measurements.** Samples the incumbent and the candidate, bootstraps an interval
+  for the difference with a fixed seed, and fails only when the relative change
+  exceeds the limit **and** the interval excludes zero. Fewer than five usable
+  measurements escalates; noise does not fail.
 No changes yet.
 
 ## 0.26.0 — 2026-11-26
