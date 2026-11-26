@@ -794,6 +794,47 @@ Three rules make dry-run safe to use as a first step:
 What it tells you: whether the manifest is sane, which oracles are read-only,
 and what would change. What it does not: whether the mutating oracle works.
 
+## Which checks earn their keep
+
+The trail already records, per decision, which oracle ran and what it said. That
+is the empirical version of "price the verification":
+
+```bash
+assaystone capability utility --manifest .assaystone/capability.json \
+  --trail .assaystone/trail.jsonl
+```
+
+```text
+capability: util-demo
+decisions on this trail: 6
+
+oracle     runs  pass  fail  esc  required  last
+compile       6     5     1    0       yes  pass
+lint          6     6     0    0       yes  pass
+
+by stage
+  shadow          6 runs (5 pass, 1 fail, 0 escalate)
+
+never observed a failure: lint
+  this is a fact, not a verdict: the check may be doing its job, or it may be
+  unable to fail
+declared but no policy uses it: unused
+```
+
+Three findings it can produce:
+
+* **required but never recorded** — the check was added to a policy after the
+  evidence stopped accumulating, or the gate never reached it;
+* **never observed a failure** — a fact, not a verdict: the check may be doing
+  its job, or it may be unable to fail. This is the same distinction as recall
+  versus resistance: an oracle you have never seen reject anything is untested,
+  not proven;
+* **declared but unused**, or **ran but no policy requires it now** — dead weight
+  and stale policy respectively.
+
+The report does not delete anything. Removing a check is an owner decision, and
+`capability diff` will show it as weakening.
+
 ## The capability card
 
 The gate answers one run; the card answers the operator's question.

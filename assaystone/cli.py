@@ -85,6 +85,8 @@ from .scaffold import (
     next_steps,
 )
 from .sessions import SessionDiscoveryError, find_latest_session
+from .utility import build_report as build_utility_report
+from .utility import render_report as render_utility_report
 from .waiver import (
     WaiverError,
     create_waiver,
@@ -507,6 +509,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_diff(args)
     if args.capability_command == "drill":
         return _cmd_capability_drill(args)
+    if args.capability_command == "utility":
+        return _cmd_capability_utility(args)
     if args.capability_command == "list":
         return _cmd_capability_list(args)
     try:
@@ -627,6 +631,22 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         "--stage shadow --root ."
     )
     return 0
+
+
+def _cmd_capability_utility(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    report = build_utility_report(manifest, args.trail)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(render_utility_report(report))
+    return 0 if report.trail_ok else 2
 
 
 def _cmd_capability_drill(args: argparse.Namespace) -> int:
@@ -1858,6 +1878,18 @@ def _parser() -> argparse.ArgumentParser:
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
     )
     capability_drill.set_defaults(func=cmd_capability)
+
+    capability_utility = capability_sub.add_parser(
+        "utility",
+        help="which required checks have ever observed a failure",
+    )
+    capability_utility.add_argument("--manifest", required=True, metavar="PATH")
+    capability_utility.add_argument("--trail", default=None, metavar="PATH")
+    capability_utility.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_utility.add_argument("--json", action="store_true")
+    capability_utility.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",
