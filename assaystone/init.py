@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-ACTION_REF = "v0.28.0"
+ACTION_REF = "v0.29.0"
 
 # The defect classes a generated contract claims to cover. Coverage is only
 # meaningful when the requirement is stated independently of the checks, so this
