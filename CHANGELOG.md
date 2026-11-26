@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.23.0 — 2026-11-26
+
 - **`capability utility`: which required checks have ever observed a failure.**
   Reads the trail and reports per-oracle runs, passes, failures, escalations, and
   the last outcome, plus the stage mix, checks required but never recorded,
