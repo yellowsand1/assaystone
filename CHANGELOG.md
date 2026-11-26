@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **`scripts/trial.py` and `docs/trial.md`: the loop as a runnable artifact.**
+  The script builds a small service, has it inspected, then walks a change from
+  "the agent says it is done" through a refusal (six of six mutants survived),
+  a fix, a signed decision, and the card that says what is still unresolved.
+  `make trial` regenerates the document and CI diffs it, so the evidence cannot
+  drift from the code. Timestamps, hashes, and signatures are normalised.
+- **`tests.integrity` is semantic.** It used to fail on any change under a test
+  prefix, which made "the agent added a test" a defect. It now fails on a deleted
+  test file, a removed test, or fewer assertions; a rewritten test body is
+  `escalate` (counts cannot tell whether it still asserts the same thing); adding
+  tests is fine.
+- **`diff.ci_surface` allows the gate's own workflow to be added.** The draft
+  writes `.github/workflows/assaystone.yml`; the next gate flagged its own file.
 No changes yet.
 
 ## 0.28.0 — 2026-11-26

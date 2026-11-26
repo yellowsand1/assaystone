@@ -52,8 +52,13 @@ class AuditTest(unittest.TestCase):
             {artifact.path for artifact in trace.artifacts},
             {"pricing/discounts.py", "tests/test_discounts.py"},
         )
+        # The working tree equals the baseline, so nothing was tampered with:
+        # "modified" alone is no longer a finding, only a deleted or weakened
+        # test is.
         report = audit_traces(build_audit_contract(BASELINE), traces, BASELINE)
-        self.assertIn("tests.integrity", {finding.verifier for finding in report.findings})
+        self.assertNotIn(
+            "tests.integrity", {finding.verifier for finding in report.findings}
+        )
 
     def test_partial_replay_falls_back_to_workspace(self):
         with tempfile.TemporaryDirectory() as tmp:

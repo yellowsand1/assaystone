@@ -1,6 +1,6 @@
 PYTHON ?= $(shell command -v python3.12 2>/dev/null || command -v python3.11 2>/dev/null || command -v python3.10 2>/dev/null || command -v python3)
 
-.PHONY: check-python demo demo-ops demo-audit demo-adversarial demo-plane benchmark benchmark-goodhart scorecard leaderboard compose coverage protocol protocol-json growth-snapshot test pytest lint package
+.PHONY: check-python demo demo-ops demo-audit demo-adversarial demo-plane trial benchmark benchmark-goodhart scorecard leaderboard compose coverage protocol protocol-json growth-snapshot test pytest lint package
 
 check-python:
 	@$(PYTHON) -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else "Assaystone requires Python 3.10+; set PYTHON to a newer interpreter")'
@@ -55,6 +55,9 @@ lint: check-python
 
 release-prep: check-python
 	$(PYTHON) scripts/release_prep.py --version $(VERSION)
+
+trial: check-python
+	$(PYTHON) scripts/trial.py --markdown > docs/trial.md
 
 package: check-python
 	$(PYTHON) -m build

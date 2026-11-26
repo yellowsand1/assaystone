@@ -25,6 +25,25 @@ class ClaudeCodeHookTest(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.baseline = Path(self._tmp.name) / "baseline"
         shutil.copytree(BASELINE, self.baseline)
+        # A real session has a pre-session commit and leaves changes on disk.
+        subprocess.run(["git", "init", "-q"], cwd=self.baseline, check=True)
+        subprocess.run(["git", "add", "-A"], cwd=self.baseline, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=a@b.c", "-c", "user.name=t",
+             "commit", "-qm", "baseline"],
+            cwd=self.baseline,
+            check=True,
+        )
+        test_file = self.baseline / "tests" / "test_discounts.py"
+        original = test_file.read_text(encoding="utf-8")
+        test_file.write_text(
+            original.replace(
+                "    def test_round_half_cent(self):\n"
+                "        self.assertEqual(apply_discount(1, 50), 0)\n\n",
+                "",
+            ),
+            encoding="utf-8",
+        )
 
     def _payload(self, **overrides):
         payload = {

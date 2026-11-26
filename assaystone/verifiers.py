@@ -265,16 +265,64 @@ class DiffForbiddenPaths(Verifier):
         return (not violations, violations, [f"checked {len(forbidden)} protected pattern(s)"])
 
 
+def _test_bodies(source: str) -> dict[str, str]:
+    """Test name -> its source text, so a rewritten test can be spotted."""
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return {}
+    bodies: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if not str(node.name).startswith("test"):
+            continue
+        segment = ast.get_source_segment(source, node)
+        bodies[str(node.name)] = segment or ""
+    return bodies
+
+
+def _test_shape(source: str) -> tuple[int, int]:
+    """How many tests and assertions a file declares."""
+    import ast
+
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return 0, 0
+    tests = 0
+    assertions = 0
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and str(
+            node.name
+        ).startswith("test"):
+            tests += 1
+        if isinstance(node, ast.Assert):
+            assertions += 1
+        elif isinstance(node, ast.Call):
+            name = getattr(node.func, "attr", None) or getattr(
+                node.func, "id", ""
+            )
+            if str(name).startswith("assert"):
+                assertions += 1
+    return tests, assertions
+
+
 @register
 class TestsIntegrity(Verifier):
     name = "tests.integrity"
     layer = "L1"
     cost_usd = 0.00002
-    description = "Test files are part of the oracle and must not be modified."
-    claim = "No file under the protected test prefixes was added, changed, or deleted."
+    description = "Tests may be added, but not deleted or weakened."
+    claim = (
+        "No test was deleted, and no test file lost tests or assertions."
+    )
     catches = ("test-tampering",)
     blind_spots = (
         "test files outside the protected prefixes",
+        "an assertion changed to one that always passes",
         "test-harness-hijack",
         "module-shadow",
     )
@@ -283,12 +331,64 @@ class TestsIntegrity(Verifier):
         if params.get("allow_test_changes", False):
             return True, [], ["test changes allowed by contract"]
         protected = list(params.get("protected_prefixes") or ["tests/"])
-        violations = [
-            f"{path} ({change})"
-            for path, change in ctx.changed()
-            if any(_path_under(path, prefix) for prefix in protected)
-        ]
-        return (not violations, violations, [f"checked {len(protected)} protected prefix(es)"])
+        strict = bool(params.get("strict", False))
+        violations: list[str] = []
+        added = 0
+        for path, change in ctx.changed():
+            if not any(_path_under(path, prefix) for prefix in protected):
+                continue
+            if strict:
+                violations.append(f"{path} ({change})")
+                continue
+            if change == "deleted":
+                violations.append(f"{path} (deleted)")
+                continue
+            if change == "added":
+                added += 1
+                continue
+            before = ctx.baseline_text(path)
+            if before is None:
+                # The change claims a modification but there is no baseline to
+                # compare against, so "unchanged" cannot be claimed.
+                violations.append(f"{path} ({change}, no baseline to compare)")
+                continue
+            after = ctx.current_text(path)
+            old_tests, old_asserts = _test_shape(before)
+            new_tests, new_asserts = _test_shape(after)
+            if new_tests < old_tests:
+                violations.append(
+                    f"{path} (removed {old_tests - new_tests} test(s))"
+                )
+                continue
+            if new_asserts < old_asserts:
+                violations.append(
+                    f"{path} (removed {old_asserts - new_asserts} assertion(s))"
+                )
+                continue
+            old_bodies = _test_bodies(before)
+            new_bodies = _test_bodies(after)
+            rewritten = sorted(
+                name
+                for name in old_bodies
+                if name in new_bodies and old_bodies[name] != new_bodies[name]
+            )
+            if rewritten:
+                # Counts are equal, so nothing was obviously removed, but a
+                # rewritten test may assert something weaker. That is unknown,
+                # not a pass.
+                return (
+                    None,
+                    [
+                        f"{path}: {len(rewritten)} test(s) rewritten "
+                        f"({', '.join(rewritten[:3])}); counts alone cannot "
+                        "tell whether they still assert the same thing"
+                    ],
+                    [f"checked {len(protected)} protected prefix(es)"],
+                )
+        evidence = [f"checked {len(protected)} protected prefix(es)"]
+        if added:
+            evidence.append(f"{added} test file(s) added")
+        return (not violations, violations, evidence)
 
 
 @register
@@ -573,6 +673,9 @@ class TestsHarnessIntegrity(Verifier):
         )
 
 
+# The gate's own workflow is how the gate runs; adding it is not a bypass.
+DEFAULT_CI_ALLOWED_ADDITIONS = (".github/workflows/assaystone.yml",)
+
 DEFAULT_CI_SURFACE = (
     ".github/",
     "ci/",
@@ -602,10 +705,12 @@ class DiffCiSurface(Verifier):
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         protected = list(params.get("protected") or DEFAULT_CI_SURFACE)
+        allowed_additions = set(params.get("allowed_additions") or ())
         violations = [
             f"{path} ({change})"
             for path, change in ctx.changed()
             if any(_path_matches(path, pattern) for pattern in protected)
+            and not (change == "added" and path in allowed_additions)
         ]
         return (
             not violations,
