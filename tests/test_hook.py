@@ -18,11 +18,19 @@ BASELINE = AUDIT / "baseline"
 
 
 class ClaudeCodeHookTest(unittest.TestCase):
+    def setUp(self):
+        # The hook writes a runtime record next to the work, so never run it in
+        # the repository's own fixture directory.
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.baseline = Path(self._tmp.name) / "baseline"
+        shutil.copytree(BASELINE, self.baseline)
+
     def _payload(self, **overrides):
         payload = {
             "session_id": f"hook-{uuid.uuid4()}",
             "transcript_path": str(TRANSCRIPT),
-            "cwd": str(BASELINE),
+            "cwd": str(self.baseline),
             "hook_event_name": "Stop",
             "stop_hook_active": False,
         }
@@ -45,7 +53,7 @@ class ClaudeCodeHookTest(unittest.TestCase):
         self.assertEqual((code, message), (0, ""))
 
     def test_missing_transcript_fails_open(self):
-        code, message = run_hook({"cwd": str(BASELINE)})
+        code, message = run_hook({"cwd": str(self.baseline)})
         self.assertEqual(code, 0)
         self.assertIn("transcript_path", message)
 
@@ -61,7 +69,7 @@ class ClaudeCodeHookTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             shutil.copytree(BASELINE, repo)
-            (repo / ".assaystone").mkdir()
+            (repo / ".assaystone").mkdir(exist_ok=True)
             (repo / ".assaystone" / "hook.json").write_text(
                 json.dumps({"ignore": [{"verifier": "tests.integrity"}]}),
                 encoding="utf-8",
