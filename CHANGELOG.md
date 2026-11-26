@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.22.0 — 2026-11-26
+
 - **A policy may not permit what it cannot justify.** `validate` now refuses a
   stage that allows deploy without an approval and rollback evidence, or that
   allows merge without an approval when the manifest declares `merge`
