@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **`gate --dry-run`.** Executes only the oracles that do not declare
+  `"mutates": true`. A dry run never returns `pass`, reports a read-only failure
+  as `escalate` rather than `fail`, and refuses `--receipt`, so it cannot
+  impersonate a decision or leave signed evidence.
+- **A verification budget.** An oracle can declare `cost_usd` and a stage can
+  declare `budget_usd`. The gate keeps the declared order (oracles often depend
+  on each other), stops before an oracle it cannot afford, and **escalates** —
+  an unchecked requirement is not a satisfied one. Cost reaches the result, the
+  trail, and the receipt.
+- **The manifest digest is stable across upgrades.** Adding `budget_usd` to the
+  policy serialisation changed every digest and invalidated the owner's approval
+  — the self-gate refused on CI and exposed it. The serialised shape is frozen:
+  existing keys stay even when empty, and a later field appears only when set. A
+  pinned-digest test guards it, and the self-capability's approval is asserted
+  against the current manifest.
 - **A stage chain now binds the commit.** `after` compared the capability and
   the manifest digest but not the code: a canary pass recorded on one commit
   would authorise a different one. The gate reads `HEAD` of `--root`, records it
