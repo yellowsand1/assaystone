@@ -26,6 +26,8 @@ from .corpus import CorpusError, add_case, case_outcome
 from .coverage import analyze_coverage, render_coverage
 from .diff import compare as compare_manifests
 from .diff import render_diff
+from .drill import DrillError, run_drill
+from .drill import write_record as write_drill_record
 from .failure_zoo import (
     DEFAULT_CORPUS,
     DEFAULT_THRESHOLDS,
@@ -503,6 +505,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_waive(args)
     if args.capability_command == "diff":
         return _cmd_capability_diff(args)
+    if args.capability_command == "drill":
+        return _cmd_capability_drill(args)
     if args.capability_command == "list":
         return _cmd_capability_list(args)
     try:
@@ -623,6 +627,53 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         "--stage shadow --root ."
     )
     return 0
+
+
+def _cmd_capability_drill(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    ids = [item.id for item in manifest.reversibility]
+    if args.id:
+        if args.id not in ids:
+            print(
+                f"error: no reversibility entry {args.id!r}; have "
+                f"{', '.join(ids) or 'none'}",
+                file=sys.stderr,
+            )
+            return 2
+        ids = [args.id]
+    if not ids:
+        print(
+            "error: the manifest declares no reversibility entries",
+            file=sys.stderr,
+        )
+        return 2
+    actor = (
+        args.actor
+        or os.environ.get("ASSAYSTONE_ACTOR")
+        or os.environ.get("USER")
+        or "unknown"
+    )
+    failures = 0
+    for drill_id in ids:
+        try:
+            result = run_drill(manifest, drill_id, args.root)
+        except DrillError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        path = write_drill_record(manifest, result, args.root, actor=actor)
+        marker = "pass" if result.outcome == "pass" else "FAIL"
+        print(f"drill {drill_id}: {marker} -> {path}")
+        for reason in result.reasons:
+            print(f"  {reason}")
+        if result.outcome != "pass":
+            failures += 1
+    return 0 if failures == 0 else 1
 
 
 def _cmd_capability_diff(args: argparse.Namespace) -> int:
@@ -1794,6 +1845,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_diff.add_argument("--json", action="store_true")
     capability_diff.set_defaults(func=cmd_capability)
+
+    capability_drill = capability_sub.add_parser(
+        "drill",
+        help="apply an action, run its compensation, and compare the state",
+    )
+    capability_drill.add_argument("--manifest", required=True, metavar="PATH")
+    capability_drill.add_argument("--root", default=".")
+    capability_drill.add_argument("--id", default=None, help="one entry only")
+    capability_drill.add_argument("--actor", default=None)
+    capability_drill.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_drill.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",

@@ -51,6 +51,8 @@ jobs:
         run: |
           printf '%s\n' "$ASSAYSTONE_RELEASE_KEY" > "$RUNNER_TEMP/release.key"
           chmod 600 "$RUNNER_TEMP/release.key"
+          python -m assaystone capability drill \
+            --manifest .assaystone/capability.json --root .
           python -m assaystone gate \
             --manifest .assaystone/capability.json \
             --stage production --root . \
@@ -71,6 +73,7 @@ jobs:
           path: |
             .assaystone/release-trail.jsonl
             .assaystone/release-receipt.json
+            .assaystone/drills/build-dist.json
       - name: Build
         run: |
           python -m pip install build twine

@@ -1,9 +1,10 @@
 """The acceptance plane: capability manifests, generic oracles, and gates.
 
-The core knows only ten oracle primitives: ``command``, ``file``, ``git``,
-``human``, ``http``, ``sql``, ``shadow``, ``transcript``, ``verifier``, and ``runtime``. A domain — Java/Maven, a refund
-workflow, a pricing pipeline — is a manifest that binds criteria to those
-primitives. Nothing here knows what ``mvn`` is; it is a command payload.
+The core knows only eleven oracle primitives: ``command``, ``file``, ``git``,
+``human``, ``http``, ``sql``, ``shadow``, ``transcript``, ``verifier``,
+``runtime``, and ``drill``. A domain — Java/Maven, a refund workflow, a pricing
+pipeline — is a manifest that binds criteria to those primitives. Nothing here
+knows what ``mvn`` is; it is a command payload.
 
 Oracles can be declared inline or referenced from a versioned registry, so a
 platform team owns the definitions and capability authors pin them.
@@ -54,6 +55,17 @@ class StagePolicy:
 
 
 @dataclass
+class Reversibility:
+    """How to undo one irreversible action, and the state to compare."""
+
+    id: str
+    action: str
+    compensation: str
+    state: list[str] = field(default_factory=list)
+    note: str = ""
+
+
+@dataclass
 class ManifestCriterion:
     id: str
     kind: str
@@ -74,6 +86,7 @@ class CapabilityManifest:
     oracles: list[OracleSpec]
     policies: dict[str, StagePolicy]
     criteria: list[ManifestCriterion] = field(default_factory=list)
+    reversibility: list[Reversibility] = field(default_factory=list)
     retention: str = ""
     registry: str = ""
     registry_fingerprint: str = ""
@@ -134,6 +147,16 @@ class CapabilityManifest:
             )
             for name, value in (data.get("policies") or {}).items()
         }
+        reversibility = [
+            Reversibility(
+                id=str(item["id"]),
+                action=str(item["action"]),
+                compensation=str(item["compensation"]),
+                state=[str(path) for path in item.get("state") or []],
+                note=str(item.get("note") or ""),
+            )
+            for item in data.get("reversibility") or []
+        ]
         criteria = [
             ManifestCriterion(
                 id=str(item["id"]),
@@ -161,6 +184,7 @@ class CapabilityManifest:
             oracles=oracles,
             policies=policies,
             criteria=criteria,
+            reversibility=reversibility,
             retention=str(data.get("retention") or ""),
             registry=declared_registry or (registry.source if registry else ""),
             registry_fingerprint=fingerprint,
@@ -216,6 +240,29 @@ class CapabilityManifest:
         cycle = _policy_cycle(self.policies)
         if cycle:
             errors.append("policy chain is circular: " + " -> ".join(cycle))
+        drill_ids = [item.id for item in self.reversibility]
+        if len(set(drill_ids)) != len(drill_ids):
+            errors.append("duplicate reversibility id")
+        for item in self.reversibility:
+            if item.action not in oracle_ids:
+                errors.append(
+                    f"reversibility {item.id}: unknown action oracle "
+                    f"{item.action!r}"
+                )
+            if item.compensation not in oracle_ids:
+                errors.append(
+                    f"reversibility {item.id}: unknown compensation oracle "
+                    f"{item.compensation!r}"
+                )
+            if item.action == item.compensation:
+                errors.append(
+                    f"reversibility {item.id}: action and compensation are "
+                    "the same oracle"
+                )
+            if not item.state:
+                errors.append(
+                    f"reversibility {item.id}: needs at least one state path"
+                )
         for stage, policy in self.policies.items():
             if stage not in STAGES:
                 errors.append(f"policy stage {stage!r} is unknown")
@@ -300,6 +347,17 @@ class CapabilityManifest:
                 for name, policy in sorted(self.policies.items())
             },
         }
+        if self.reversibility:
+            data["reversibility"] = [
+                {
+                    "id": item.id,
+                    "action": item.action,
+                    "compensation": item.compensation,
+                    "state": list(item.state),
+                    "note": item.note,
+                }
+                for item in self.reversibility
+            ]
         if self.registry:
             data["registry"] = self.registry
             data["registry_fingerprint"] = self.registry_fingerprint

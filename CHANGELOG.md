@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **`capability drill` and the `drill` oracle: proof that the compensation
+  works.** A manifest can declare `reversibility` (an action oracle, its
+  compensation, and the state paths to compare). The drill hashes the state, runs
+  the action, hashes again, runs the compensation, and requires the final hash to
+  match the first — and requires the action to have changed something, or it
+  fails as proving nothing. Directories are hashed by content. The record binds
+  the manifest digest and the commit; the `drill` oracle fails a failed drill and
+  escalates a missing, foreign, or stale one. This repository's own release now
+  drills its build (`build` → `dist` → remove) before the production gate.
 No changes yet.
 
 ## 0.20.0 — 2026-11-26

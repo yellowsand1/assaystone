@@ -4,7 +4,7 @@ A verifier answers "is this artifact acceptable?" for one artifact at one
 moment. A deployment needs more: *who* asked, at *which lifecycle stage*, with
 *which* evidence, *what* was not checked, and *where* the decision was recorded.
 
-The acceptance plane is that layer. Its core is domain-blind: ten generic
+The acceptance plane is that layer. Its core is domain-blind: eleven generic
 oracle primitives, a manifest that binds declared criteria to them, lifecycle
 policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
@@ -113,6 +113,7 @@ ran can return `pass` or `fail`.
 | `transcript` | the agent's recorded session passes the audit | `transcript`, `baseline`, `fail_on` |
 | `verifier` | a declared verifier decides the working-tree diff | `name`, `params`, `test_command` |
 | `runtime` | the session's supervisor record still describes this code | `record`, `require_outcome`, `max_age_minutes` |
+| `drill` | a recorded proof that the compensation restores the state | `manifest`, `id`, `max_age_minutes` |
 
 ### `http`
 
@@ -244,6 +245,49 @@ the same result. `compare.mode` is `text` (whitespace-normalised, optional
 For an intentional behaviour change, assert the new expected output directly
 with a `file`, `sql`, or `command` oracle; shadow is for "nothing should have
 changed".
+
+### `drill`
+
+`rollback` checks that a diff reverse-applies. That is a claim about a patch, not
+about the world. A drill is the stronger statement: take the state, perform the
+irreversible action, perform its declared compensation, and require the state to
+be identical again.
+
+```json
+"reversibility": [
+  {"id": "build-dist", "action": "build_pkg", "compensation": "clean_dist",
+   "state": ["dist"], "note": "the release build leaves only dist/"}
+]
+```
+
+```bash
+assaystone capability drill --manifest .assaystone/capability.json --root .
+```
+
+The drill takes a hash of every state path, runs the action, takes a second hash,
+runs the compensation, and takes a third:
+
+* the action must pass, and it must **change** something — otherwise the drill
+  proves nothing and fails;
+* the compensation must pass;
+* the final hash must equal the first.
+
+A directory is hashed by its contents, not by its inode, so a build directory is
+a real state path. The record is written to `.assaystone/drills/<id>.json`, bound
+to the manifest digest and the commit. The `drill` oracle then decides:
+
+| condition | outcome |
+|---|---|
+| no record | escalate |
+| recorded under different acceptance rules, or for another commit | escalate |
+| older than the window | escalate |
+| the last drill failed | **fail** |
+| record present, current, passed | pass |
+
+Records are machine-local (`.assaystone/drills/` is git-ignored): a record bound
+to a commit becomes stale the moment it is committed. Run the drill in the same
+CI job as the gate, at the commit you are about to release — the release workflow
+of this repository does exactly that.
 
 ### `runtime`
 
@@ -845,7 +889,7 @@ Neither mechanism makes a compromised host safe. They make the decision
 ## Adapting a new domain
 
 1. Write the manifest: systems, irreversible actions, criteria, severity.
-2. Bind each criterion to one of the ten primitives. If none fits, that is a
+2. Bind each criterion to one of the eleven primitives. If none fits, that is a
    finding about the domain, not a reason to add a code path.
 3. Put shared definitions in a registry and pin their versions.
 4. Declare what each lifecycle stage requires, and which approvals it accepts.
