@@ -288,6 +288,33 @@ For an intentional behaviour change, assert the new expected output directly
 with a `file`, `sql`, or `command` oracle; shadow is for "nothing should have
 changed".
 
+### Canary without a new primitive
+
+A canary asks one question: does the candidate behave like the incumbent? That is
+`shadow` with two endpoints:
+
+```json
+{"id": "canary", "type": "shadow", "payload": {
+  "old": {"type": "http", "payload": {"url": "https://prod.example.com/quote?sku=1"}},
+  "new": {"type": "http", "payload": {"url": "https://canary.example.com/quote?sku=1"}},
+  "compare": {"mode": "json", "ignore": ["served_by", "generated_at"],
+              "tolerance": 0.001}}}
+```
+
+`ignore` is what makes a live comparison usable: version strings, timestamps, and
+request ids always differ. `tolerance` absorbs floating-point noise. For a metric
+that is already aggregated at the endpoint (an error rate, a p95), an `http`
+oracle with a numeric threshold is the same check with less machinery:
+
+```json
+{"type": "http", "payload": {"url": "https://canary.example.com/metrics",
+                             "json_path": "error_rate", "lte": 0.01}}
+```
+
+Both run offline against a recorded baseline when a staging service is not
+available. Neither is a distribution test: they compare one measurement, and both
+sides must be reachable. The gate reports `escalate` when they are not.
+
 ### `mutation`
 
 "Tests pass" says nothing about whether the tests *cover the change*. This oracle
