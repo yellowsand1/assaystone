@@ -296,16 +296,7 @@ class CapabilityManifest:
                 for item in self.oracles
             ],
             "policies": {
-                name: {
-                    "require": list(policy.require),
-                    "approvals": list(policy.approvals),
-                    "allow_merge": policy.allow_merge,
-                    "allow_deploy": policy.allow_deploy,
-                    "rollback_required": policy.rollback_required,
-                    "rollback": policy.rollback,
-                    "after": policy.after,
-                    "budget_usd": policy.budget_usd,
-                }
+                name: _policy_view(policy)
                 for name, policy in sorted(self.policies.items())
             },
         }
@@ -357,6 +348,27 @@ def _oracle_spec(
             str(item.get("type") or ""), dict(item.get("payload") or {})
         ),
     )
+
+
+def _policy_view(policy: StagePolicy) -> dict[str, Any]:
+    """The serialised policy that the owner's digest covers.
+
+    The shape is frozen: keys that existed when approvals were first issued stay
+    present even when empty, and a field added later is emitted only when it is
+    set. A tool upgrade must not invalidate an approval.
+    """
+    view: dict[str, Any] = {
+        "require": list(policy.require),
+        "approvals": list(policy.approvals),
+        "allow_merge": policy.allow_merge,
+        "allow_deploy": policy.allow_deploy,
+        "rollback_required": policy.rollback_required,
+        "rollback": policy.rollback,
+        "after": policy.after,
+    }
+    if policy.budget_usd is not None:
+        view["budget_usd"] = policy.budget_usd
+    return view
 
 
 def manifest_digest(manifest: CapabilityManifest) -> str:

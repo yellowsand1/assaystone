@@ -761,6 +761,12 @@ signature escalates. This is a governance decision, not a failed check.
 | `ASSAYSTONE_OWNER_KEY` (HMAC) or the owner private key (Ed25519) | the capability owner | the manifest digest |
 | `ASSAYSTONE_RECEIPT_KEY` (HMAC) or the gate private key (Ed25519) | the gate runner (CI) | one gate decision |
 
+**The digest is stable across upgrades.** It covers only what you declared: keys
+that existed when approvals were first issued stay present even when empty, and
+a field added later appears only when it is set. Adding `budget_usd` changed
+every digest and invalidated an approval during development — the self-gate
+refused on CI — so the serialised shape is now frozen and pinned by a test.
+
 Keep them separate. The owner decides what "acceptable" means; CI records that
 the decision was made. HMAC is symmetric; Ed25519 lets CI hold only a public key,
 so it can verify an owner decision without being able to make one. Ed25519
