@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **A team view without a service.** `capability list` accepts repeated `--root`
+  and a `--index` file (`{"roots": ["api", "worker"]}`, resolved relative to the
+  index). With several roots the table gains a `repo` column and critical risks
+  are prefixed by repository; `--strict` aggregates across all of them. Still a
+  local command over files, so the offline positioning is unchanged.
 No changes yet.
 
 ## 0.27.0 — 2026-11-26

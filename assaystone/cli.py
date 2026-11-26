@@ -58,7 +58,7 @@ from .plane import (
     evaluate_gate,
     render_gate,
 )
-from .portfolio import build_portfolio, render_portfolio
+from .portfolio import build_portfolio, load_index, render_portfolio
 from .propose import materialise as materialise_proposals
 from .propose import propose as propose_checks
 from .propose import scan as scan_repository
@@ -786,8 +786,15 @@ def _cmd_capability_diff(args: argparse.Namespace) -> int:
 
 
 def _cmd_capability_list(args: argparse.Namespace) -> int:
+    roots = list(args.root or ([] if args.index else ["."]))
+    if args.index:
+        try:
+            roots.extend(str(path) for path in load_index(args.index))
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
     portfolio = build_portfolio(
-        args.root,
+        roots,
         owner_key=os.environ.get(args.owner_key_env) or "",
         receipt_key=os.environ.get(args.receipt_key_env) or "",
         owner_public_key=args.owner_public_key,
@@ -1919,7 +1926,14 @@ def _parser() -> argparse.ArgumentParser:
     capability_list = capability_sub.add_parser(
         "list", help="list capabilities and their evidence in a workspace"
     )
-    capability_list.add_argument("--root", default=".")
+    capability_list.add_argument(
+        "--root", action="append", metavar="PATH",
+        help="a repository root; repeat to aggregate several",
+    )
+    capability_list.add_argument(
+        "--index", default=None, metavar="PATH",
+        help='a JSON file listing roots: {"roots": ["../a", "../b"]}',
+    )
     capability_list.add_argument(
         "--owner-key-env", default=DEFAULT_OWNER_KEY_ENV
     )
