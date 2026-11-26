@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Ten primitives.** The README, the plane reference, and the demo count the
+  `runtime` oracle, so the numbers match the code again.
 - **The status card shows the runtime record.** A session record that is
   present but no longer describes the code is listed as residual risk, next to
   the trail, receipt, approval, and waivers. `capability status --runtime-record`

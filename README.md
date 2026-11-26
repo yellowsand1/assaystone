@@ -21,7 +21,7 @@ Every verifier must answer three questions before it is allowed to decide:
 - **blind_spots** — the defect classes it knows it cannot detect
 
 Above the verifier, the **acceptance plane** answers the deployment question: a
-capability manifest binds typed criteria to nine generic oracles — compile, file,
+capability manifest binds typed criteria to ten generic oracles — compile, file,
 git, HTTP, SQL, old-vs-new shadow, the agent's transcript, and the verifier ABI —
 and gates `shadow`, `canary`, and `production`, recording every decision in a
 hash-chained trail.
@@ -726,7 +726,7 @@ assaystone/coverage.py # declared defects vs. decided coverage vs. residual risk
 assaystone/goodhart.py # adversarial suite: resistance and declared escapes
 assaystone/reportcard.py # conformance + coverage + recall + resistance on one page
 assaystone/plane.py    # capability manifests, lifecycle gates, assurance gap
-assaystone/oracles.py  # nine generic primitives + versioned registry
+assaystone/oracles.py  # ten generic primitives + versioned registry
 assaystone/trail.py    # hash-chained gate audit trail
 assaystone/corpus.py   # add a labelled trace or transcript to a family
 assaystone/leaderboard.py # compare several contracts on one page
@@ -793,7 +793,7 @@ gates a capability at shadow, canary, and production.
 - [x] Failure Zoo benchmark and per-verifier release scorecard
 - [x] data reconciliation and report citation packs
 - [x] oracle registry (versioned, pinned, fingerprinted)
-- [x] acceptance plane: capability manifests, nine oracle primitives, lifecycle gates
+- [x] acceptance plane: capability manifests, ten oracle primitives, lifecycle gates
 - [x] hash-chained gate trail, manifest-digest continuity, signed approvals
 - [x] chained stages: production requires a recorded, verified canary pass
 - [x] checked rollback evidence and `capability init`

@@ -171,6 +171,12 @@ The trail had six entries and verified. The incident receipt verified against th
 checked-out commit. The status card for `--stage incident` reported no residual
 risk, and the strict portfolio reported 0 critical risks for the capability.
 
+After the trial, the session-evidence story changed: the Stop hook now writes
+what it observed (commit, session, file hashes, gate outcome), and the `runtime`
+oracle fails a session that ended in a failing gate and escalates evidence that
+no longer describes the code. The transcript oracle remains testimony; the
+supervisor record is the other half.
+
 What this proves: the incident stage can require both a clean post-rollback state
 and the signatures that close the incident. What it does not: the rollback was a
 working-tree restore of an uncommitted defect, not a production rollback. The

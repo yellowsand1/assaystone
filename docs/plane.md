@@ -4,7 +4,7 @@ A verifier answers "is this artifact acceptable?" for one artifact at one
 moment. A deployment needs more: *who* asked, at *which lifecycle stage*, with
 *which* evidence, *what* was not checked, and *where* the decision was recorded.
 
-The acceptance plane is that layer. Its core is domain-blind: nine generic
+The acceptance plane is that layer. Its core is domain-blind: ten generic
 oracle primitives, a manifest that binds declared criteria to them, lifecycle
 policies, and a hash-chained trail. Java/Maven, refunds, and pricing are
 manifests, not code paths.
@@ -845,7 +845,7 @@ Neither mechanism makes a compromised host safe. They make the decision
 ## Adapting a new domain
 
 1. Write the manifest: systems, irreversible actions, criteria, severity.
-2. Bind each criterion to one of the nine primitives. If none fits, that is a
+2. Bind each criterion to one of the ten primitives. If none fits, that is a
    finding about the domain, not a reason to add a code path.
 3. Put shared definitions in a registry and pin their versions.
 4. Declare what each lifecycle stage requires, and which approvals it accepts.
