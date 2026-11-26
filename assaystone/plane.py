@@ -276,6 +276,28 @@ class CapabilityManifest:
                 )
             if policy.budget_usd is not None and policy.budget_usd < 0:
                 errors.append(f"policy {stage}: budget_usd is negative")
+            has_approval = bool(policy.approvals) or self.manifest_approval
+            if policy.allow_deploy:
+                if not has_approval:
+                    errors.append(
+                        f"policy {stage}: allows deploy without an approval "
+                        "(name an approval oracle or set manifest_approval)"
+                    )
+                if not (policy.rollback_required and policy.rollback):
+                    errors.append(
+                        f"policy {stage}: allows deploy without rollback "
+                        "evidence (set rollback_required and name a rollback "
+                        "oracle)"
+                    )
+            if (
+                policy.allow_merge
+                and not has_approval
+                and "merge" in self.irreversible_actions
+            ):
+                errors.append(
+                    f"policy {stage}: allows merge, which this manifest "
+                    "declares irreversible, without an approval"
+                )
             if policy.rollback_required and not policy.rollback:
                 errors.append(
                     f"policy {stage}: rollback_required needs a rollback oracle"

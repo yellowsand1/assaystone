@@ -38,15 +38,20 @@ def manifest_data(approval=False, unused=False):
             }
         ],
         "oracles": [
-            {"id": "ok", "type": "command", "payload": {"command": ["true"]}}
+            {"id": "ok", "type": "command", "payload": {"command": ["true"]}},
+            {"id": "approve", "type": "command", "payload": {"command": ["true"]}},
+            {"id": "rollback", "type": "command", "payload": {"command": ["true"]}},
         ],
         "policies": {
             "shadow": {"require": ["ok"], "allow_merge": False},
             "canary": {"require": ["ok"], "allow_merge": True},
             "production": {
                 "require": ["ok"],
+                "approvals": ["approve"],
                 "allow_merge": True,
                 "allow_deploy": True,
+                "rollback_required": True,
+                "rollback": "rollback",
             },
         },
     }

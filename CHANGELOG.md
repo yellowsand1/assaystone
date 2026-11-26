@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **A policy may not permit what it cannot justify.** `validate` now refuses a
+  stage that allows deploy without an approval and rollback evidence, or that
+  allows merge without an approval when the manifest declares `merge`
+  irreversible. The onboarding draft consequently starts with every stage
+  locked: `capability init` used to emit a `production` policy that allowed
+  deploy with no approval and no rollback, so a new user could get a green light
+  from a manifest that checked almost nothing.
 No changes yet.
 
 ## 0.21.0 — 2026-11-26

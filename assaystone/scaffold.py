@@ -250,13 +250,16 @@ def build_manifest(
         "retention": "30d",
         "criteria": criteria,
         "oracles": detection.oracles,
+        # The draft permits nothing it cannot justify. Promotion is turned on by
+        # the owner, once an approval and a rollback exist: a policy that allows
+        # merge or deploy without them is refused by `validate`.
         "policies": {
             "shadow": {"require": oracle_ids, "allow_merge": False},
-            "canary": {"require": oracle_ids, "allow_merge": True},
+            "canary": {"require": oracle_ids, "allow_merge": False},
             "production": {
                 "require": oracle_ids,
-                "allow_merge": True,
-                "allow_deploy": True,
+                "allow_merge": False,
+                "allow_deploy": False,
             },
         },
     }
@@ -376,10 +379,13 @@ def next_steps(data: dict[str, Any]) -> list[str]:
     if data.get("owner") == "unassigned":
         steps.append("set owner to the team that owns this capability")
     steps.append(
-        "add an approval oracle to the canary and production policies"
+        "to allow merging: add an approval oracle to canary and production, "
+        "then set allow_merge — validate refuses a policy that allows an "
+        "irreversible action without one"
     )
     steps.append(
-        "add a rollback oracle, then set rollback_required on production"
+        "to allow deploying: add a rollback oracle, set rollback_required and "
+        "allow_deploy on production"
     )
     steps.append(
         "run the gate and inspect every escalation before trusting the draft"

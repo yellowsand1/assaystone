@@ -33,9 +33,12 @@ tests, an artifact check for compiled stacks, and a branch check that follows
 the convention the repository already uses (`feature/` or `feat/`). It never
 runs a build.
 
-The draft is deliberately incomplete. It declares no approvals and no rollback
-claim, because inventing either would be exactly the unchecked assertion this
-project argues against. `init` prints what to add next; the first
+The draft is deliberately incomplete, and it **permits nothing it cannot
+justify**: every stage starts with `allow_merge` and `allow_deploy` off. Turning
+one on is the owner's decision, and `validate` refuses a policy that allows an
+irreversible action without an approval and rollback evidence. It declares no
+approvals and no rollback claim, because inventing either would be exactly the
+unchecked assertion this project argues against. `init` prints what to add next; the first
 `gate --stage shadow` usually fails on the branch check or escalates on a
 missing approval, and that failure is the onboarding.
 
@@ -396,6 +399,15 @@ A stage declares what evidence it needs:
   missing oracle or `escalate` escalates; otherwise it passes.
 * `allow_merge` and `allow_deploy` are only granted on a pass. A stage that
   allows merging *and* deploying needs both flags.
+* **A policy may not permit what it cannot justify.** A stage that sets
+  `allow_deploy` must name an approval oracle (or set `manifest_approval`) and
+  must require rollback evidence with a named rollback oracle. A stage that
+  allows `allow_merge` must have an approval when the manifest declares `merge`
+  irreversible. `capability validate` refuses the manifest otherwise.
+
+  This exists because the onboarding draft used to allow deploy on `production`
+  with no approval and no rollback: a new user could get a green light from a
+  manifest that checked almost nothing.
 * `rollback_required` must name a `rollback` oracle. The gate runs it like any
   other required check, so "rollback required" is evidence, not a claim. A
   policy that asserts rollback without naming an oracle is a manifest error —
