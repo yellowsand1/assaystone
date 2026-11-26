@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.29.0 — 2026-11-26
+
 - **`scripts/trial.py` and `docs/trial.md`: the loop as a runnable artifact.**
   The script builds a small service, has it inspected, then walks a change from
   "the agent says it is done" through a refusal (six of six mutants survived),
