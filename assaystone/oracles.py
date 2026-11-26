@@ -81,6 +81,9 @@ class OracleResult:
     evidence: list[str] = field(default_factory=list)
     output: str = ""
     digest: str = ""
+    # Key facts an oracle observed, carried into the trail and the receipt so a
+    # reviewer can find the session or the drill behind a decision.
+    facts: dict[str, Any] = field(default_factory=dict)
     ref: str = ""
     version: int | None = None
     fingerprint: str = ""
@@ -100,6 +103,8 @@ class OracleResult:
             data["version"] = self.version
         if self.fingerprint:
             data["fingerprint"] = self.fingerprint
+        if self.facts:
+            data["facts"] = dict(self.facts)
         return data
 
 
@@ -148,6 +153,7 @@ def _result(
     reasons: list[str] | None = None,
     evidence: list[str] | None = None,
     output: str = "",
+    facts: dict[str, Any] | None = None,
 ) -> OracleResult:
     return OracleResult(
         oracle=spec.id,
@@ -156,6 +162,7 @@ def _result(
         reasons=list(reasons or []),
         evidence=list(evidence or []),
         output=output,
+        facts=dict(facts or {}),
         ref=spec.ref,
         version=spec.version,
         fingerprint=spec.fingerprint,
@@ -1252,12 +1259,68 @@ def _runtime(spec: OracleSpec, root: Path) -> OracleResult:
         require_commit=bool(payload.get("require_commit", True)),
         max_age_minutes=float(max_age) if max_age is not None else None,
     )
+    import hashlib
+
+    try:
+        record_bytes = path.read_bytes()
+    except OSError:
+        record_bytes = b""
+    gate_block = record.get("gate") or {}
+    entry_hash = str(gate_block.get("entry_hash") or "")
+    trail_ref = payload.get("trail")
+    if entry_hash and trail_ref:
+        # The session says which decision it produced; check the trail agrees.
+        from .trail import TrailError
+        from .trail import read as read_trail
+
+        trail_path = _inside(root, str(trail_ref))
+        if trail_path is None:
+            return _result(spec, "escalate", ["trail escapes the root"])
+        if not trail_path.exists():
+            return _result(
+                spec,
+                "escalate",
+                [f"the session cites a decision, but {trail_ref} is missing"],
+            )
+        try:
+            entries = read_trail(trail_path)
+        except TrailError as exc:
+            return _result(spec, "escalate", [f"cannot read the trail: {exc}"])
+        match = next(
+            (item for item in entries if item.get("hash") == entry_hash), None
+        )
+        if match is None:
+            return _result(
+                spec,
+                "escalate",
+                [
+                    "the session says it produced a decision that is not on "
+                    "the trail it names"
+                ],
+            )
+        if str(match.get("commit") or "") != str(record.get("commit") or ""):
+            return _result(
+                spec,
+                "escalate",
+                ["the session and the decision it cites disagree about the code"],
+            )
+        check_evidence = list(check.evidence) + ["entry=found"]
+    else:
+        check_evidence = list(check.evidence)
+    facts = {
+        "session": str(record.get("session_id") or ""),
+        "record": "sha256:" + hashlib.sha256(record_bytes).hexdigest(),
+        "record_commit": str(record.get("commit") or ""),
+        "gate_outcome": str(gate_block.get("outcome") or ""),
+        "entry": entry_hash,
+    }
     return _result(
         spec,
         check.outcome,
         check.reasons,
-        check.evidence,
-        canonical_json(record.get("gate") or {}),
+        check_evidence,
+        canonical_json(gate_block),
+        facts={key: value for key, value in facts.items() if value},
     )
 
 
@@ -1314,6 +1377,13 @@ def _drill(spec: OracleSpec, root: Path) -> OracleResult:
         require_commit=bool(payload.get("require_commit", True)),
         max_age_minutes=float(max_age) if max_age is not None else None,
     )
+    facts = {
+        "drill": drill_id,
+        "action": str(record.get("action") or ""),
+        "compensation": str(record.get("compensation") or ""),
+        "drill_outcome": str(record.get("outcome") or ""),
+        "drill_commit": str(record.get("commit") or ""),
+    }
     return _result(
         spec,
         check.outcome,
@@ -1326,6 +1396,7 @@ def _drill(spec: OracleSpec, root: Path) -> OracleResult:
                 "outcome": record.get("outcome"),
             }
         ),
+        facts={key: value for key, value in facts.items() if value},
     )
 
 

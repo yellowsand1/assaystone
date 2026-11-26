@@ -85,6 +85,7 @@ def entry_for(
                 "ref": item.ref,
                 "version": item.version,
                 "fingerprint": item.fingerprint,
+                **({"facts": dict(item.facts)} if item.facts else {}),
             }
             for item in gate.results
         ],

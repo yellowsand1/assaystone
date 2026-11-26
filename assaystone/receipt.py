@@ -115,6 +115,7 @@ def create_receipt(
                 "outcome": item.outcome,
                 "digest": item.digest,
                 "fingerprint": item.fingerprint,
+                **({"facts": dict(item.facts)} if item.facts else {}),
             }
             for item in gate.results
         ],
@@ -163,6 +164,7 @@ def verify_receipt(
     expected_manifest_digest: str | None = None,
     expected_outcome: str | None = None,
     public_key_path: str | Path | None = None,
+    runtime_record: str | Path | None = None,
 ) -> ReceiptCheck:
     errors: list[str] = []
     if not isinstance(receipt, dict):
@@ -214,7 +216,47 @@ def verify_receipt(
         errors.append(
             f"outcome {receipt.get('outcome')!r} != expected {expected_outcome!r}"
         )
+    if runtime_record is not None:
+        errors.extend(_check_runtime_record(receipt, Path(runtime_record)))
     return ReceiptCheck(ok=not errors, receipt=receipt, errors=errors)
+
+
+def _check_runtime_record(receipt: dict[str, Any], path: Path) -> list[str]:
+    """The session evidence a decision leaned on must be the file you hold."""
+    import hashlib
+
+    recorded = [
+        facts
+        for item in receipt.get("oracles") or []
+        for facts in [item.get("facts") or {}]
+        if facts.get("record")
+    ]
+    if not recorded:
+        return [
+            "this receipt cites no runtime record; there is nothing to compare"
+        ]
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return [f"cannot read the runtime record: {exc}"]
+    digest = "sha256:" + hashlib.sha256(data).hexdigest()
+    facts = recorded[0]
+    if facts.get("record") != digest:
+        return [
+            "the runtime record does not match the one the receipt cites"
+        ]
+    errors: list[str] = []
+    try:
+        record = json.loads(data)
+    except json.JSONDecodeError:
+        return ["the runtime record is not valid JSON"]
+    session = str((record or {}).get("session_id") or "")
+    if facts.get("session") and session != facts["session"]:
+        errors.append(
+            f"the runtime record is for session {session!r}, not "
+            f"{facts['session']!r}"
+        )
+    return errors
 
 
 def load_receipt(path: str | Path) -> dict[str, Any]:
@@ -238,6 +280,16 @@ def render_check(check: ReceiptCheck) -> str:
         f"commit: {check.receipt.get('commit') or '-'}",
         f"trail head: {check.receipt.get('trail_head') or '-'}",
     ]
+    sessions = sorted(
+        {
+            str(facts.get("session"))
+            for item in check.receipt.get("oracles") or []
+            for facts in [item.get("facts") or {}]
+            if facts.get("session")
+        }
+    )
+    if sessions:
+        lines.append("session evidence: " + ", ".join(sessions))
     signature = str(check.receipt.get("signature") or "")
     if signature.startswith("ed25519:"):
         lines.append(f"key id: {check.receipt.get('key_id') or '-'}")

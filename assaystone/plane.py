@@ -484,6 +484,7 @@ class GateResult:
     waived: list[dict[str, Any]] = field(default_factory=list)
     revoked: list[dict[str, Any]] = field(default_factory=list)
     dry_run: bool = False
+    skipped: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
     prior: dict[str, Any] = field(default_factory=dict)
 
@@ -508,6 +509,7 @@ class GateResult:
             "waived": list(self.waived),
             "revoked": list(self.revoked),
             "dry_run": self.dry_run,
+            "skipped": list(self.skipped),
             "cost_usd": round(self.cost_usd, 6),
             "prior": dict(self.prior),
         }
@@ -716,6 +718,7 @@ def evaluate_gate(
     revocations_path: str | Path | None = None,
     dry_run: bool = False,
     budget_usd: float | None = None,
+    skip_types: frozenset[str] | set[str] | None = None,
 ) -> GateResult:
     if stage not in STAGES:
         raise PlaneError(f"unknown stage: {stage!r}")
@@ -781,6 +784,14 @@ def evaluate_gate(
     spent = 0.0
     budget = policy.budget_usd if policy.budget_usd is not None else budget_usd
     budget_exhausted = ""
+    skipped: list[str] = []
+    if skip_types:
+        skipped = [
+            name
+            for name in required
+            if name in by_id and by_id[name].type in skip_types
+        ]
+        required = [name for name in required if name not in skipped]
     for oracle_id in required:
         spec = by_id.get(oracle_id)
         if spec is None:
@@ -970,6 +981,11 @@ def evaluate_gate(
     reasons.extend(waiver_notes)
     if budget_exhausted:
         reasons.append(budget_exhausted)
+    if skipped:
+        reasons.append(
+            "not evaluated here (they are judged after the session): "
+            + ", ".join(skipped)
+        )
     if dry_run:
         reasons.append(
             "dry run: this is not a decision; mutating oracles were not "
@@ -1011,6 +1027,7 @@ def evaluate_gate(
         waived=waived,
         revoked=revoked,
         dry_run=dry_run,
+        skipped=skipped,
         cost_usd=spent,
         prior=prior,
     )

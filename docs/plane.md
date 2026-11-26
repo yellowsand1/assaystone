@@ -321,6 +321,33 @@ does not apply to this code is not a decision (`escalate`). The record is
 unsigned — it is supervisor observation next to the work, not a receipt. If you
 need a signed decision, that is `gate --receipt`.
 
+**The session and the decision point at each other.** Set `"trail"` in the
+payload and the oracle also checks that the decision the record names is really
+on that trail, for the same commit:
+
+```json
+{"id": "session", "type": "runtime",
+ "payload": {"record": ".assaystone/runtime/last.json",
+             "trail": ".assaystone/trail.jsonl"}}
+```
+
+The hook writes the record *after* appending its own trail entry, so the record
+carries `gate.entry_hash`. The oracle then publishes facts —
+`session`, `record` (the file's digest), `entry`, `record_commit` — which reach
+the trail entry and the signed receipt. A reviewer holding a receipt can check it
+against the file it cites:
+
+```bash
+assaystone receipt verify receipt.json --runtime-record .assaystone/runtime/last.json
+```
+
+That fails if the record was edited, or if it belongs to a different session.
+
+**The supervisor does not cite itself.** The hook's own gate skips `runtime` and
+`drill` oracles and reports them as *not evaluated here*: the process that writes
+the session evidence cannot require that evidence to exist already. CI, which
+runs after the session, evaluates them normally.
+
 `.assaystone/runtime/` is machine-local: add it to `.gitignore`. Keep
 `record: false` in `.assaystone/hook.json` if you do not want the hook to write
 one.

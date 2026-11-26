@@ -1073,6 +1073,7 @@ def cmd_receipt(args: argparse.Namespace) -> int:
         expected_manifest_digest=args.manifest_digest,
         expected_outcome=args.outcome,
         public_key_path=args.public_key,
+        runtime_record=args.runtime_record,
     )
     if args.json:
         print(json.dumps(check.to_dict(), indent=2))
@@ -1994,6 +1995,10 @@ def _parser() -> argparse.ArgumentParser:
     receipt_verify.add_argument(
         "--public-key", default=None, metavar="PATH",
         help="Ed25519 public key for an ed25519 receipt",
+    )
+    receipt_verify.add_argument(
+        "--runtime-record", default=None, metavar="PATH",
+        help="check the session evidence the receipt cites",
     )
     receipt_verify.add_argument(
         "--commit",

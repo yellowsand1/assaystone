@@ -66,6 +66,7 @@ def write_record(
     findings: int = 0,
     commit: str = "",
     path: str | Path | None = None,
+    entry_hash: str = "",
 ) -> Path:
     """Write what the supervisor observed at the end of a session."""
     root = Path(root)
@@ -84,6 +85,7 @@ def write_record(
             "outcome": getattr(gate, "outcome", ""),
             "manifest_digest": getattr(gate, "manifest_digest", ""),
             "commit": getattr(gate, "commit", ""),
+            "entry_hash": entry_hash,
         }
         if gate is not None
         else {},
