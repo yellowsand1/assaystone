@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **The session and the decision point at each other.** A `runtime` payload can
+  name a `trail`; the oracle then checks that the decision the record cites is
+  really on it, for the same commit. Oracles publish `facts` (session, record
+  digest, entry hash) which reach the trail entry and the signed receipt, and
+  `receipt verify --runtime-record FILE` checks a receipt against the session
+  file it cites. The hook's own gate skips `runtime` and `drill` and reports them
+  as not evaluated here: the supervisor that writes the evidence cannot require
+  it to exist already.
 No changes yet.
 
 ## 0.23.0 — 2026-11-26

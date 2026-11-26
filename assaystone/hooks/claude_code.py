@@ -147,7 +147,29 @@ def _write_runtime_record(
         }
         if is_git_root(cwd):
             for artifact in artifacts_from_git(cwd):
+                # The evidence directory is not the work under review, and it
+                # changes when the record is written.
+                if artifact.path == ".assaystone" or artifact.path.startswith(
+                    ".assaystone/"
+                ):
+                    continue
                 paths.add(artifact.path)
+        entry_hash = ""
+        trail_ref = config.get("trail")
+        if gate_result is not None and trail_ref:
+            from ..trail import append as append_trail
+
+            target = Path(str(trail_ref))
+            if not target.is_absolute():
+                target = cwd / target
+            actor = os.environ.get("ASSAYSTONE_ACTOR") or os.environ.get(
+                "USER"
+            ) or "hook"
+            try:
+                entry_hash = str(append_trail(target, gate_result, actor=actor)
+                                 .get("hash", ""))
+            except Exception:  # noqa: BLE001 - the record is still useful
+                entry_hash = ""
         write_record(
             cwd,
             session_id=str(payload.get("session_id") or ""),
@@ -155,6 +177,7 @@ def _write_runtime_record(
             gate=gate_result,
             findings=findings,
             commit=str(getattr(gate_result, "commit", "") or ""),
+            entry_hash=entry_hash,
         )
     except Exception:  # noqa: BLE001 - a hook must not break the session
         return
@@ -189,7 +212,12 @@ def _capability_gate(
             path = cwd / path
         manifest = CapabilityManifest.load(path)
         stage = str(config.get("stage") or "shadow")
-        return evaluate_gate(manifest, stage, cwd), ""
+        return (
+            evaluate_gate(
+                manifest, stage, cwd, skip_types={"runtime", "drill"}
+            ),
+            "",
+        )
     except Exception as exc:  # noqa: BLE001 - a hook must not break the session
         return None, f"assaystone: capability gate failed: {exc}"
 
@@ -282,6 +310,8 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
     elif gate_result is None and not gate_error:
         return 0, "assaystone: hook payload has no transcript_path"
 
+    _write_runtime_record(cwd, config, payload, gate_result, audit_findings)
+
     if gate_error:
         message = gate_error
         if audit_message:
@@ -303,7 +333,6 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
         parts.append(audit_error)
     message = "\n\n".join(parts)
 
-    _write_runtime_record(cwd, config, payload, gate_result, audit_findings)
     if mode == "block" and (gate_failed or audit_blocked):
         return 2, message + (
             "\n\nAssaystone blocked the stop. Fix the gate or set "

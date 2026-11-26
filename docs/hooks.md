@@ -44,9 +44,20 @@ The equivalent settings entry is:
 ```json
 {
   "capability": ".assaystone/capability.json",
-  "stage": "shadow"
+  "stage": "shadow",
+  "trail": ".assaystone/trail.jsonl"
 }
 ```
+
+With `trail`, the hook appends its decision to that trail and writes the entry
+hash into `.assaystone/runtime/last.json`, so a later gate can check that the
+session and the decision it names are the same object. The record ignores
+`.assaystone/` when it hashes the workspace: the evidence directory is not the
+work under review, and it changes as the record is written.
+
+The hook's gate skips `runtime` and `drill` oracles and says so — the process
+that writes the session evidence cannot require it to exist already. CI, running
+after the session, evaluates them normally.
 
 ## Gate the capability at Stop
 
