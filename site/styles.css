@@ -212,6 +212,8 @@ pre code span { color: var(--amber); }
 .evidence-copy h2 { margin: 14px 0 21px; font-size: clamp(38px, 4.5vw, 57px); line-height: 1.06; letter-spacing: -0.04em; }
 .evidence-copy > p:not(.kicker) { color: var(--muted); font-size: 17px; line-height: 1.7; }
 .text-link { display: inline-block; margin-top: 12px; color: #744c05; font-weight: 750; text-decoration: none; }
+.evidence-links { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-top: 12px; }
+.evidence-links .text-link { margin-top: 0; }
 .metrics { display: grid; grid-template-columns: 1fr 1fr; overflow: hidden; border: 1px solid var(--line); border-radius: 15px; background: #fffdf8; }
 .metrics div { min-height: 180px; padding: 28px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .metrics div:nth-child(2n) { border-right: 0; }
