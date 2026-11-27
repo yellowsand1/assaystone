@@ -22,7 +22,8 @@ Make the product one legible thing.
 - [x] Lifecycle surface frozen: no new features in `plane` / `gate` / `trail` /
       `receipt` / `waiver` / `canary` / `drill` / `portfolio` / `prepare` /
       `nextstep` / `brief` / `diff` / `propose` / `leaderboard`
-- [ ] One documented path from `uvx` to a certificate in under five minutes
+- [x] One documented path from `uvx` to a certificate in under five minutes
+      (shipped in v0.33.0: `uvx assaystone demo audit` writes and verifies one)
 
 ## P1 — Proof (next)
 

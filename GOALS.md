@@ -232,7 +232,8 @@ verifiers, number of domain packs, lines of code.
       everything else moved under `lab` and frozen
 - [x] README leads with one workflow: audit → check → certificate → CI
 - [x] Changelog and release tooling stop lying
-- [ ] One documented path from `uvx` to a certificate in under five minutes
+- [x] One documented path from `uvx` to a certificate in under five minutes
+      (shipped in v0.33.0: `uvx assaystone demo audit` writes and verifies one)
 
 ### P1 — Proof (next)
 
