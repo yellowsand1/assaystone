@@ -52,8 +52,8 @@ cd /tmp && /tmp/assaystone-release/bin/assaystone demo audit
 2. In the GitHub repository, create an environment named `PyPI` (no secrets needed).
 3. Push a version tag, or run the **release** workflow manually with the tag:
    ```bash
-   git tag v0.33.0
-   git push origin v0.33.0
+   git tag v0.34.0
+   git push origin v0.34.0
    ```
    For a manual run, `tag` is required and must start with `v`. If the version is
    already on PyPI, set `publish_pypi=false` to build and create only the GitHub

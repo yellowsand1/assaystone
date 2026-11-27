@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.34.0 — 2026-11-27
+
 - **Pre-tool gate for Claude Code.** `assaystone hook claude-code-pre` decides a
   tool call before it executes from `.assaystone/policy.json`: denied tools,
   denied paths, denied shell patterns, and a workspace boundary. In `block` mode
