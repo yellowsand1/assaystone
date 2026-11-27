@@ -18,3 +18,6 @@ htmlcov/
 .assaystone/runtime/
 # drill records bind to a commit; they are machine-local evidence
 .assaystone/drills/
+
+# demo artifacts
+*-demo-trail.jsonl

@@ -18,6 +18,18 @@
 - **Release tooling: the placeholder can no longer leak into a release.**
   `release_prep.py` strips `No changes yet.` before writing the version section;
   twelve stale placeholders were removed from past sections.
+- **`check`: an episode from a live git worktree.** `assaystone check --base
+  origin/main --certificate ./certs` compares the working tree to a base ref,
+  reconstructs the base tree as a temporary worktree, runs the contract, and
+  writes a certificate. No trace, no instrumentation, no API key. The trace is
+  marked `source="runtime"` because the checker read the filesystem itself, which
+  is what keeps testimony-reading checks from being trusted.
+- **Five-command surface.** `audit`, `check`, `certificate`, `prove`, `hook` are
+  the product. Seventeen lifecycle and lab commands moved under `assaystone lab`
+  and are frozen; their old top-level names still resolve as aliases so existing
+  CI does not break.
+- **`ARCHITECTURE.md`.** The target module boundaries, the data contracts, and
+  the invariants a change must not violate.
 
 ## 0.32.0 — 2026-11-27
 

@@ -224,11 +224,15 @@ verifiers, number of domain packs, lines of code.
 ### P0 — Spine (now)
 
 - [x] This document
-- [ ] **Certificate v1**: hash-addressed, provenance-bound, versioned
-- [ ] `verify --certificate`; `certificate verify` to re-check a third-party file
-- [ ] README leads with one workflow: audit → check → certificate → CI
-- [ ] Changelog and release tooling stop lying
-- [ ] Lifecycle surface frozen and de-emphasized
+- [x] **Certificate v1**: hash-addressed, provenance-bound, versioned
+- [x] `verify --certificate`; `certificate verify` to re-check a third-party file
+- [x] `check`: a live git worktree becomes an episode and a certificate, with no
+      trace and no instrumentation
+- [x] Five-command surface (`audit`, `check`, `certificate`, `prove`, `hook`);
+      everything else moved under `lab` and frozen
+- [x] README leads with one workflow: audit → check → certificate → CI
+- [x] Changelog and release tooling stop lying
+- [ ] One documented path from `uvx` to a certificate in under five minutes
 
 ### P1 — Proof (next)
 

@@ -15,9 +15,11 @@ Make the product one legible thing.
 - [x] `GOALS.md` as the canonical direction; `CLAUDE.md` as the operating rules
 - [x] Certificate v1: hash-addressed, provenance-bound, versioned
 - [x] `verify --certificate` and `certificate verify` (re-check offline)
+- [x] `check`: live git worktree → episode → certificate, with no trace
+- [x] Five-command surface; everything else under `lab`
 - [x] README leads with one workflow, not the whole surface
 - [x] Changelog and release tooling stop lying
-- [ ] Lifecycle surface frozen: no new features in `plane` / `gate` / `trail` /
+- [x] Lifecycle surface frozen: no new features in `plane` / `gate` / `trail` /
       `receipt` / `waiver` / `canary` / `drill` / `portfolio` / `prepare` /
       `nextstep` / `brief` / `diff` / `propose` / `leaderboard`
 - [ ] One documented path from `uvx` to a certificate in under five minutes

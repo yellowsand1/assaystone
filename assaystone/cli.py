@@ -37,6 +37,7 @@ from .diff import compare as compare_manifests
 from .diff import render_diff
 from .drill import DrillError, run_drill
 from .drill import write_record as write_drill_record
+from .episode import EpisodeError, GitEpisode
 from .failure_zoo import (
     DEFAULT_CORPUS,
     DEFAULT_THRESHOLDS,
@@ -228,6 +229,7 @@ def _write_certificates(
     contract: Contract,
     traces: list,
     results: list,
+    provenance: dict | None = None,
 ) -> list[Path] | None:
     """Write one certificate per trace, or a single file for a single trace.
 
@@ -235,7 +237,7 @@ def _write_certificates(
     the run produced exactly one trace, so a file never silently holds a subset.
     """
     documents = [
-        build_certificate(result, contract, trace)
+        build_certificate(result, contract, trace, provenance=provenance)
         for trace, result in zip(traces, results, strict=True)
     ]
     path = Path(target)
@@ -257,6 +259,127 @@ def _write_certificates(
         out.write_text(certificate_json(document), encoding="utf-8")
         written.append(out)
     return written
+
+
+def _print_results(traces: list, results: list) -> None:
+    for trace, result in zip(traces, results, strict=True):
+        print(
+            f"{trace.id:<24} {result.verdict.upper():<9} "
+            f"{result.cost_usd:.6f} USD  {result.duration_ms:.1f} ms"
+        )
+        for verdict in result.verdicts:
+            mark = {PASS: "+", FAIL: "x", ESCALATE: "?"}[verdict.outcome]
+            print(f"  [{mark}] {verdict.verifier:<24} {verdict.layer:<3} {verdict.duration_ms:6.1f} ms")
+            for reason in verdict.reasons[:3]:
+                print(f"      {reason}")
+
+
+CONTRACT_CANDIDATES = (".assaystone/contract.json", "assaystone.json")
+
+
+def _find_contract(repo: Path) -> Path | None:
+    for name in CONTRACT_CANDIDATES:
+        candidate = repo / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """Check one episode: a working tree by default, a recorded trace on request."""
+    repo = Path(args.repo)
+    contract_path = args.contract
+    if contract_path is None:
+        found = _find_contract(repo)
+        if found is None:
+            print(
+                "error: no contract found; looked for "
+                + " and ".join(CONTRACT_CANDIDATES)
+                + ".\n"
+                "  create one with: assaystone audit --latest claude-code "
+                "--write-contract .assaystone/contract.json\n"
+                "  or pass --contract PATH",
+                file=sys.stderr,
+            )
+            return 2
+        contract_path = str(found)
+    contract = _load_contract(contract_path)
+    if contract is None:
+        return 2
+
+    episode: GitEpisode | None = None
+    if args.trace:
+        traces = _load_traces_arg(args.trace)
+        if traces is None:
+            return 2
+        baseline = Path(args.baseline)
+        provenance = None
+    else:
+        try:
+            episode = GitEpisode(
+                repo,
+                base=args.base,
+                task=args.task or os.environ.get("ASSAYSTONE_TASK", ""),
+            )
+            episode.__enter__()
+        except EpisodeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        traces = [episode.trace]
+        baseline = episode.baseline
+        provenance = episode.provenance
+
+    try:
+        results = [run_contract(contract, trace, baseline) for trace in traces]
+
+        certificate_paths: list[Path] = []
+        if args.certificate:
+            written = _write_certificates(
+                args.certificate, contract, traces, results, provenance=provenance
+            )
+            if written is None:
+                return 2
+            certificate_paths = written
+
+        if not args.json:
+            if args.sarif:
+                print(
+                    f"sarif: {_display(write_sarif(args.sarif, traces, results, __version__))}"
+                )
+            if args.junit:
+                print(f"junit: {_display(write_junit(args.junit, results))}")
+            _print_results(traces, results)
+            for path in certificate_paths:
+                print(f"certificate: {_display(path)}")
+        else:
+            if len(results) == 1 and args.certificate is None:
+                documents = [
+                    build_certificate(result, contract, trace, provenance=provenance)
+                    for trace, result in zip(traces, results, strict=True)
+                ]
+                print(certificate_json(documents[0]))
+            elif certificate_paths:
+                print(json.dumps({"certificates": [str(p) for p in certificate_paths]}))
+            else:
+                documents = [
+                    build_certificate(result, contract, trace, provenance=provenance)
+                    for trace, result in zip(traces, results, strict=True)
+                ]
+                print(json.dumps({"certificates": documents}, indent=2))
+
+        if args.github:
+            _emit_github(results)
+            _write_step_summary(contract, results)
+            _write_github_outputs(results)
+
+        if any(result.verdict == FAIL for result in results):
+            return 1
+        if any(result.verdict == ESCALATE for result in results):
+            return 2
+        return 0
+    finally:
+        if episode is not None:
+            episode.__exit__(None, None, None)
 
 
 def cmd_verify(args: argparse.Namespace) -> int:
@@ -304,16 +427,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             )
         )
     else:
-        for trace, result in zip(traces, results, strict=True):
-            print(
-                f"{trace.id:<24} {result.verdict.upper():<9} "
-                f"{result.cost_usd:.6f} USD  {result.duration_ms:.1f} ms"
-            )
-            for verdict in result.verdicts:
-                mark = {PASS: "+", FAIL: "x", ESCALATE: "?"}[verdict.outcome]
-                print(f"  [{mark}] {verdict.verifier:<24} {verdict.layer:<3} {verdict.duration_ms:6.1f} ms")
-                for reason in verdict.reasons[:3]:
-                    print(f"      {reason}")
+        _print_results(traces, results)
 
     if args.github:
         _emit_github(results)
@@ -325,6 +439,43 @@ def cmd_verify(args: argparse.Namespace) -> int:
     if any(result.verdict == ESCALATE for result in results):
         return 2
     return 0
+
+
+def cmd_prove(args: argparse.Namespace) -> int:
+    """Verify the verifier: recall on labelled defects, resistance to a gamer."""
+    contract = _load_contract(args.contract) if args.contract else None
+    if args.contract and contract is None:
+        return 2
+    try:
+        recall = run_benchmark(args.corpus or DEFAULT_CORPUS, DEFAULT_THRESHOLDS)
+        resistance = run_goodhart(
+            args.goodhart_corpus or GOODHART_CORPUS, GOODHART_THRESHOLDS, contract=contract
+        )
+    except (BenchmarkError, ValueError, KeyError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    passed = recall.thresholds_passed and resistance.thresholds_passed
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "passed": passed,
+                    "recall": json.loads(recall.to_json()),
+                    "resistance": json.loads(resistance.to_json()),
+                },
+                indent=2,
+            )
+        )
+    else:
+        print("assaystone prove — can the checks be trusted?\n")
+        print("[recall] a known defect is caught")
+        print(render_summary(recall))
+        print()
+        print("[resistance] an agent that knows the contract still has to work")
+        print(render_goodhart_summary(resistance))
+
+    return 0 if passed else 1
 
 
 def cmd_certificate(args: argparse.Namespace) -> int:
@@ -1746,6 +1897,46 @@ def _parser() -> argparse.ArgumentParser:
     audit.add_argument("--fail-on", choices=["none", "high", "any"], default="any")
     audit.set_defaults(func=cmd_audit)
 
+    check_parser = sub.add_parser(
+        "check",
+        help="check one episode and write a certificate",
+        epilog="Exit codes: 0 pass, 1 fail, 2 escalate or unable to check.",
+    )
+    check_parser.add_argument(
+        "--contract",
+        default=None,
+        help=(
+            "contract path; defaults to .assaystone/contract.json or assaystone.json "
+            "in the repository"
+        ),
+    )
+    check_parser.add_argument("--repo", default=".", help="repository to check")
+    check_parser.add_argument(
+        "--base",
+        default="HEAD",
+        help="git ref to compare the working tree against (e.g. origin/main in CI)",
+    )
+    check_parser.add_argument(
+        "--trace", default=None, help="check a recorded trace instead of a working tree"
+    )
+    check_parser.add_argument(
+        "--baseline", default=".", help="baseline directory when --trace is used"
+    )
+    check_parser.add_argument("--task", default="", help="the task the agent was given")
+    check_parser.add_argument("--certificate", default=None, metavar="PATH")
+    check_output = check_parser.add_mutually_exclusive_group()
+    check_output.add_argument("--json", action="store_true")
+    check_output.add_argument("--github", action="store_true")
+    check_parser.add_argument("--sarif", default=None, metavar="PATH")
+    check_parser.add_argument("--junit", default=None, metavar="PATH")
+    check_parser.set_defaults(func=cmd_check)
+
+    lab = sub.add_parser(
+        "lab",
+        help="frozen and experimental commands; no new features, and deletion is allowed",
+    )
+    lab_sub = lab.add_subparsers(dest="lab_command", required=True)
+
     hook = sub.add_parser("hook", help="run or install a framework hook")
     hook_sub = hook.add_subparsers(dest="hook_name", required=True)
     claude = hook_sub.add_parser("claude-code", help="Claude Code Stop hook runner")
@@ -1766,7 +1957,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     install_claude.set_defaults(func=cmd_hook_install)
 
-    verify = sub.add_parser(
+    verify = lab_sub.add_parser(
         "verify",
         help="run a contract over recorded traces",
         epilog="Exit codes: 0 all pass, 1 at least one fail, 2 no fails but at least one escalate.",
@@ -1809,7 +2000,21 @@ def _parser() -> argparse.ArgumentParser:
     certificate_show.add_argument("path", metavar="PATH")
     certificate_show.set_defaults(func=cmd_certificate)
 
-    scorecard_parser = sub.add_parser(
+    prove_parser = sub.add_parser(
+        "prove",
+        help="prove the checks can be trusted: recall, resistance, false alarms, cost",
+    )
+    prove_parser.add_argument("--corpus", default=None, help="failure-zoo corpus")
+    prove_parser.add_argument(
+        "--goodhart-corpus", default=None, help="resistance corpus"
+    )
+    prove_parser.add_argument(
+        "--contract", default=None, help="score this contract instead of the built-in set"
+    )
+    prove_parser.add_argument("--json", action="store_true")
+    prove_parser.set_defaults(func=cmd_prove)
+
+    scorecard_parser = lab_sub.add_parser(
         "scorecard",
         help=(
             "one report card: conformance, coverage, recall on labelled "
@@ -1854,7 +2059,7 @@ def _parser() -> argparse.ArgumentParser:
     scorecard_parser.add_argument("--json", default=None, metavar="PATH")
     scorecard_parser.set_defaults(func=cmd_scorecard)
 
-    protocol_parser = sub.add_parser(
+    protocol_parser = lab_sub.add_parser(
         "protocol",
         help="show the verifier protocol, export schemas, or check a contract",
         epilog=(
@@ -1886,7 +2091,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     protocol_parser.set_defaults(func=cmd_protocol)
 
-    coverage_parser = sub.add_parser(
+    coverage_parser = lab_sub.add_parser(
         "coverage",
         help="check which declared defect classes a contract covers",
         epilog=(
@@ -1913,20 +2118,20 @@ def _parser() -> argparse.ArgumentParser:
     )
     coverage_parser.set_defaults(func=cmd_coverage)
 
-    backtest_parser = sub.add_parser("backtest", help="score a contract against human labels")
+    backtest_parser = lab_sub.add_parser("backtest", help="score a contract against human labels")
     backtest_parser.add_argument("--contract", required=True)
     backtest_parser.add_argument("--trace", required=True)
     backtest_parser.add_argument("--baseline", default=".")
     backtest_parser.set_defaults(func=cmd_backtest)
 
-    mutate = sub.add_parser("mutate", help="inject defects and measure verifier recall")
+    mutate = lab_sub.add_parser("mutate", help="inject defects and measure verifier recall")
     mutate.add_argument("--contract", required=True)
     mutate.add_argument("--trace", required=True)
     mutate.add_argument("--baseline", default=".")
     mutate.add_argument("--max-mutants", type=int, default=18)
     mutate.set_defaults(func=cmd_mutate)
 
-    benchmark = sub.add_parser("benchmark", help="run a reproducible benchmark suite")
+    benchmark = lab_sub.add_parser("benchmark", help="run a reproducible benchmark suite")
     benchmark_sub = benchmark.add_subparsers(dest="benchmark_name", required=True)
     failure_zoo = benchmark_sub.add_parser(
         "failure-zoo",
@@ -2011,13 +2216,13 @@ def _parser() -> argparse.ArgumentParser:
     goodhart.add_argument("--json", default=None, metavar="PATH", help="write JSON results")
     goodhart.set_defaults(func=cmd_benchmark_goodhart)
 
-    init = sub.add_parser("init", help="scaffold a contract for the current repository")
+    init = lab_sub.add_parser("init", help="scaffold a contract for the current repository")
     init.add_argument("--path", default=".")
     init.add_argument("--force", action="store_true", help="overwrite an existing contract")
     init.add_argument("--ci", action="store_true", help="also write a GitHub Actions workflow")
     init.set_defaults(func=cmd_init)
 
-    capability_parser = sub.add_parser(
+    capability_parser = lab_sub.add_parser(
         "capability",
         help="validate a capability manifest",
     )
@@ -2265,7 +2470,7 @@ def _parser() -> argparse.ArgumentParser:
     capability_prepare.add_argument("--json", action="store_true")
     capability_prepare.set_defaults(func=cmd_capability)
 
-    gate_parser = sub.add_parser(
+    gate_parser = lab_sub.add_parser(
         "gate",
         help="evaluate a capability at a lifecycle stage",
         epilog=(
@@ -2349,7 +2554,7 @@ def _parser() -> argparse.ArgumentParser:
     gate_parser.add_argument("--json", action="store_true")
     gate_parser.set_defaults(func=cmd_gate)
 
-    trail_parser = sub.add_parser(
+    trail_parser = lab_sub.add_parser(
         "trail", help="verify a hash-chained gate audit trail"
     )
     trail_sub = trail_parser.add_subparsers(dest="trail_command", required=True)
@@ -2364,7 +2569,7 @@ def _parser() -> argparse.ArgumentParser:
     trail_verify.add_argument("--json", action="store_true")
     trail_verify.set_defaults(func=cmd_trail)
 
-    receipt_parser = sub.add_parser(
+    receipt_parser = lab_sub.add_parser(
         "receipt", help="verify a signed gate receipt"
     )
     receipt_sub = receipt_parser.add_subparsers(
@@ -2393,7 +2598,7 @@ def _parser() -> argparse.ArgumentParser:
     receipt_verify.add_argument("--json", action="store_true")
     receipt_verify.set_defaults(func=cmd_receipt)
 
-    key_parser = sub.add_parser("key", help="generate signing keys")
+    key_parser = lab_sub.add_parser("key", help="generate signing keys")
     key_sub = key_parser.add_subparsers(dest="key_command", required=True)
     key_generate = key_sub.add_parser("generate", help="generate an Ed25519 pair")
     key_generate.add_argument("--private", required=True, metavar="PATH")
@@ -2407,7 +2612,7 @@ def _parser() -> argparse.ArgumentParser:
     key_fingerprint.add_argument("--public", required=True, metavar="PATH")
     key_fingerprint.set_defaults(func=cmd_key)
 
-    compose_parser = sub.add_parser(
+    compose_parser = lab_sub.add_parser(
         "compose",
         help=(
             "choose the cheapest independent cover for declared defect "
@@ -2443,7 +2648,7 @@ def _parser() -> argparse.ArgumentParser:
     compose_parser.add_argument("--json", action="store_true")
     compose_parser.set_defaults(func=cmd_compose)
 
-    leaderboard_parser = sub.add_parser(
+    leaderboard_parser = lab_sub.add_parser(
         "leaderboard",
         help="compare several contracts on coverage, recall, resistance, and cost",
         epilog=(
@@ -2462,7 +2667,7 @@ def _parser() -> argparse.ArgumentParser:
     leaderboard_parser.add_argument("--json", default=None, metavar="PATH")
     leaderboard_parser.set_defaults(func=cmd_leaderboard)
 
-    corpus_parser = sub.add_parser(
+    corpus_parser = lab_sub.add_parser(
         "corpus",
         help="add a labelled case to an existing benchmark corpus",
         epilog=(
@@ -2523,7 +2728,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     corpus_add.set_defaults(func=cmd_corpus)
 
-    record = sub.add_parser("record", help="convert a transcript or export into a trace")
+    record = lab_sub.add_parser("record", help="convert a transcript or export into a trace")
     record.add_argument("--transcript", required=True, help="transcript, export, or trace file")
     record.add_argument("--out", required=True, help="output trace path, or - for stdout")
     record.add_argument(
@@ -2551,8 +2756,37 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+# Commands that used to be top-level. They still work as aliases so existing
+# CI and scripts do not break, but they are not part of the product surface and
+# receive no new features. Deletion is allowed; see GOALS.md.
+LAB_ALIASES = frozenset(
+    {
+        "verify",
+        "scorecard",
+        "protocol",
+        "coverage",
+        "backtest",
+        "mutate",
+        "benchmark",
+        "init",
+        "capability",
+        "gate",
+        "trail",
+        "receipt",
+        "key",
+        "compose",
+        "leaderboard",
+        "corpus",
+        "record",
+    }
+)
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] in LAB_ALIASES:
+        arguments = ["lab", *arguments]
+    args = _parser().parse_args(arguments)
     return args.func(args)
 
 
