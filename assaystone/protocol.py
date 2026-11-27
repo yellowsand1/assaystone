@@ -40,6 +40,7 @@ CONTRACT_SCHEMA: dict[str, Any] = {
             "uniqueItems": True,
         },
         "domain": {"type": "string"},
+        "require_measured": {"type": "boolean"},
         "criteria": {
             "type": "array",
             "items": {"$ref": "#/$defs/criterion"},

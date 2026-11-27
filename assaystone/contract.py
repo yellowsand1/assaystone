@@ -106,6 +106,9 @@ class Contract:
     # what make a contract legible to a domain expert rather than only to an
     # engineer who knows the verifier names.
     criteria: list[Criterion] = field(default_factory=list)
+    # A pass must rest on at least one measured, independent check. Without it
+    # the run escalates: an unmeasured instrument may report, not decide.
+    require_measured: bool = False
 
     @classmethod
     def load(cls, path: str | Path) -> "Contract":
@@ -141,6 +144,7 @@ class Contract:
             required_defects=required,
             domain=str(data.get("domain") or ""),
             criteria=criteria,
+            require_measured=bool(data.get("require_measured", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -152,6 +156,7 @@ class Contract:
             "max_verification_cost_usd": self.max_verification_cost_usd,
             "required_defects": list(self.required_defects),
             "domain": self.domain,
+            "require_measured": self.require_measured,
             "verifiers": [
                 {
                     "name": spec.name,

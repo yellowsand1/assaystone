@@ -10,6 +10,7 @@ agent that produces the traces.
   "fail_fast": true,
   "human_review_cost_usd": 6.0,
   "max_verification_cost_usd": 0.05,
+  "require_measured": false,
   "verifiers": [
     {"name": "budget.steps", "params": {"max_steps": 40}},
     {"name": "diff.forbidden_paths", "params": {"forbidden": ["ci/", ".github/workflows/"]}},
@@ -30,6 +31,9 @@ agent that produces the traces.
   own numbers before quoting a ratio.
 - `max_verification_cost_usd` — escalate if the next verifier would exceed the budget.
   Default `0.05`.
+- `require_measured` — when true, a pass must rest on at least one measured,
+  independent check; otherwise the run escalates. Default `false`. See
+  [reliability.md](reliability.md).
 - `verifiers` — ordered specs. The runner reorders by `cost_usd`.
   - `name` — a registered verifier.
   - `required` — default `true`. A failed optional verifier is advisory.
