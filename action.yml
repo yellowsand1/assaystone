@@ -77,6 +77,14 @@ inputs:
     description: Path to owner-signed criterion waivers.
     required: false
     default: ""
+  base:
+    description: Git ref to compare the working tree against (check mode, e.g. origin/main).
+    required: false
+    default: ""
+  certificate:
+    description: Directory to write the assay certificate into (check mode).
+    required: false
+    default: ""
   baseline:
     description: Path to the baseline repository (verify mode).
     required: false
@@ -165,8 +173,21 @@ runs:
           exit "$code"
         fi
 
+        if [ -n "${{ inputs.base }}" ]; then
+          argv=(check --repo "${{ inputs.root }}" --base "${{ inputs.base }}" --github)
+          if [ -n "${{ inputs.contract }}" ]; then
+            argv+=(--contract "${{ inputs.contract }}")
+          fi
+          if [ -n "${{ inputs.certificate }}" ]; then
+            argv+=(--certificate "${{ inputs.certificate }}")
+          fi
+          code=0
+          assaystone "${argv[@]}" || code=$?
+          exit "$code"
+        fi
+
         if [ -z "${{ inputs.contract }}" ] || [ -z "${{ inputs.traces }}" ]; then
-          echo "::error::provide manifest+stage, or contract+traces"
+          echo "::error::provide manifest+stage, base, or contract+traces"
           exit 2
         fi
         assaystone verify \
@@ -174,3 +195,11 @@ runs:
           --trace "${{ inputs.traces }}" \
           --baseline "${{ inputs.baseline }}" \
           --github
+
+    - name: Upload the certificate
+      if: ${{ inputs.certificate != '' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: assaystone-certificate
+        path: ${{ inputs.certificate }}
+        if-no-files-found: error

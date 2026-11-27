@@ -93,7 +93,11 @@ def main() -> int:
     if not match:
         raise PrepError("CHANGELOG.md has no `## Unreleased` section")
     body = match.group("body").strip()
-    if not body or body == "No changes yet.":
+    # The placeholder is easy to append under rather than replace. Strip it
+    # before it becomes part of the released section.
+    if body.startswith("No changes yet."):
+        body = body[len("No changes yet.") :].lstrip()
+    if not body:
         raise PrepError("the Unreleased section has no entries to release")
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     section = f"## Unreleased\n\nNo changes yet.\n\n## {version} — {date}\n\n{body}\n\n"

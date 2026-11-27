@@ -559,6 +559,25 @@ class EvidenceClaims(Verifier):
         return True, [], [f"recorded test exit code {recorded}"]
 
 
+# Test runners print their own timing. Timing is a measurement of the machine,
+# not of the work, and it must not change a certificate id. Keep the tail, drop
+# the clock.
+_TEST_TIMING = re.compile(
+    r"(?:^Ran \d+ tests? in \d+(?:\.\d+)?s$)"
+    r"|(?:^=+.*\bin \d+(?:\.\d+)?s.*=+$)"
+    r"|(?:^\d+ (?:passed|failed|error).*\bin \d+(?:\.\d+)?s.*$)"
+)
+
+
+def _stable_tail(output: str, limit: int = 15) -> str:
+    kept = [
+        line
+        for line in output.strip().splitlines()
+        if line.strip() and not _TEST_TIMING.search(line)
+    ]
+    return "\n".join(kept[-limit:]) if kept else "(no output)"
+
+
 @register
 class TestsPass(Verifier):
     name = "tests.pass"
@@ -580,8 +599,7 @@ class TestsPass(Verifier):
         except subprocess.TimeoutExpired:
             return None, ["test command timed out"], []
         output = (proc.stdout or "") + (proc.stderr or "")
-        lines = output.strip().splitlines()
-        tail = "\n".join(lines[-15:]) if lines else "(no output)"
+        tail = _stable_tail(output)
         if proc.returncode == 0:
             return True, [], [tail]
         return False, [f"test suite failed (exit {proc.returncode})"], [tail]
