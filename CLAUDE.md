@@ -29,7 +29,8 @@ P0 结束前，不新增命令、不新增领域包、不新增检查、不新�
 3. 级联：确定性 → 测试 → 证据 → judge；judge 永远不能单独决定。
 4. 独立性来自 provenance，不来自声明；agent 写的都是证词，降级。
 5. contract 是产品；check 可替换。
-6. 每个 check 必须有 clean case、defective case、声明的盲区、实测误报率。
+6. 每个 check 必须有 clean case、defective case、声明的盲区、实测误报率，
+   并把可靠性档案（recall / n / 误报）带进每一张证书；没测量就写 `unmeasured`。
 7. 确定性层在普通 PR 上 < 1 秒；做不到就标明“仅 CI”。
 8. 不造新品类：活在 pytest、CI、hook、PR 里。需要新 dashboard 就是失败。
 9. 每个功能要么增加每次判定的证据，要么降低判定的成本；否则删除。

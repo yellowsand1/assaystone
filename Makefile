@@ -26,6 +26,9 @@ benchmark: check-python
 benchmark-goodhart: check-python
 	$(PYTHON) -m assaystone benchmark goodhart --md docs/goodhart.md
 
+reliability: check-python
+	$(PYTHON) scripts/build_reliability.py
+
 scorecard: check-python
 	$(PYTHON) -m assaystone scorecard --contract examples/code_agent/contracts/hardened.json --trace examples/code_agent/traces --baseline examples/code_agent/baseline --md docs/report-card.md
 

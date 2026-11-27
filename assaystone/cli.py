@@ -93,6 +93,7 @@ from .receipt import (
     render_check,
     verify_receipt,
 )
+from .reliability import build as build_reliability_profile
 from .replay import git_preimage, is_git_repo
 from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
@@ -470,6 +471,14 @@ def cmd_prove(args: argparse.Namespace) -> int:
         print("[resistance] an agent that knows the contract still has to work")
         print(render_goodhart_summary(resistance))
 
+    if args.write_reliability:
+        profile = build_reliability_profile()
+        path = Path(args.write_reliability)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(profile, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(f"reliability: {_display(path)}")
     return 0 if passed else 1
 
 
@@ -528,6 +537,24 @@ def cmd_certificate(args: argparse.Namespace) -> int:
             f"{len(assurance['declared_defects'])} declared defects covered"
             + (f"; uncovered: {', '.join(uncovered)}" if uncovered else "")
         )
+    calibration_data = assurance.get("calibration") or {}
+    if calibration_data:
+        total = int(calibration_data.get("measured_checks", 0)) + int(
+            calibration_data.get("unmeasured_checks", 0)
+        )
+        gap = float(calibration_data.get("calibration_gap", 0.0))
+        text = (
+            f"{calibration_data.get('measured_checks', 0)}/{total} checks measured"
+            f" (gap {gap:.0%})"
+        )
+        if calibration_data.get("min_recall") is not None:
+            text += f"; min recall {float(calibration_data['min_recall']):.0%}"
+        if calibration_data.get("max_false_alarm_rate") is not None:
+            text += (
+                f"; max false alarm "
+                f"{float(calibration_data['max_false_alarm_rate']):.0%}"
+            )
+        print(f"calibration   {text}")
     print(
         f"cost          ${float(cost.get('decision_usd', 0.0)):.6f} "
         f"(verification ${float(cost.get('verification_usd', 0.0)):.6f})"
@@ -2032,6 +2059,12 @@ def _parser() -> argparse.ArgumentParser:
         "--contract", default=None, help="score this contract instead of the built-in set"
     )
     prove_parser.add_argument("--json", action="store_true")
+    prove_parser.add_argument(
+        "--write-reliability",
+        default=None,
+        metavar="PATH",
+        help="write the measured reliability profile (see docs/reliability.md)",
+    )
     prove_parser.set_defaults(func=cmd_prove)
 
     scorecard_parser = lab_sub.add_parser(
