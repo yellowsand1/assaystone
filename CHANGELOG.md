@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.32.0 — 2026-11-27
+
 - **`capability prepare`: what the environment owes the gate.** For each oracle
   the stage requires, checks the record outside the manifest — an approval that
   exists, names the action, and is granted (and signed where required); a drill
