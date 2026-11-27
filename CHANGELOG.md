@@ -2,7 +2,39 @@
 
 ## Unreleased
 
-No changes yet.
+- **Direction reset: `GOALS.md` is the constitution.** Assaystone is a decision
+  layer, not a verifier library and not an acceptance plane: one unit of agent
+  work becomes a certificate with evidence, a three-valued verdict, an assurance
+  gap, and a cost. The lifecycle surface is frozen until the episode surface has
+  external users. `CLAUDE.md` is the operating manual; `ROADMAP.md` is a
+  sequence of proofs with kill criteria.
+- **Certificate v1 (`assaystone.certificate/1`).** `verify --certificate DIR`
+  writes one hash-addressed certificate per trace; `certificate show` prints the
+  decision, checks, assurance gap, and cost; `certificate verify` re-checks the
+  structure and content id offline, without re-running the agent. The id is
+  stable across runs: timing and issue time are excluded from the content
+  address. A testimony-reading check is recorded with its computed independence,
+  so an unconfirmed failure is visible as an escalation, not a pass.
+- **Release tooling: the placeholder can no longer leak into a release.**
+  `release_prep.py` strips `No changes yet.` before writing the version section;
+  twelve stale placeholders were removed from past sections.
+- **`check`: an episode from a live git worktree.** `assaystone check --base
+  origin/main --certificate ./certs` compares the working tree to a base ref,
+  reconstructs the base tree as a temporary worktree, runs the contract, and
+  writes a certificate. No trace, no instrumentation, no API key. The trace is
+  marked `source="runtime"` because the checker read the filesystem itself, which
+  is what keeps testimony-reading checks from being trusted.
+- **Five-command surface.** `audit`, `check`, `certificate`, `prove`, `hook` are
+  the product. Seventeen lifecycle and lab commands moved under `assaystone lab`
+  and are frozen; their old top-level names still resolve as aliases so existing
+  CI does not break.
+- **`ARCHITECTURE.md`.** The target module boundaries, the data contracts, and
+  the invariants a change must not violate.
+- **The 60-second demo ends with a certificate.** `assaystone demo audit` now
+  runs the contract over the demo transcript and writes
+  `audit-demo-session.certificate.json`, so the first screen shows the whole
+  product: a failure, the artifact, and the command a third party runs to check
+  it offline.
 
 ## 0.32.0 — 2026-11-27
 
@@ -11,7 +43,6 @@ No changes yet.
   exists, names the action, and is granted (and signed where required); a drill
   record that passed; a session record. Each need names who has to act and gives
   the command or the JSON shape. Nothing is created on the operator's behalf.
-No changes yet.
 
 ## 0.31.0 — 2026-11-27
 
@@ -21,7 +52,6 @@ No changes yet.
   will not do — inventing a compensation command or an approval. Applying makes
   an owner approval stale, and the command says so. The trial ends with the
   blocker, the apply, and the stage declared.
-No changes yet.
 
 ## 0.30.0 — 2026-11-27
 
@@ -30,7 +60,6 @@ No changes yet.
   stage does not gate, and (with a trail) a required oracle without a passing
   decision — each with the JSON to add. The trial now ends with this instead of a
   residual-risk list, so the document ends with the next action.
-No changes yet.
 
 ## 0.29.0 — 2026-11-26
 
@@ -47,7 +76,6 @@ No changes yet.
   tests is fine.
 - **`diff.ci_surface` allows the gate's own workflow to be added.** The draft
   writes `.github/workflows/assaystone.yml`; the next gate flagged its own file.
-No changes yet.
 
 ## 0.28.0 — 2026-11-26
 
@@ -56,7 +84,6 @@ No changes yet.
   index). With several roots the table gains a `repo` column and critical risks
   are prefixed by repository; `--strict` aggregates across all of them. Still a
   local command over files, so the offline positioning is unchanged.
-No changes yet.
 
 ## 0.27.0 — 2026-11-26
 
@@ -65,7 +92,6 @@ No changes yet.
   for the difference with a fixed seed, and fails only when the relative change
   exceeds the limit **and** the interval excludes zero. Fewer than five usable
   measurements escalates; noise does not fail.
-No changes yet.
 
 ## 0.26.0 — 2026-11-26
 
@@ -74,7 +100,6 @@ No changes yet.
   repository being judged; only checks that reach outside the workspace (`git`,
   `http`, `human`, `sql` with `dsn_env`) use the real root. The result and the
   trail record `sandbox: true`.
-No changes yet.
 
 ## 0.25.0 — 2026-11-26
 
@@ -107,7 +132,6 @@ No changes yet.
 - **`command` gains `unknown_exit`.** An exit code that means "the check could
   not decide" escalates instead of failing — the API check uses it when the
   baseline will not build.
-No changes yet.
 
 ## 0.24.0 — 2026-11-26
 
@@ -119,7 +143,6 @@ No changes yet.
   file it cites. The hook's own gate skips `runtime` and `drill` and reports them
   as not evaluated here: the supervisor that writes the evidence cannot require
   it to exist already.
-No changes yet.
 
 ## 0.23.0 — 2026-11-26
 
@@ -130,7 +153,6 @@ No changes yet.
   "never failed" is a fact rather than a verdict: an oracle you have never seen
   reject anything is untested, not proven. This is the empirical half of "price
   the verification".
-No changes yet.
 
 ## 0.22.0 — 2026-11-26
 
@@ -141,7 +163,6 @@ No changes yet.
   locked: `capability init` used to emit a `production` policy that allowed
   deploy with no approval and no rollback, so a new user could get a green light
   from a manifest that checked almost nothing.
-No changes yet.
 
 ## 0.21.0 — 2026-11-26
 
@@ -154,7 +175,6 @@ No changes yet.
   the manifest digest and the commit; the `drill` oracle fails a failed drill and
   escalates a missing, foreign, or stale one. This repository's own release now
   drills its build (`build` → `dist` → remove) before the production gate.
-No changes yet.
 
 ## 0.20.0 — 2026-11-26
 
