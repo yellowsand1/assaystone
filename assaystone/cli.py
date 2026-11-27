@@ -20,6 +20,15 @@ from .audit import AuditError, audit_traces, build_audit_contract, load_audit_tr
 from .backtest import backtest
 from .brief import render_brief
 from .card import build_card, render_card
+from .certificate import (
+    build_certificate,
+    safe_name,
+    verify_certificate,
+)
+from .certificate import load as load_certificate
+from .certificate import (
+    to_json as certificate_json,
+)
 from .compose import compose, render_plan
 from .contract import Contract
 from .corpus import CorpusError, add_case, case_outcome
@@ -214,6 +223,42 @@ def _strip_audit_evidence(report) -> None:
         finding.evidence = []
 
 
+def _write_certificates(
+    target: str,
+    contract: Contract,
+    traces: list,
+    results: list,
+) -> list[Path] | None:
+    """Write one certificate per trace, or a single file for a single trace.
+
+    A directory keeps one file per trace; a ``.json`` path is accepted only when
+    the run produced exactly one trace, so a file never silently holds a subset.
+    """
+    documents = [
+        build_certificate(result, contract, trace)
+        for trace, result in zip(traces, results, strict=True)
+    ]
+    path = Path(target)
+    if path.suffix == ".json":
+        if len(documents) != 1:
+            print(
+                f"error: --certificate {path} expects one trace, got {len(documents)}; "
+                "pass a directory instead",
+                file=sys.stderr,
+            )
+            return None
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(certificate_json(documents[0]), encoding="utf-8")
+        return [path]
+    path.mkdir(parents=True, exist_ok=True)
+    written = []
+    for document in documents:
+        out = path / f"{safe_name(str(document['subject']['trace_id']))}.certificate.json"
+        out.write_text(certificate_json(document), encoding="utf-8")
+        written.append(out)
+    return written
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     contract = _load_contract(args.contract)
     if contract is None:
@@ -221,16 +266,31 @@ def cmd_verify(args: argparse.Namespace) -> int:
     traces = _load_traces_arg(args.trace)
     if traces is None:
         return 1
+    if args.certificate and args.no_evidence:
+        print(
+            "error: --certificate needs the evidence that --no-evidence removes",
+            file=sys.stderr,
+        )
+        return 2
     baseline = Path(args.baseline)
     results = [run_contract(contract, trace, baseline) for trace in traces]
     if args.no_evidence:
         _strip_evidence(results)
+
+    certificate_paths: list[Path] = []
+    if args.certificate:
+        written = _write_certificates(args.certificate, contract, traces, results)
+        if written is None:
+            return 2
+        certificate_paths = written
 
     if not args.json:
         if args.sarif:
             print(f"sarif: {_display(write_sarif(args.sarif, traces, results, __version__))}")
         if args.junit:
             print(f"junit: {_display(write_junit(args.junit, results))}")
+        for path in certificate_paths:
+            print(f"certificate: {_display(path)}")
 
     if args.json:
         print(
@@ -264,6 +324,61 @@ def cmd_verify(args: argparse.Namespace) -> int:
         return 1
     if any(result.verdict == ESCALATE for result in results):
         return 2
+    return 0
+
+
+def cmd_certificate(args: argparse.Namespace) -> int:
+    try:
+        document = load_certificate(args.path)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"error: cannot read certificate: {exc}", file=sys.stderr)
+        return 2
+
+    if args.certificate_command == "verify":
+        check = verify_certificate(document)
+        if args.json:
+            print(json.dumps(check, indent=2))
+        elif check["ok"]:
+            print(f"valid {check['id']}")
+        else:
+            print(f"invalid {check['id']}")
+            for problem in check["problems"]:
+                print(f"  - {problem}")
+        return 0 if check["ok"] else 1
+
+    subject = document.get("subject") or {}
+    decision = document.get("decision") or {}
+    assurance = document.get("assurance") or {}
+    cost = document.get("cost") or {}
+    checks = document.get("checks") or []
+    counts = {"pass": 0, "fail": 0, "escalate": 0}
+    for check in checks:
+        outcome = check.get("outcome")
+        if outcome in counts:
+            counts[outcome] += 1
+    print(f"certificate   {document.get('id', '')}")
+    print(
+        "subject       "
+        f"{subject.get('trace_id', '')} "
+        f"({subject.get('agent', '')}, source: {subject.get('source', '')})"
+    )
+    print(f"contract      {(document.get('contract') or {}).get('name', '')}")
+    print(f"decision      {str(decision.get('verdict', '')).upper()}")
+    if decision.get("first_failure"):
+        print(f"first failure {decision['first_failure']}")
+    print(
+        f"checks        {len(checks)} "
+        f"({counts['pass']} pass, {counts['fail']} fail, {counts['escalate']} escalate)"
+    )
+    print(
+        f"assurance gap {float(assurance.get('assurance_gap', 0.0)):.2f} "
+        f"({assurance.get('criteria_unknown', 0)}/"
+        f"{assurance.get('criteria_total', 0)} criteria unknown)"
+    )
+    print(
+        f"cost          ${float(cost.get('decision_usd', 0.0)):.6f} "
+        f"(verification ${float(cost.get('verification_usd', 0.0)):.6f})"
+    )
     return 0
 
 
@@ -1668,8 +1783,31 @@ def _parser() -> argparse.ArgumentParser:
     )
     verify.add_argument("--sarif", default=None, metavar="PATH")
     verify.add_argument("--junit", default=None, metavar="PATH")
+    verify.add_argument(
+        "--certificate",
+        default=None,
+        metavar="PATH",
+        help="write an assay certificate (one .json file for one trace, or a directory)",
+    )
     verify.add_argument("--no-evidence", action="store_true")
     verify.set_defaults(func=cmd_verify)
+
+    certificate_parser = sub.add_parser(
+        "certificate",
+        help="re-check or inspect an assay certificate",
+    )
+    certificate_sub = certificate_parser.add_subparsers(
+        dest="certificate_command", required=True
+    )
+    certificate_verify = certificate_sub.add_parser(
+        "verify", help="re-check structure and content id without re-running the agent"
+    )
+    certificate_verify.add_argument("path", metavar="PATH")
+    certificate_verify.add_argument("--json", action="store_true")
+    certificate_verify.set_defaults(func=cmd_certificate)
+    certificate_show = certificate_sub.add_parser("show", help="print a certificate summary")
+    certificate_show.add_argument("path", metavar="PATH")
+    certificate_show.set_defaults(func=cmd_certificate)
 
     scorecard_parser = sub.add_parser(
         "scorecard",

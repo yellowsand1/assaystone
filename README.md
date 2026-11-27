@@ -12,38 +12,66 @@
 ![license](https://img.shields.io/badge/license-Apache--2.0-blue)
 [![website](https://img.shields.io/badge/website-live-2ea44f)](https://yellowsand1.github.io/assaystone/)
 
-**Assaystone is an open protocol and adversarial benchmark for agent acceptance.**
+Assaystone turns one unit of agent work into a **certificate**: pass, fail, or a
+human must look — with the evidence, the check that decided it, the check that
+could not, and the cost of deciding.
 
-Every verifier must answer three questions before it is allowed to decide:
+It is not an eval platform, an agent framework, or a judge. It is the acceptance
+layer: contracts a domain expert can review, checks that declare what they cannot
+see, and a verdict a third party can re-check without re-running the agent. It
+runs locally, offline, with no API key.
+
+```bash
+uvx assaystone demo audit                 # find a failure you did not know you had
+assaystone verify --contract c.json --trace ./traces --certificate ./certs
+```
+
+## The certificate
+
+A verdict without evidence cannot be reviewed. Evidence without provenance cannot
+be trusted. A decision without versions cannot be reproduced. The certificate
+binds the three into one hash-addressed object.
+
+```bash
+assaystone certificate show   ./certs/t02.certificate.json
+assaystone certificate verify ./certs/t02.certificate.json   # a third party, offline
+```
+
+```
+certificate   sha256:b41f506c...
+subject       t02-regression (demo-agent/0.1, source: agent)
+contract      audit-baseline
+decision      ESCALATE
+first failure unconfirmed low-independence failure: evidence.claims: agent claims tests pass but recorded exit code is 1
+checks        12 (11 pass, 1 fail, 0 escalate)
+assurance gap 0.00 (0/0 criteria unknown)
+cost          $6.000236 (verification $0.000236)
+```
+
+Same decision and same versions produce the same id. Edit one piece of evidence
+and the id changes. The certificate records what each check declared it could not
+see, the independence actually earned (computed from provenance, not claimed), the
+assurance gap, and what the decision cost.
+
+## Why this shape
+
+The agent loop is commodity. Benchmarks of 53,100 rollouts show harness choice
+moves pass@1 by about two points while model choice moves it far more. What has
+not converged is deciding whether the work is acceptable: 80.1% of runs that
+reach the right outcome fail process checks, verifier judgments shift ~31% when
+execution is compacted or delegated, and some decisions cannot be made offline at
+all. There is no free checker — cheap and credible are opposed, and every check
+must say where it sits.
+
+So every verifier must answer three questions before it is allowed to decide:
 
 - **claim** — one sentence a human can disagree with
 - **catches** — the defect classes it claims to detect
 - **blind_spots** — the defect classes it knows it cannot detect
 
-Above the verifier, the **acceptance plane** answers the deployment question: a
-capability manifest binds typed criteria to thirteen generic oracles — compile, file,
-git, HTTP, SQL, old-vs-new shadow, the agent's transcript, and the verifier ABI —
-and gates `shadow`, `canary`, and `production`, recording every decision in a
-hash-chained trail.
-
-Assaystone then measures the verifier set on axes that a single pass rate hides:
-
-| question | metric | command |
-|---|---|---|
-| Did it catch a known defect? | recall | `assaystone benchmark failure-zoo` |
-| Can an agent that knows the contract pass without working? | resistance | `assaystone benchmark goodhart` |
-| Does the contract cover what you declared? | coverage | `assaystone coverage` |
-| Can a failing check decide alone? | independence | runner policy |
-| All four, on one page | report card | `assaystone scorecard` |
-| How do several contracts compare? | leaderboard | `assaystone leaderboard` |
-
-It also ships a reference implementation: audit existing Claude Code, Codex CLI,
-and observability traces, then gate CI, runtime, and deployment with the same
-acceptance language. Nothing leaves your machine; no API key or runtime
-dependency is required.
-
-The deployment question — *can this capability move to the next stage, and with
-what evidence?* — is a gate too: `assaystone demo plane`.
+[GOALS.md](GOALS.md) is the direction, the ten laws, and the list of things we
+refuse to build. The short version: evidence over scores, three values, judges
+never decide alone, and one external user beats ten features.
 
 <img src="assets/demo.gif" alt="Assaystone auditing a Claude Code transcript and finding a deleted failing test" width="760">
 
