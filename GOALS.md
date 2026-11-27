@@ -278,8 +278,8 @@ GitHub Action only. That is a smaller, honest product, and it is allowed to win.
 - [x] Post-tool and pre-final gates with runtime evidence
 - [x] Spec coverage as a first-class obligation (v1: deterministic
       evidence rules; pre-final runs the same contract)
-- [ ] Provenance survives compaction and delegation (certificate says what view
-      the verifier saw)
+- [x] Provenance across compaction and delegation (v1: the certificate records
+      the view and `require_native_view` gates an abstracted pass)
 - [x] Sub-second deterministic path on a real repository (68–98 ms on Flask; see
       `docs/field-note-flask.md`)
 

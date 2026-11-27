@@ -51,6 +51,11 @@ Criteria are the human-readable requirements; a verifier spec is one way to
 decide them. A criterion without a verifier is an open obligation, reported in
 the certificate's `assurance.open_obligations`.
 
+**Transport.** `Trace.view` records whether the verifier saw the execution
+(`native`, `restored`), a summary (`compacted`, `delegated`), or a vendor export
+(`imported`). The certificate's `assurance.transport` carries the risk; a
+contract with `require_native_view` escalates a pass built on a summary.
+
 **Spec.** `spec.py`: obligations with deterministic evidence rules (`path`,
 `contains`, `absent`, `exists`). `check --spec` compiles them into criteria with
 `source: "evidence"`; the certificate's `assurance.spec` reports satisfied,
@@ -114,5 +119,5 @@ enforced now:
 | `prove` (recall, resistance, false alarms, cost in one report) | next |
 | harness gates (pre-tool / post-tool / pre-final) | all three done |
 | spec coverage as a first-class obligation | v1 done |
-| provenance across compaction and delegation | workspace-root inference done; view metadata next |
+| provenance across compaction and delegation | view metadata + native-view gate done |
 | lifecycle gates consuming certificates | frozen until P2 |

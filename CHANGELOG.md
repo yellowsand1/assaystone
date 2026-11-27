@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-No changes yet.
+- **Verification transport.** Every trace records the view the verifier saw:
+  `native`, `restored`, `imported`, `compacted`, `delegated`, or unknown. The
+  certificate carries `subject.view` and `assurance.transport` with a risk and a
+  reason; `certificate show` prints one line. A Claude Code transcript with a
+  compaction marker is `compacted`; git and runtime episodes are `native`; vendor
+  imports are `imported`.
+- **`require_native_view`.** A contract can require that a pass rest on a native
+  or restored view. A pass built on a summary escalates with `transport
+  required`, instead of being treated as a judgment about the execution. See
+  `docs/transport.md`.
 
 ## 0.36.0 — 2026-11-27
 

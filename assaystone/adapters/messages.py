@@ -92,6 +92,7 @@ def from_messages(
     agent: str = "agent",
     trace_id: str | None = None,
     evidence: dict[str, Any] | None = None,
+    view: dict[str, Any] | None = None,
 ) -> Trace:
     """Build a Trace from a list of framework messages."""
     steps: list[Step] = []
@@ -196,6 +197,7 @@ def from_messages(
         artifacts=list(artifacts or []),
         final_message=final_message,
         evidence=trace_evidence,
+        view=dict(view or {}),
     )
 
 
