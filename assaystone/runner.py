@@ -14,6 +14,8 @@ from .model import (
     Trace,
     Verdict,
 )
+from .reliability import load as load_reliability
+from .reliability import profile_for
 from .verifiers import (
     REGISTRY,
     Verifier,
@@ -24,7 +26,12 @@ from .verifiers import (
 from .workspace import Workspace
 
 
-def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunResult:
+def run_contract(
+    contract: Contract,
+    trace: Trace,
+    baseline: str | Path,
+    reliability: dict | None = None,
+) -> RunResult:
     started = time.perf_counter()
     verdicts: list[Verdict] = []
     total_cost = 0.0
@@ -183,6 +190,21 @@ def run_contract(contract: Contract, trace: Trace, baseline: str | Path) -> RunR
             first_failure = (
                 f"criterion {unknown[0].id}: "
                 f"{unknown[0].reasons[0] if unknown[0].reasons else 'unresolved'}"
+            )
+
+    if contract.require_measured and overall == PASS:
+        data = reliability if reliability is not None else load_reliability()
+        measured = [
+            verdict
+            for verdict in verdicts
+            if verdict.outcome == PASS
+            and independence_rank(verdict.independence) >= 1
+            and profile_for(verdict.verifier, data).get("recall") is not None
+        ]
+        if not measured:
+            overall = ESCALATE
+            first_failure = (
+                "calibration required: no measured independent check confirmed the pass"
             )
 
     return RunResult(

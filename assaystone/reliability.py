@@ -34,16 +34,102 @@ def corpus_digest(paths: list[str | Path]) -> str:
     return "sha256:" + digest.hexdigest()
 
 
-def load(source: str | Path | None = None) -> dict[str, Any]:
-    target = Path(source) if source is not None else path()
+class ReliabilityError(ValueError):
+    """A reliability profile is not usable."""
+
+
+def canonical_digest(value: Any) -> str:
+    material = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str
+    )
+    return "sha256:" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def validate(profile: Any) -> list[str]:
+    """Return the reasons a profile cannot be trusted, empty when it can."""
+    problems: list[str] = []
+    if not isinstance(profile, dict):
+        return ["profile is not an object"]
+    if profile.get("schema") != SCHEMA:
+        problems.append(f"unsupported schema: {profile.get('schema')!r}")
+    checks = profile.get("checks")
+    if not isinstance(checks, dict):
+        return problems + ["checks is not an object"]
+    for name, entry in checks.items():
+        if not isinstance(entry, dict):
+            problems.append(f"{name}: entry is not an object")
+            continue
+        for field in ("recall", "false_alarm_rate"):
+            value = entry.get(field)
+            if value is not None:
+                if not isinstance(value, (int, float)) or not 0.0 <= float(value) <= 1.0:
+                    problems.append(f"{name}: {field} is not a probability")
+        for field in ("declared_cases", "clean_cases"):
+            value = entry.get(field, 0)
+            if not isinstance(value, int) or value < 0:
+                problems.append(f"{name}: {field} is not a count")
+    return problems
+
+
+def _read_profile(target: Path) -> dict[str, Any]:
     try:
         data = json.loads(target.read_text(encoding="utf-8"))
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return {"schema": SCHEMA, "checks": {}, "corpus_digest": "", "measured_at": ""}
-    if not isinstance(data, dict) or data.get("schema") != SCHEMA:
-        return {"schema": SCHEMA, "checks": {}, "corpus_digest": "", "measured_at": ""}
+    except FileNotFoundError as exc:
+        raise ReliabilityError(f"profile not found: {target}") from exc
+    except (json.JSONDecodeError, OSError) as exc:
+        raise ReliabilityError(f"cannot read {target}: {exc}") from exc
+    problems = validate(data)
+    if problems:
+        raise ReliabilityError(f"{target}: " + "; ".join(problems))
     data.setdefault("checks", {})
     return data
+
+
+def _meta(profile: dict[str, Any], source: str) -> dict[str, Any]:
+    return {
+        "source": source,
+        "digest": canonical_digest(profile),
+        "measured_at": profile.get("measured_at", ""),
+        "tool_version": profile.get("tool_version", ""),
+        "method": profile.get("method", ""),
+    }
+
+
+def load(
+    source: str | Path | None = None,
+    extra: list[str | Path] | None = None,
+) -> dict[str, Any]:
+    """Load the built-in profile, then merge external profiles in order.
+
+    An external profile names its own method and corpus digest. Merging does not
+    vouch for the numbers; it makes them checkable and cites them by digest.
+    """
+    target = Path(source) if source is not None else path()
+    try:
+        base = _read_profile(target)
+    except ReliabilityError:
+        base = {"schema": SCHEMA, "checks": {}, "corpus_digest": "", "measured_at": ""}
+    profiles = [_meta(base, str(source) if source is not None else "builtin")]
+    merged = dict(base)
+    merged["checks"] = dict(base.get("checks") or {})
+    for item in extra or []:
+        profile = _read_profile(Path(item))
+        meta = _meta(profile, str(item))
+        profiles.append(meta)
+        for name, entry in (profile.get("checks") or {}).items():
+            annotated = dict(entry)
+            annotated["profile"] = {"source": meta["source"], "digest": meta["digest"]}
+            merged["checks"][name] = annotated
+    for name, entry in list(merged["checks"].items()):
+        if "profile" not in entry:
+            annotated = dict(entry)
+            annotated["profile"] = {
+                "source": profiles[0]["source"],
+                "digest": profiles[0]["digest"],
+            }
+            merged["checks"][name] = annotated
+    merged["profiles"] = profiles
+    return merged
 
 
 def profile_for(name: str, data: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -182,6 +268,7 @@ def calibration(checks: list[str], data: dict[str, Any] | None = None) -> dict[s
         "max_false_alarm_rate": round(max(alarms), 6) if alarms else None,
         "corpus_digest": source.get("corpus_digest", ""),
         "measured_at": source.get("measured_at", ""),
+        "profiles": [item.get("source", "") for item in source.get("profiles") or []],
     }
 
 

@@ -633,12 +633,13 @@
       "version": "1",
       "layer": "L1",
       "independence": "high",
-      "claim": "No file under the protected test prefixes was added, changed, or deleted.",
+      "claim": "No test was deleted, and no test file lost tests or assertions.",
       "catches": [
         "test-tampering"
       ],
       "blind_spots": [
         "test files outside the protected prefixes",
+        "an assertion changed to one that always passes",
         "test-harness-hijack",
         "module-shadow"
       ],
@@ -648,7 +649,7 @@
       "cost": {
         "usd": 2e-05
       },
-      "description": "Test files are part of the oracle and must not be modified.",
+      "description": "Tests may be added, but not deleted or weakened.",
       "builtin": true,
       "conformant": true
     },

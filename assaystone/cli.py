@@ -94,6 +94,7 @@ from .receipt import (
     verify_receipt,
 )
 from .reliability import build as build_reliability_profile
+from .reliability import load as load_reliability
 from .replay import git_preimage, is_git_repo
 from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
@@ -232,6 +233,7 @@ def _write_certificates(
     traces: list,
     results: list,
     provenance: dict | None = None,
+    reliability: dict | None = None,
 ) -> list[Path] | None:
     """Write one certificate per trace, or a single file for a single trace.
 
@@ -239,7 +241,9 @@ def _write_certificates(
     the run produced exactly one trace, so a file never silently holds a subset.
     """
     documents = [
-        build_certificate(result, contract, trace, provenance=provenance)
+        build_certificate(
+            result, contract, trace, provenance=provenance, reliability=reliability
+        )
         for trace, result in zip(traces, results, strict=True)
     ]
     path = Path(target)
@@ -332,12 +336,21 @@ def cmd_check(args: argparse.Namespace) -> int:
         provenance = episode.provenance
 
     try:
-        results = [run_contract(contract, trace, baseline) for trace in traces]
+        reliability = load_reliability(extra=args.reliability)
+        results = [
+            run_contract(contract, trace, baseline, reliability=reliability)
+            for trace in traces
+        ]
 
         certificate_paths: list[Path] = []
         if args.certificate:
             written = _write_certificates(
-                args.certificate, contract, traces, results, provenance=provenance
+                args.certificate,
+                contract,
+                traces,
+                results,
+                provenance=provenance,
+                reliability=reliability,
             )
             if written is None:
                 return 2
@@ -355,7 +368,13 @@ def cmd_check(args: argparse.Namespace) -> int:
                 print(f"certificate: {_display(path)}")
         else:
             documents = [
-                build_certificate(result, contract, trace, provenance=provenance)
+                build_certificate(
+                    result,
+                    contract,
+                    trace,
+                    provenance=provenance,
+                    reliability=reliability,
+                )
                 for trace, result in zip(traces, results, strict=True)
             ]
             if len(documents) == 1:
@@ -392,13 +411,19 @@ def cmd_verify(args: argparse.Namespace) -> int:
         )
         return 2
     baseline = Path(args.baseline)
-    results = [run_contract(contract, trace, baseline) for trace in traces]
+    reliability = load_reliability(extra=args.reliability)
+    results = [
+        run_contract(contract, trace, baseline, reliability=reliability)
+        for trace in traces
+    ]
     if args.no_evidence:
         _strip_evidence(results)
 
     certificate_paths: list[Path] = []
     if args.certificate:
-        written = _write_certificates(args.certificate, contract, traces, results)
+        written = _write_certificates(
+            args.certificate, contract, traces, results, reliability=reliability
+        )
         if written is None:
             return 2
         certificate_paths = written
@@ -554,6 +579,9 @@ def cmd_certificate(args: argparse.Namespace) -> int:
                 f"; max false alarm "
                 f"{float(calibration_data['max_false_alarm_rate']):.0%}"
             )
+        profiles = calibration_data.get("profiles") or []
+        if len(profiles) > 1:
+            text += f"; profiles: {', '.join(profiles)}"
         print(f"calibration   {text}")
     print(
         f"cost          ${float(cost.get('decision_usd', 0.0)):.6f} "
@@ -1970,6 +1998,13 @@ def _parser() -> argparse.ArgumentParser:
     check_output = check_parser.add_mutually_exclusive_group()
     check_output.add_argument("--json", action="store_true")
     check_output.add_argument("--github", action="store_true")
+    check_parser.add_argument(
+        "--reliability",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="extra reliability profile to merge (repeatable)",
+    )
     check_parser.add_argument("--sarif", default=None, metavar="PATH")
     check_parser.add_argument("--junit", default=None, metavar="PATH")
     check_parser.set_defaults(func=cmd_check)
@@ -2018,6 +2053,13 @@ def _parser() -> argparse.ArgumentParser:
         "--github",
         action="store_true",
         help="emit GitHub Actions annotations and a step summary",
+    )
+    verify.add_argument(
+        "--reliability",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="extra reliability profile to merge (repeatable)",
     )
     verify.add_argument("--sarif", default=None, metavar="PATH")
     verify.add_argument("--junit", default=None, metavar="PATH")

@@ -1,12 +1,21 @@
 """A certificate carries the measured reliability of the checks that decided it."""
 
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
 from assaystone.certificate import build_certificate
 from assaystone.contract import Contract, VerifierSpec
 from assaystone.model import load_traces
-from assaystone.reliability import SCHEMA, build, calibration, profile_for
+from assaystone.reliability import (
+    SCHEMA,
+    ReliabilityError,
+    build,
+    calibration,
+    load,
+    profile_for,
+)
 from assaystone.runner import run_contract
 
 REPO = Path(__file__).resolve().parent.parent
@@ -60,6 +69,98 @@ class ReliabilityTest(unittest.TestCase):
         self.assertEqual(result["unmeasured_checks"], 1)
         self.assertEqual(result["calibration_gap"], 0.5)
         self.assertEqual(result["min_recall"], 0.5)
+
+
+class ExternalProfileTest(unittest.TestCase):
+    def write(self, entry: dict) -> Path:
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        )
+        json.dump(
+            {
+                "schema": SCHEMA,
+                "measured_at": "2026-01-01T00:00:00Z",
+                "method": "external corpus",
+                "checks": {"diff.syntax": entry},
+            },
+            tmp,
+        )
+        tmp.close()
+        return Path(tmp.name)
+
+    def test_external_profile_is_merged_and_cited(self):
+        path = self.write(
+            {
+                "status": "measured",
+                "recall": 0.9,
+                "declared_cases": 10,
+                "false_alarm_rate": 0.01,
+                "clean_cases": 20,
+            }
+        )
+        merged = load(extra=[path])
+        entry = merged["checks"]["diff.syntax"]
+        self.assertEqual(entry["recall"], 0.9)
+        self.assertEqual(entry["profile"]["source"], str(path))
+        self.assertEqual(len(merged["profiles"]), 2)
+
+    def test_invalid_external_profile_is_rejected(self):
+        path = self.write({"status": "measured", "recall": 1.5})
+        with self.assertRaises(ReliabilityError):
+            load(extra=[path])
+
+    def test_external_profile_can_satisfy_the_gate(self):
+        from assaystone.runner import run_contract
+
+        examples = REPO / "examples" / "code_agent"
+        trace = {t.id: t for t in load_traces(examples / "traces")}["t01-correct"]
+        contract = Contract(
+            name="syntax",
+            verifiers=[VerifierSpec("diff.syntax")],
+            require_measured=True,
+        )
+        baseline = examples / "baseline"
+        self.assertEqual(
+            run_contract(contract, trace, baseline).verdict, "escalate"
+        )
+        path = self.write(
+            {
+                "status": "measured",
+                "recall": 0.9,
+                "declared_cases": 10,
+                "false_alarm_rate": 0.01,
+                "clean_cases": 20,
+            }
+        )
+        result = run_contract(
+            contract, trace, baseline, reliability=load(extra=[path])
+        )
+        self.assertEqual(result.verdict, "pass", result.first_failure)
+
+
+class CalibrationGateTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        examples = REPO / "examples" / "code_agent"
+        cls.baseline = examples / "baseline"
+        cls.trace = {t.id: t for t in load_traces(examples / "traces")}["t01-correct"]
+
+    def run_gate(self, verifier: str):
+        from assaystone.runner import run_contract
+
+        contract = Contract(
+            name="gate", verifiers=[VerifierSpec(verifier)], require_measured=True
+        )
+        return run_contract(contract, self.trace, self.baseline)
+
+    def test_unmeasured_pass_escalates(self):
+        result = self.run_gate("diff.syntax")
+        self.assertEqual(result.verdict, "escalate")
+        self.assertIn("calibration required", result.first_failure or "")
+
+    def test_measured_pass_stands(self):
+        result = self.run_gate("tests.integrity")
+        self.assertEqual(result.verdict, "pass", result.first_failure)
 
 
 class CertificateReliabilityTest(unittest.TestCase):

@@ -147,6 +147,11 @@ A check with no measurement says `unmeasured`; it does not get a number. The
 profile is generated from the public corpora and cited by digest, so a reviewer
 can see what the instrument is worth, not only what it said.
 
+Calibration can also be a gate. Set `"require_measured": true` in a contract and
+a pass that rests only on unmeasured checks becomes an escalation. External
+checks can bring their own profile with `--reliability profile.json`; the
+certificate cites the profile's source and digest.
+
 ```bash
 assaystone prove --write-reliability profile.json
 ```
