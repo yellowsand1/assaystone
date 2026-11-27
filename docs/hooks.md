@@ -1,9 +1,12 @@
 # Claude Code hooks
 
-Two hooks, one contract:
+Three hooks, one policy:
 
 - **`assaystone hook claude-code-pre`** runs on `PreToolUse`. It decides one tool
   call *before* it executes, from a small local policy, and can block it.
+- **`assaystone hook claude-code-post`** runs on `PostToolUse`. It checks what
+  the action produced — Python syntax, leaked secrets — and feeds the defect
+  back to the model on the next step.
 - **`assaystone hook claude-code`** runs on `Stop`. It audits the session
   transcript against the repository and can refuse the stop.
 
@@ -42,6 +45,14 @@ The equivalent settings entry is:
         "matcher": "*",
         "hooks": [
           {"type": "command", "command": "assaystone hook claude-code-pre"}
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {"type": "command", "command": "assaystone hook claude-code-post"}
         ]
       }
     ],
@@ -120,6 +131,34 @@ Limits, stated rather than hidden:
   runs it, not at the writes inside the script.
 - It judges the call, not the intent. A denied action can still be legitimate;
   the message says which rule matched so a human can adjust the policy.
+
+## Check the result after the action
+
+The pre-tool gate stops the call it can see. The post-tool gate checks what the
+call produced, at the earliest point where the result exists:
+
+- **Python syntax.** After `Write` / `Edit` / `MultiEdit` on a `.py` file, the
+  file is parsed. A syntax error is fed back with the line number, so the model
+  fixes it on the next step instead of at Stop.
+- **High-confidence secrets.** Written content, the command, and the tool
+  response are scanned for AWS access keys, private-key headers, GitHub tokens,
+  and `sk-` keys. Generic `token=` patterns are deliberately not matched.
+- **Evidence.** Every post decision is appended to `.assaystone/session.jsonl`
+  with `phase: "post"` and the violations, next to the pre-tool decisions.
+
+Both checks are controlled by the policy:
+
+```json
+{
+  "mode": "block",
+  "post_syntax": true,
+  "post_secrets": true
+}
+```
+
+Exit 2 shows the message to the model; the action is not undone. This is a
+correction loop, not a transaction. Same limits as the pre-tool gate: lexical
+matching, no semantic judgment, and a missing policy is passive.
 
 ## Gate the capability at Stop
 

@@ -35,6 +35,25 @@ class PolicyError(ValueError):
     """The policy file is not usable."""
 
 
+# High-confidence patterns only. A generic "token=" would cry wolf.
+SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("aws_access_key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
+    ("private_key", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
+    ("github_token", re.compile(r"\bgh[pousr]_[A-Za-z0-9]{30,}\b")),
+    ("api_key", re.compile(r"\bsk-[A-Za-z0-9]{20,}\b")),
+)
+
+
+def scan_secrets(text: str) -> list[str]:
+    """Return the secret kinds found in a string, high-confidence only."""
+    return [label for label, pattern in SECRET_PATTERNS if pattern.search(text)]
+
+
+def paths_for(tool: str, args: dict[str, Any]) -> list[str]:
+    """The file paths a tool argument names, for both gates."""
+    return _resolve_paths(tool, args)
+
+
 def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
 
@@ -78,6 +97,9 @@ class ActionPolicy:
     deny_commands: tuple[str, ...] = ()
     allow_write_roots: tuple[str, ...] = ()
     record: bool = True
+    # Post-tool invariants: cheap checks on what the action produced.
+    post_syntax: bool = True
+    post_secrets: bool = True
     _commands: tuple[re.Pattern[str], ...] = field(default=(), repr=False)
 
     @classmethod
@@ -106,6 +128,8 @@ class ActionPolicy:
             deny_commands=tuple(str(pattern) for pattern in strings("deny_commands")),
             allow_write_roots=strings("allow_write_roots"),
             record=bool(data.get("record", True)),
+            post_syntax=bool(data.get("post_syntax", True)),
+            post_secrets=bool(data.get("post_secrets", True)),
             _commands=commands,
         )
 
@@ -136,6 +160,8 @@ DEFAULT_POLICY = {
         r"DROP\s+(?:TABLE|DATABASE)\b",
     ],
     "record": True,
+    "post_syntax": True,
+    "post_secrets": True,
 }
 
 
@@ -217,18 +243,22 @@ def record_decision(
     tool: str,
     args: dict[str, Any],
     decision: ActionDecision,
+    phase: str = "pre",
+    details: dict[str, Any] | None = None,
 ) -> Path | None:
     """Append a runtime-written decision. Never raises into the harness."""
     path = record_path(root)
     entry = {
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "session_id": session_id,
+        "phase": phase,
         "tool": tool,
         "args_digest": digest(_redact_args(args)),
         "paths": _resolve_paths(tool, args),
         "decision": decision.outcome,
         "reasons": list(decision.reasons),
         "rule": decision.rule,
+        "details": dict(details or {}),
     }
     command = args.get("command")
     if isinstance(command, str):

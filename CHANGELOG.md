@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-No changes yet.
+- **Post-tool gate.** `assaystone hook claude-code-post` checks what an action
+  produced: Python syntax after a write, and high-confidence secrets in the
+  written content, the command, or the tool response. In `block` mode the defect
+  is fed back to the model on the next step. Every decision is recorded in
+  `.assaystone/session.jsonl` with `phase: "post"`. `hook install claude-code`
+  now installs `PreToolUse`, `PostToolUse`, and `Stop`.
 
 ## 0.34.0 — 2026-11-27
 

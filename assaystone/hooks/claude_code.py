@@ -29,10 +29,13 @@ from ..audit import AuditReport, audit_traces, build_audit_contract, load_audit_
 from ..policy import (
     DEFAULT_POLICY,
     POLICY_FILE,
+    ActionDecision,
     ActionPolicy,
     PolicyError,
     evaluate_action,
+    paths_for,
     record_decision,
+    scan_secrets,
 )
 from ..replay import git_preimage, is_git_repo, is_git_root
 
@@ -405,6 +408,111 @@ def run_pre_hook(payload: dict[str, Any]) -> tuple[int, str]:
     return 0, message + "\n\nSet mode=block in .assaystone/policy.json to enforce."
 
 
+_WRITE_TOOLS = {
+    "write",
+    "write_file",
+    "create_file",
+    "create",
+    "edit",
+    "str_replace",
+    "replace_in_file",
+    "str_replace_editor",
+    "multiedit",
+}
+
+
+def _post_violations(
+    tool: str, args: dict[str, Any], response: Any, policy: ActionPolicy, cwd: Path
+) -> tuple[list[str], list[str]]:
+    violations: list[str] = []
+    paths = paths_for(tool, args)
+    if policy.post_syntax and tool.lower() in _WRITE_TOOLS:
+        import ast
+
+        for raw in paths:
+            path = Path(raw)
+            if not path.is_absolute():
+                path = cwd / path
+            if path.suffix != ".py":
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            try:
+                ast.parse(text)
+            except SyntaxError as exc:
+                violations.append(f"{raw}: syntax error: {exc.msg} (line {exc.lineno})")
+    if policy.post_secrets:
+        candidates: list[Any] = [
+            args.get("content"),
+            args.get("new_string"),
+            args.get("command"),
+        ]
+        if isinstance(response, dict):
+            candidates.extend(
+                [response.get("stdout"), response.get("output"), response.get("content")]
+            )
+        elif isinstance(response, str):
+            candidates.append(response)
+        for text in candidates:
+            if not isinstance(text, str):
+                continue
+            for kind in scan_secrets(text):
+                violations.append(f"{kind} in {tool} output")
+    # Stable order, no duplicates.
+    return sorted(set(violations)), paths
+
+
+def run_post_hook(payload: dict[str, Any]) -> tuple[int, str]:
+    """Check what the action produced, then feed the defect back to the model.
+
+    Exit 2 in Claude Code shows stderr to the model and lets it correct on the
+    next step. The action already happened; this is the earliest point where the
+    result can be checked without undoing it.
+    """
+    event = str(payload.get("hook_event_name") or "PostToolUse")
+    if event != "PostToolUse":
+        return 0, ""
+    cwd = Path(payload.get("cwd") or os.getcwd()).resolve()
+    policy, error = _load_action_policy(cwd)
+    if error:
+        return 0, error
+    if policy is None:
+        return 0, ""
+
+    tool = str(payload.get("tool_name") or "")
+    args = payload.get("tool_input")
+    if not isinstance(args, dict):
+        args = {}
+    violations, paths = _post_violations(
+        tool, args, payload.get("tool_response"), policy, cwd
+    )
+    decision = ActionDecision(
+        allowed=not violations,
+        reasons=violations,
+        rule="post_conditions" if violations else "",
+    )
+    if policy.record:
+        record_decision(
+            cwd,
+            session_id=str(payload.get("session_id") or ""),
+            tool=tool,
+            args=args,
+            decision=decision,
+            phase="post",
+            details={"violations": violations, "paths": paths},
+        )
+    if not violations:
+        return 0, ""
+
+    mode = (os.environ.get("ASSAYSTONE_HOOK_MODE") or policy.mode or "warn").lower()
+    message = "Assaystone post-tool: " + "; ".join(violations[:3])
+    if mode == "block":
+        return 2, message + "\n\nFix the file and continue."
+    return 0, message + "\n\nSet mode=block in .assaystone/policy.json to enforce."
+
+
 def _ensure_command_hook(
     hooks: dict[str, Any],
     event: str,
@@ -458,6 +566,13 @@ def install_claude_code(
         pre_command = "ASSAYSTONE_HOOK_MODE=block " + pre_command
     settings_changed = (
         _ensure_command_hook(hooks, "PreToolUse", pre_command, matcher="*")
+        or settings_changed
+    )
+    post_command = "assaystone hook claude-code-post"
+    if mode == "block":
+        post_command = "ASSAYSTONE_HOOK_MODE=block " + post_command
+    settings_changed = (
+        _ensure_command_hook(hooks, "PostToolUse", post_command, matcher="*")
         or settings_changed
     )
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -522,6 +637,21 @@ def main_pre() -> int:
         print("assaystone hook: expected a JSON object on stdin", file=sys.stderr)
         return 0
     code, message = run_pre_hook(payload)
+    if message:
+        print(message, file=sys.stderr if code == 2 else sys.stdout)
+    return code
+
+
+def main_post() -> int:
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        print(f"assaystone hook: invalid JSON on stdin: {exc}", file=sys.stderr)
+        return 0
+    if not isinstance(payload, dict):
+        print("assaystone hook: expected a JSON object on stdin", file=sys.stderr)
+        return 0
+    code, message = run_post_hook(payload)
     if message:
         print(message, file=sys.stderr if code == 2 else sys.stdout)
     return code
