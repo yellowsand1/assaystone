@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Assaystone — acceptance and deployment gates for AI agents</title>
-  <meta name="description" content="Acceptance contracts and deployment gates for AI agents. Every verifier declares what it catches and what it cannot see; every gate records its evidence.">
+  <title>Assaystone — turn agent work into a verifiable certificate</title>
+  <meta name="description" content="Turn a unit of agent work into a certificate: pass, fail, or a human must look — with evidence, declared blind spots, and a cost. Audit Claude Code and Codex sessions, check a git worktree, prove the checks themselves. Offline, no API key.">
   <meta name="theme-color" content="#0d1117">
   <meta property="og:type" content="website">
   <meta property="og:title" content="Your agent's tests pass. Did it delete the failing test?">
-  <meta property="og:description" content="Measure recall, resistance, coverage, and cost for agent verifiers—then gate CI and runtime with evidence, not a self-report.">
+  <meta property="og:description" content="One unit of agent work becomes a certificate: pass, fail, or a human must look. Evidence, declared blind spots, computed independence, and a cost — re-checkable offline.">
   <meta property="og:url" content="https://yellowsand1.github.io/assaystone/">
   <meta property="og:image" content="https://yellowsand1.github.io/assaystone/assets/social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Your agent's tests pass. Did it delete the failing test?">
-  <meta name="twitter:description" content="An open verifier protocol and adversarial benchmark for agent acceptance, with a zero-dependency reference implementation.">
+  <meta name="twitter:description" content="Turn agent work into a verifiable certificate. Audit, check, prove the checks themselves. Offline, zero runtime dependencies.">
   <meta name="twitter:image" content="https://yellowsand1.github.io/assaystone/assets/social-preview.png">
   <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
@@ -38,7 +38,7 @@
       <div class="hero-copy">
         <div class="eyebrow"><span class="pulse"></span> Open source · Apache-2.0 · zero runtime dependencies</div>
         <h1>Your agent's tests pass.<br><em>Did it delete the failing test?</em></h1>
-        <p class="lede">Assaystone is an open protocol and adversarial benchmark for agent acceptance—and an acceptance plane that gates a capability through shadow, canary, and production. Every verifier must declare what it claims, what it catches, and what it cannot see; every deployment decision leaves evidence.</p>
+        <p class="lede">Assaystone turns one unit of agent work into a certificate: <em>pass</em>, <em>fail</em>, or <em>a human must look</em> — with the evidence, the check that decided it, and the cost of deciding. It runs on a live git worktree, a recorded trace, or a runtime action. Every check declares what it cannot see; every decision can be re-checked offline.</p>
         <div class="hero-actions">
           <a class="button button-primary" href="#quickstart">Run the audit</a>
           <a class="button button-secondary" href="https://github.com/yellowsand1/assaystone">View on GitHub <span aria-hidden="true">↗</span></a>
@@ -46,10 +46,12 @@
         <div class="terminal" aria-label="Install and run Assaystone">
           <div class="terminal-bar"><span></span><span></span><span></span><b>terminal</b></div>
           <div class="terminal-body">
-            <div><span class="prompt">$</span> pip install assaystone</div>
-            <div><span class="prompt">$</span> assaystone audit --latest claude-code</div>
-            <div class="finding"><span>HIGH</span> tests.integrity <strong>tests/test_discounts.py (modified)</strong></div>
-            <div class="summary">summary: 0 critical, 1 high, 0 medium, 0 low</div>
+            <div><span class="prompt">$</span> pip install assaystone==0.33.0</div>
+            <div><span class="prompt">$</span> assaystone demo audit</div>
+            <div class="finding"><span>HIGH</span> tests.integrity <strong>tests/test_discounts.py (removed 1 test)</strong></div>
+            <div class="summary">certificate: audit-demo-session.certificate.json</div>
+            <div><span class="prompt">$</span> assaystone certificate verify &lt;that file&gt;</div>
+            <div class="summary">valid sha256:... — offline, no agent re-run</div>
           </div>
         </div>
       </div>
@@ -60,9 +62,9 @@
           <img src="assets/demo.gif" alt="Assaystone auditing a Claude Code transcript and finding a deleted failing test" width="1200" height="760">
         </div>
         <div class="floating-card">
-          <span class="floating-label">INDEPENDENT EVIDENCE</span>
+          <span class="floating-label">HASH-ADDRESSED EVIDENCE</span>
           <strong>pass / fail / escalate</strong>
-          <p>The same contract runs in audit, CI, pytest, and runtime.</p>
+          <p>Re-check a decision offline, without re-running the agent.</p>
         </div>
       </div>
     </section>
@@ -95,9 +97,9 @@
 
     <section class="section how-section" id="how">
       <div class="section-heading center">
-        <p class="kicker">From trace to verdict</p>
-        <h2>Record once. Verify many times.</h2>
-        <p>Start with a transcript you already have. No model judge, hosted control plane, or vendor migration required.</p>
+        <p class="kicker">From episode to certificate</p>
+        <h2>Check once. Re-check anywhere.</h2>
+        <p>Start with a worktree or a transcript you already have. No model judge, hosted control plane, or vendor migration required.</p>
       </div>
       <div class="steps">
         <article>
@@ -112,20 +114,21 @@
         </article>
         <article>
           <span class="step-number">03</span>
-          <h3>Gate CI and runtime</h3>
-          <p>Fail merges and irreversible tool calls with the same checks. Route ambiguous outcomes to a human instead of guessing.</p>
+          <h3>Hold the certificate</h3>
+          <p>A hash-addressed record of the decision: evidence, the check that decided, the check that could not, the assurance gap, and the cost. Verify it offline, without the agent.</p>
         </article>
         <article>
           <span class="step-number">04</span>
-          <h3>Gate the deployment</h3>
-          <p>A capability manifest binds criteria to nine generic oracles—compile, diff, HTTP, SQL, old-vs-new shadow, the agent's transcript—and gates shadow, canary, and production with a hash-chained trail. Production can require a recorded, verified canary pass.</p>
+          <h3>Prove the checks</h3>
+          <p>Recall on a labelled corpus, resistance to an agent that knows the contract, coverage of the declared defects, and cost. A check without a clean case, a defective case, and a measured false-alarm rate does not ship.</p>
         </article>
       </div>
       <div class="code-grid">
         <div class="code-card">
-          <div class="code-title">One command, latest session</div>
-<pre><code><span>$</span> assaystone audit --latest codex
-<span>$</span> assaystone audit --latest claude-code</code></pre>
+          <div class="code-title">Check a worktree</div>
+<pre><code><span>$</span> assaystone check --base origin/main \
+    --certificate ./certs
+<span>$</span> assaystone certificate verify ./certs/&lt;id&gt;.certificate.json</code></pre>
         </div>
         <div class="code-card">
           <div class="code-title">Claude Code plugin</div>
@@ -149,15 +152,14 @@
       </div>
       <div class="code-grid">
         <div class="code-card">
-          <div class="code-title">Score a contract</div>
-<pre><code><span>$</span> assaystone scorecard --contract contract.json \
-    --trace traces/ --baseline .
-<span>$</span> assaystone leaderboard --manifest benchmarks/leaderboard.json</code></pre>
+          <div class="code-title">Prove the checks</div>
+<pre><code><span>$</span> assaystone prove
+recall=100%  resistance=85%  false_alarms=0</code></pre>
         </div>
         <div class="code-card">
-          <div class="code-title">Challenge the verifier</div>
-<pre><code><span>$</span> assaystone benchmark goodhart
-<span>$</span> assaystone protocol --schemas ./schemas</code></pre>
+          <div class="code-title">Re-check a decision</div>
+<pre><code><span>$</span> assaystone certificate show ./certs/&lt;id&gt;.certificate.json
+<span>$</span> assaystone certificate verify ./certs/&lt;id&gt;.certificate.json</code></pre>
         </div>
       </div>
     </section>
@@ -199,16 +201,17 @@
         <div>
           <p class="kicker">60-second quickstart</p>
           <h2>Find your last agent's silent failure.</h2>
-          <p>Python 3.10+. Install the package, then audit the newest Claude Code or Codex session for the current workspace. No Python setup? <code>uvx assaystone demo audit</code> runs the bundled failure case.</p>
+          <p>Python 3.10+. Install the package, then audit the newest Claude Code or Codex session, or check a worktree against a base ref. No Python setup? <code>uvx assaystone demo audit</code> runs the bundled failure case and writes a certificate.</p>
           <div class="hero-actions">
             <a class="button button-primary" href="https://github.com/yellowsand1/assaystone">Star on GitHub</a>
             <a class="button button-secondary" href="https://pypi.org/project/assaystone/">Install from PyPI</a>
           </div>
         </div>
         <div class="quick-terminal">
-          <button class="copy-button" data-copy="pip install assaystone\nassaystone audit --latest claude-code">Copy</button>
-          <pre><code>pip install assaystone
-assaystone audit --latest claude-code</code></pre>
+          <button class="copy-button" data-copy="pip install assaystone==0.33.0\nassaystone demo audit\nassaystone check --base origin/main --certificate ./certs">Copy</button>
+          <pre><code>pip install assaystone==0.33.0
+assaystone demo audit
+assaystone check --base origin/main --certificate ./certs</code></pre>
           <p>No API key. No runtime dependencies. Nothing leaves your machine.</p>
         </div>
       </div>

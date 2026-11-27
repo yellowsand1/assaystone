@@ -152,6 +152,10 @@ whether an agent that has read the contract can pass without doing the work.
 A contract can score 100% recall and still be trivially gameable; `prove`
 reports both, and the families where the leaks are.
 
+A reproducible run on a real repository — Flask, three changes, 68–98 ms per
+check — is in [docs/field-note-flask.md](docs/field-note-flask.md). It states
+what the sample does and does not support.
+
 ## Audit your own sessions
 
 The cold start is an audit, not a framework. Point it at the newest local
