@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.33.0 — 2026-11-27
+
 - **Direction reset: `GOALS.md` is the constitution.** Assaystone is a decision
   layer, not a verifier library and not an acceptance plane: one unit of agent
   work becomes a certificate with evidence, a three-valued verdict, an assurance
@@ -35,6 +39,13 @@
   `audit-demo-session.certificate.json`, so the first screen shows the whole
   product: a failure, the artifact, and the command a third party runs to check
   it offline.
+- **The certificate reports the gap.** Declared, covered, and uncovered defect
+  classes are separate fields, and `certificate show` prints the coverage line.
+  The audit demo is honest about its own contract: 9/10 declared defects
+  covered, `regression` uncovered because `tests.pass` was not part of it.
+- **A test runner's clock is not evidence.** `tests.pass` drops timing lines from
+  the evidence tail, so the same suite result keeps the same certificate id. The
+  determinism test now uses checks whose evidence is deterministic.
 
 ## 0.32.0 — 2026-11-27
 

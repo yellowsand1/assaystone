@@ -44,8 +44,25 @@ class CertificateTest(unittest.TestCase):
         self.assertEqual(document["decision"]["verdict"], "pass")
 
     def test_same_decision_has_the_same_id(self):
-        first, _ = self.certificate("t01-correct", at="2026-01-01T00:00:00Z")
-        second, _ = self.certificate("t01-correct", at="2030-12-31T23:59:59Z")
+        # Use checks whose evidence is deterministic; a test runner's timing is
+        # excluded from the id, but this keeps the test itself honest.
+        contract = Contract(
+            name="deterministic",
+            verifiers=[VerifierSpec("diff.syntax"), VerifierSpec("tests.integrity")],
+        )
+        trace = self.traces["t01-correct"]
+        first = build_certificate(
+            run_contract(contract, trace, self.baseline),
+            contract,
+            trace,
+            issued_at="2026-01-01T00:00:00Z",
+        )
+        second = build_certificate(
+            run_contract(contract, trace, self.baseline),
+            contract,
+            trace,
+            issued_at="2030-12-31T23:59:59Z",
+        )
         self.assertEqual(first["id"], second["id"])
         self.assertNotEqual(first["issued_at"], second["issued_at"])
 
@@ -135,6 +152,12 @@ class CertificateTest(unittest.TestCase):
         self.assertEqual(document["assurance"]["declared_defects"], ["pii-leak", "syntax-error"])
         self.assertIn("syntax-error", document["assurance"]["covered_defects"])
         self.assertEqual(document["assurance"]["uncovered_defects"], ["pii-leak"])
+
+    def test_runner_timing_is_not_evidence(self):
+        from assaystone.verifiers import _stable_tail
+
+        self.assertEqual(_stable_tail("Ran 3 tests in 0.004s\n\nOK"), "OK")
+        self.assertEqual(_stable_tail("===== 2 passed in 0.12s ====="), "(no output)")
 
     def test_verify_accepts_a_fresh_certificate(self):
         document, _ = self.certificate("t01-correct")
