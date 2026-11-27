@@ -275,7 +275,7 @@ GitHub Action only. That is a smaller, honest product, and it is allowed to win.
 > `hook`.
 
 - [x] Pre-tool gate with runtime-written evidence (`.assaystone/session.jsonl`)
-- [ ] Post-tool / pre-final gates
+- [x] Post-tool and pre-final gates with runtime evidence
 - [ ] Spec coverage as a first-class obligation, checked at pre-final
 - [ ] Provenance survives compaction and delegation (certificate says what view
       the verifier saw)

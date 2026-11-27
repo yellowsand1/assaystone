@@ -160,6 +160,35 @@ Exit 2 shows the message to the model; the action is not undone. This is a
 correction loop, not a transaction. Same limits as the pre-tool gate: lexical
 matching, no semantic judgment, and a missing policy is passive.
 
+## Gate the contract at Stop
+
+With `gate` in `.assaystone/hook.json`, the Stop hook runs the same contract as
+CI on the working tree, writes the certificate, and refuses the stop on a
+failure. This is the pre-final position: the agent can still fix the work.
+
+```json
+{
+  "mode": "block",
+  "gate": {
+    "contract": ".assaystone/contract.json",
+    "base": "HEAD"
+  }
+}
+```
+
+- **pass** — silent; the certificate is written to
+  `.assaystone/certificates/<trace-id>.certificate.json`.
+- **fail / escalate** — the failing checks are printed; in `block` mode the stop
+  is refused.
+- **no changes** — skipped with a note; there is nothing to decide.
+- **broken contract** — fails open with the error; a broken hook must not trap
+  the session.
+
+`base: HEAD` compares the working tree to the last commit, which is what a local
+session needs. CI should use `origin/main`. When `gate` is present it replaces
+the default audit in the Stop hook; the capability gate, if configured, still
+runs first.
+
 ## Gate the capability at Stop
 
 With `capability` in the config, the hook evaluates the manifest against the working

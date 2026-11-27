@@ -26,6 +26,10 @@ from typing import Any
 
 from ..adapters.messages import artifacts_from_git
 from ..audit import AuditReport, audit_traces, build_audit_contract, load_audit_traces
+from ..certificate import build_certificate
+from ..certificate import to_json as certificate_json
+from ..contract import Contract
+from ..episode import EpisodeError, GitEpisode
 from ..policy import (
     DEFAULT_POLICY,
     POLICY_FILE,
@@ -38,6 +42,7 @@ from ..policy import (
     scan_secrets,
 )
 from ..replay import git_preimage, is_git_repo, is_git_root
+from ..runner import run_contract
 
 
 def _compact_message(report: AuditReport) -> str:
@@ -241,6 +246,54 @@ def _hook_mode(config: dict[str, Any]) -> str:
     ).lower()
 
 
+def _run_final_gate(cwd: Path, config: dict[str, Any]) -> tuple[int, str]:
+    """Run the contract on the working tree before the session stops.
+
+    This is the pre-final position: the same contract as CI, with the same
+    certificate, evaluated while the agent can still fix the work.
+    """
+    gate = config.get("gate")
+    if not isinstance(gate, dict):
+        return 0, ""
+    ref = str(gate.get("contract") or ".assaystone/contract.json")
+    contract_path = Path(ref)
+    if not contract_path.is_absolute():
+        contract_path = cwd / contract_path
+    try:
+        contract = Contract.load(contract_path)
+    except (OSError, ValueError, KeyError) as exc:
+        return 0, f"assaystone: final gate contract is not readable: {exc}"
+
+    base = str(gate.get("base") or "HEAD")
+    try:
+        with GitEpisode(cwd, base=base) as episode:
+            result = run_contract(contract, episode.trace, episode.baseline)
+            document = build_certificate(
+                result, contract, episode.trace, provenance=episode.provenance
+            )
+    except EpisodeError as exc:
+        return 0, f"assaystone: final gate skipped: {exc}"
+
+    cert_dir = cwd / ".assaystone" / "certificates"
+    cert_dir.mkdir(parents=True, exist_ok=True)
+    cert_path = cert_dir / f"{document['subject']['trace_id']}.certificate.json"
+    cert_path.write_text(certificate_json(document), encoding="utf-8")
+
+    if result.verdict == "pass":
+        return 0, ""
+    lines = [f"Assaystone final gate: {result.verdict.upper()}"]
+    for verdict in result.verdicts:
+        if verdict.outcome == "pass":
+            continue
+        reason = verdict.reasons[0] if verdict.reasons else ""
+        lines.append(f"  {verdict.outcome.upper():<8} {verdict.verifier:<24} {reason[:120]}")
+    lines.append(f"certificate: {cert_path}")
+    mode = (os.environ.get("ASSAYSTONE_HOOK_MODE") or config.get("mode") or "warn").lower()
+    if mode == "block":
+        return 2, "\n".join(lines) + "\n\nFix the findings and continue."
+    return 0, "\n".join(lines) + "\n\nSet mode=block to enforce."
+
+
 def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
     if payload.get("stop_hook_active"):
         return 0, ""
@@ -248,6 +301,9 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
     config = _load_config(cwd)
     mode = _hook_mode(config)
     session_id = str(payload.get("session_id") or "")
+
+    if config.get("gate"):
+        return _run_final_gate(cwd, config)
 
     gate_result, gate_error = _capability_gate(cwd, config)
     gate_failed = bool(

@@ -8,6 +8,14 @@
   is fed back to the model on the next step. Every decision is recorded in
   `.assaystone/session.jsonl` with `phase: "post"`. `hook install claude-code`
   now installs `PreToolUse`, `PostToolUse`, and `Stop`.
+- **Pre-final gate.** With `gate` in `.assaystone/hook.json`, the Stop hook runs
+  the contract on the working tree, writes the certificate to
+  `.assaystone/certificates/`, and refuses the stop on a failure. `base: HEAD`
+  compares uncommitted work; CI still uses `origin/main`. A broken contract fails
+  open, and no changes skip with a note.
+- **Reliability profile schema.** `assaystone lab protocol --schemas DIR` writes
+  `reliability.schema.json` alongside the contract, verifier, and verdict
+  schemas, so an external pack can validate its own profile before shipping it.
 
 ## 0.34.0 — 2026-11-27
 
