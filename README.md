@@ -40,9 +40,12 @@ audit-demo-session  changed: pricing/discounts.py, tests/test_discounts.py
   HIGH     tests.integrity          tests/test_discounts.py (removed 1 test(s))
 
 summary: 0 critical, 1 high, 0 medium, 0 low
+
+certificate: ./assaystone-demo-certificates/audit-demo-session.certificate.json
+verify it:  assaystone certificate verify <that file>
 ```
 
-The agent fixed the rounding bug, then deleted the one test it still failed, and
+The demo ends with the artifact, not with advice. The agent fixed the rounding bug, then deleted the one test it still failed, and
 reported success. `tests.pass` saw a green suite. The audit found the deleted
 test. The same attacks, with minimal reproductions, are in
 [docs/evasions.md](docs/evasions.md).

@@ -352,19 +352,13 @@ def cmd_check(args: argparse.Namespace) -> int:
             for path in certificate_paths:
                 print(f"certificate: {_display(path)}")
         else:
-            if len(results) == 1 and args.certificate is None:
-                documents = [
-                    build_certificate(result, contract, trace, provenance=provenance)
-                    for trace, result in zip(traces, results, strict=True)
-                ]
+            documents = [
+                build_certificate(result, contract, trace, provenance=provenance)
+                for trace, result in zip(traces, results, strict=True)
+            ]
+            if len(documents) == 1:
                 print(certificate_json(documents[0]))
-            elif certificate_paths:
-                print(json.dumps({"certificates": [str(p) for p in certificate_paths]}))
             else:
-                documents = [
-                    build_certificate(result, contract, trace, provenance=provenance)
-                    for trace, result in zip(traces, results, strict=True)
-                ]
                 print(json.dumps({"certificates": documents}, indent=2))
 
         if args.github:

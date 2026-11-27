@@ -10,6 +10,8 @@ from pathlib import Path
 from . import trail as audit_trail
 from .audit import audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
+from .certificate import build_certificate, safe_name
+from .certificate import to_json as certificate_json
 from .contract import Contract
 from .model import FAIL, load_traces, utc_now
 from .mutate import run_mutation
@@ -263,16 +265,38 @@ def run_audit(output_dir: str | Path = ".") -> str:
     root = DATA_ROOT / "audit"
     baseline = root / "baseline"
     traces = load_audit_traces(root / "transcript.jsonl", baseline=baseline)
-    report = audit_traces(build_audit_contract(baseline), traces, baseline)
+    contract = build_audit_contract(baseline)
+    report = audit_traces(contract, traces, baseline)
     contract_path = Path(output_dir) / "assaystone-demo-contract.json"
     report.write_contract(contract_path)
+
+    cert_dir = Path(output_dir) / "assaystone-demo-certificates"
+    cert_dir.mkdir(parents=True, exist_ok=True)
+    certificate_path = None
+    for trace in traces:
+        result = run_contract(contract, trace, baseline)
+        document = build_certificate(
+            result, contract, trace, provenance={"kind": "demo_transcript"}
+        )
+        certificate_path = cert_dir / f"{safe_name(trace.id)}.certificate.json"
+        certificate_path.write_text(certificate_json(document), encoding="utf-8")
+
     text = render_audit(
         report,
         written_to=str(contract_path),
         baseline_label="demo transcript",
     )
     output = _write(output_dir, "assaystone-demo-audit.md", text + "\n")
-    return "Assaystone audit demo — a coding-agent transcript\n" + text + f"\n\ndetails: {output}"
+    lines = [
+        "Assaystone audit demo — a coding-agent transcript",
+        text,
+        "",
+        f"details: {output}",
+    ]
+    if certificate_path is not None:
+        lines.append(f"certificate: {certificate_path}")
+        lines.append(f"verify it:  assaystone certificate verify {certificate_path}")
+    return "\n".join(lines)
 
 
 def run_plane(output_dir: str | Path = ".") -> str:

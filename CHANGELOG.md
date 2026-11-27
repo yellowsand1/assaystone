@@ -30,6 +30,11 @@
   CI does not break.
 - **`ARCHITECTURE.md`.** The target module boundaries, the data contracts, and
   the invariants a change must not violate.
+- **The 60-second demo ends with a certificate.** `assaystone demo audit` now
+  runs the contract over the demo transcript and writes
+  `audit-demo-session.certificate.json`, so the first screen shows the whole
+  product: a failure, the artifact, and the command a third party runs to check
+  it offline.
 
 ## 0.32.0 — 2026-11-27
 
