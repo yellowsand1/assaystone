@@ -43,6 +43,9 @@ No changes yet.
   classes are separate fields, and `certificate show` prints the coverage line.
   The audit demo is honest about its own contract: 9/10 declared defects
   covered, `regression` uncovered because `tests.pass` was not part of it.
+- **A test runner's clock is not evidence.** `tests.pass` drops timing lines from
+  the evidence tail, so the same suite result keeps the same certificate id. The
+  determinism test now uses checks whose evidence is deterministic.
 
 ## 0.32.0 — 2026-11-27
 
