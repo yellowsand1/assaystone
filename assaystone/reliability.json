@@ -610,7 +610,7 @@
     }
   },
   "corpus_digest": "sha256:0797cff52bfc1fbb9ca2987f68c1b8b6447512fecbffbf94403c4c37bbefe825",
-  "measured_at": "2026-11-27T08:13:08Z",
+  "measured_at": "2026-11-27T08:52:39Z",
   "schema": "assaystone.reliability/1",
-  "tool_version": "0.33.0"
+  "tool_version": "0.35.0"
 }

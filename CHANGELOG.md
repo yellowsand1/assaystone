@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.35.0 — 2026-11-27
+
 - **Post-tool gate.** `assaystone hook claude-code-post` checks what an action
   produced: Python syntax after a write, and high-confidence secrets in the
   written content, the command, or the tool response. In `block` mode the defect
