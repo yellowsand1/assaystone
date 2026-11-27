@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.37.0 — 2026-11-27
+
 - **Verification transport.** Every trace records the view the verifier saw:
   `native`, `restored`, `imported`, `compacted`, `delegated`, or unknown. The
   certificate carries `subject.view` and `assurance.transport` with a risk and a
