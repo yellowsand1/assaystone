@@ -1004,6 +1004,37 @@ Three rules make dry-run safe to use as a first step:
 What it tells you: whether the manifest is sane, which oracles are read-only,
 and what would change. What it does not: whether the mutating oracle works.
 
+## What blocks the next stage
+
+A residual-risk list tells you what is unresolved. This tells you what to do:
+
+```bash
+assaystone capability next --manifest .assaystone/capability.json \
+  --trail .assaystone/trail.jsonl --stage canary
+```
+
+```text
+quote-service: shadow -> canary
+
+1 blocker(s)
+
+1. `canary` exists but does not allow merging, so nothing can move through it
+   add to the manifest:
+         {
+           "id": "reviewer",
+           "type": "human",
+           "description": "a named reviewer approved promotion",
+           "payload": {"action": "promote", "record": "approvals.json"}
+         }
+   then: add `approvals: ["reviewer"]` and `allow_merge: true` to the policy
+```
+
+It reports, in order: a missing stage policy (with the policy to add), a stage
+that permits nothing, a critical criterion the stage does not gate, and — when a
+trail is supplied — a required oracle with no passing decision on that trail.
+The snippets are drafts the owner still reviews and signs; the point is that
+nobody has to guess the shape of an approval oracle.
+
 ## Which checks earn their keep
 
 The trail already records, per decision, which oracle ran and what it said. That
