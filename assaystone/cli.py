@@ -572,6 +572,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
             git_repo=git_repo,
             baseline=baseline,
             workspace=args.workspace or args.git_preimage,
+            workspace_root=args.workspace_root,
         )
     except AuditError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -635,6 +636,7 @@ def cmd_record(args: argparse.Namespace) -> int:
             git_repo=args.git_repo,
             baseline=args.baseline,
             workspace=args.workspace,
+            workspace_root=args.workspace_root,
         )
     except AuditError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1895,6 +1897,14 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="use git HEAD as the pre-session baseline for diff-based checks",
     )
+    audit.add_argument(
+        "--workspace-root",
+        default=None,
+        help=(
+            "directory the agent actually edited; inferred from absolute tool paths "
+            "when omitted (task workspaces, worktrees)"
+        ),
+    )
     audit.add_argument("--write-contract", default=None, metavar="PATH")
     audit.add_argument("--json", action="store_true")
     audit.add_argument("--sarif", default=None, metavar="PATH")
@@ -2739,6 +2749,11 @@ def _parser() -> argparse.ArgumentParser:
     corpus_add.set_defaults(func=cmd_corpus)
 
     record = lab_sub.add_parser("record", help="convert a transcript or export into a trace")
+    record.add_argument(
+        "--workspace-root",
+        default=None,
+        help="directory the agent actually edited; inferred when omitted",
+    )
     record.add_argument("--transcript", required=True, help="transcript, export, or trace file")
     record.add_argument("--out", required=True, help="output trace path, or - for stdout")
     record.add_argument(

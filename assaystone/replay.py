@@ -5,6 +5,7 @@ Shared by the message/transcript audit and by the LangSmith / Langfuse importers
 from __future__ import annotations
 
 import json
+import os
 import re
 import subprocess
 import tempfile
@@ -42,6 +43,44 @@ def relative_path(raw: Any, baseline: Path) -> str | None:
         return text
     except (ValueError, OSError):
         return None
+
+
+_ROOT_MARKERS = (".git", "pyproject.toml", "package.json", "go.mod", "Cargo.toml")
+
+
+def _nearest_root(path: Path) -> Path | None:
+    for candidate in (path, *path.parents):
+        if any((candidate / marker).exists() for marker in _ROOT_MARKERS):
+            return candidate
+    return None
+
+
+def infer_workspace_root(
+    tool_calls: Iterable[tuple[str, dict[str, Any]]],
+    fallback: str | Path = ".",
+) -> Path:
+    """Find the directory the agent actually edited.
+
+    Task workspaces, git worktrees, and containers put the repository somewhere
+    else; the transcript's ``cwd`` can be the parent project. Absolute file paths
+    are the strongest available evidence of where the work happened.
+    """
+    parents: list[Path] = []
+    for name, args in tool_calls:
+        if name.lower() not in _EDIT_TOOLS:
+            continue
+        raw = args.get("file_path") or args.get("path") or args.get("file")
+        if isinstance(raw, str) and Path(raw).is_absolute():
+            parents.append(Path(raw).resolve().parent)
+    if parents:
+        try:
+            common = Path(os.path.commonpath([str(parent) for parent in parents]))
+        except ValueError:
+            common = parents[0]
+        root = _nearest_root(common)
+        if root is not None:
+            return root.resolve()
+    return Path(fallback).resolve()
 
 
 def _patch_sections(patch: str) -> list[dict[str, Any]]:
@@ -142,14 +181,21 @@ def _apply_patch_sections(
 def replay_tool_calls(
     tool_calls: Iterable[tuple[str, dict[str, Any]]],
     baseline: str | Path,
+    *,
+    root: str | Path | None = None,
 ) -> list[Artifact]:
-    """Apply Write/Edit/MultiEdit tool calls to the baseline and return the diff."""
-    root = Path(baseline).resolve()
+    """Apply Write/Edit/MultiEdit tool calls to the baseline and return the diff.
+
+    ``root`` is where the tool paths live; ``baseline`` is where the pre-session
+    files are read from. They differ when an agent worked in a task workspace.
+    """
+    baseline_root = Path(baseline).resolve()
+    root = Path(root).resolve() if root is not None else baseline_root
     current: dict[str, str | None] = {}
 
     def load(relative: str) -> str | None:
         if relative not in current:
-            path = root / relative
+            path = baseline_root / relative
             try:
                 current[relative] = path.read_text(encoding="utf-8") if path.exists() else None
             except (UnicodeDecodeError, OSError):
@@ -199,7 +245,7 @@ def replay_tool_calls(
 
     artifacts: list[Artifact] = []
     for relative, content in sorted(current.items()):
-        path = root / relative
+        path = baseline_root / relative
         base_text: str | None = None
         if path.exists():
             try:
@@ -219,8 +265,10 @@ def replay_tool_calls(
 def touched_paths(
     tool_calls: Iterable[tuple[str, dict[str, Any]]],
     baseline: str | Path,
+    *,
+    root: str | Path | None = None,
 ) -> set[str]:
-    root = Path(baseline).resolve()
+    root = Path(root).resolve() if root is not None else Path(baseline).resolve()
     paths: set[str] = set()
     for name, args in tool_calls:
         tool = name.lower()
@@ -247,6 +295,9 @@ def touched_paths(
 def workspace_artifacts(
     tool_calls: Iterable[tuple[str, dict[str, Any]]],
     baseline: str | Path,
+    *,
+    root: str | Path | None = None,
+    source: str | Path | None = None,
 ) -> list[Artifact]:
     """Collect current files touched by edit tools (post-session / hook mode).
 
@@ -254,14 +305,31 @@ def workspace_artifacts(
     replacements would fail. We only need the changed paths and their current
     contents for path rules, syntax checks, and debug-print scans.
     """
-    root = Path(baseline).resolve()
+    baseline_root = Path(baseline).resolve()
+    source_root = Path(source).resolve() if source is not None else baseline_root
     artifacts: list[Artifact] = []
-    for relative in sorted(touched_paths(tool_calls, baseline)):
-        path = root / relative
+    for relative in sorted(touched_paths(tool_calls, baseline, root=root)):
+        path = source_root / relative
         try:
             if path.is_file():
-                artifacts.append(Artifact(relative, path.read_text(encoding="utf-8"), "modified"))
+                content = path.read_text(encoding="utf-8")
+                if source is None:
+                    change = "modified"
+                else:
+                    base_path = baseline_root / relative
+                    if not base_path.is_file():
+                        change = "added"
+                    else:
+                        try:
+                            if base_path.read_text(encoding="utf-8") == content:
+                                continue
+                        except (UnicodeDecodeError, OSError):
+                            pass
+                        change = "modified"
+                artifacts.append(Artifact(relative, content, change))
             else:
+                if source is not None and not (baseline_root / relative).exists():
+                    continue
                 artifacts.append(Artifact(relative, "", "deleted"))
         except (UnicodeDecodeError, OSError):
             continue
@@ -272,16 +340,24 @@ def artifacts_with_fallback(
     tool_calls: list[tuple[str, dict[str, Any]]],
     baseline: str | Path,
     replayed: list[Artifact],
+    *,
+    root: str | Path | None = None,
+    workspace: str | Path | None = None,
 ) -> list[Artifact]:
     """Use workspace artifacts when replay does not cover every touched path.
 
-    A partial replay means the baseline is the post-session workspace, not the
-    pre-session state. In that case the current file contents are the truth.
+    A partial replay means some files cannot be reconstructed from the baseline.
+    In that case the files in the workspace the agent actually worked in are the
+    truth; ``workspace`` names it when it differs from ``baseline``.
     """
-    touched = touched_paths(tool_calls, baseline)
+    touched = touched_paths(tool_calls, baseline, root=root)
     replayed_paths = {artifact.path for artifact in replayed}
     if touched and not touched <= replayed_paths:
-        return workspace_artifacts(tool_calls, baseline)
+        # Read the files the replay could not reconstruct from the tree the
+        # agent actually worked in, not from the pre-session baseline.
+        if workspace is not None:
+            return workspace_artifacts(tool_calls, baseline, root=root, source=workspace)
+        return workspace_artifacts(tool_calls, baseline, root=root)
     return replayed
 
 

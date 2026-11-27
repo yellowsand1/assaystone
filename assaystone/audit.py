@@ -22,6 +22,7 @@ from .model import ESCALATE, FAIL, Artifact, Trace
 from .replay import (
     artifacts_with_fallback,
     infer_test_evidence,
+    infer_workspace_root,
     replay_tool_calls,
     workspace_artifacts,
 )
@@ -274,17 +275,27 @@ def _trace_from_messages(
     git_repo: str | Path | None,
     baseline: str | Path | None,
     workspace: bool = False,
+    workspace_root: str | Path | None = None,
     parse_warnings: list[str] | None = None,
 ) -> Trace:
+    tool_calls = list(_tool_uses(messages))
+    root = workspace_root
+    if root is None:
+        root = infer_workspace_root(tool_calls, baseline or git_repo or ".")
     artifacts: list[Artifact] = []
     if workspace and baseline:
-        artifacts = workspace_artifacts(_tool_uses(messages), baseline)
+        artifacts = workspace_artifacts(tool_calls, baseline, root=root)
     elif git_repo:
         artifacts = artifacts_from_git(git_repo)
     elif baseline:
-        tool_calls = list(_tool_uses(messages))
-        artifacts = replay_tool_calls(tool_calls, baseline)
-        artifacts = artifacts_with_fallback(tool_calls, baseline, artifacts)
+        artifacts = replay_tool_calls(tool_calls, baseline, root=root)
+        artifacts = artifacts_with_fallback(
+            tool_calls,
+            baseline,
+            artifacts,
+            root=root,
+            workspace=None if workspace else workspace_root,
+        )
     trace = from_messages(
         messages,
         artifacts=artifacts,
@@ -346,6 +357,7 @@ def _load_file(
     git_repo: str | Path | None,
     baseline: str | Path | None,
     workspace: bool,
+    workspace_root: str | Path | None = None,
 ) -> list[Trace]:
     suffix = path.suffix.lower()
     if suffix not in (".json", ".jsonl"):
@@ -378,6 +390,7 @@ def _load_file(
                 git_repo=git_repo,
                 baseline=baseline,
                 workspace=workspace,
+                workspace_root=workspace_root,
                 parse_warnings=jsonl_errors,
             )
             trace.evidence.update(evidence)
@@ -393,6 +406,7 @@ def _load_file(
                     git_repo=git_repo,
                     baseline=baseline,
                     workspace=workspace,
+                    workspace_root=workspace_root,
                     parse_warnings=jsonl_errors,
                 )
             ]
@@ -405,6 +419,7 @@ def _load_file(
                 git_repo=git_repo,
                 baseline=baseline,
                 workspace=workspace,
+                workspace_root=workspace_root,
                 parse_warnings=jsonl_errors,
             )
         ]
@@ -474,6 +489,7 @@ def _load_file(
             git_repo=git_repo,
             baseline=baseline,
             workspace=workspace,
+            workspace_root=workspace_root,
         )
     ]
 
@@ -485,6 +501,7 @@ def load_audit_traces(
     git_repo: str | Path | None = None,
     baseline: str | Path | None = None,
     workspace: bool = False,
+    workspace_root: str | Path | None = None,
 ) -> list[Trace]:
     """Load traces from a trace JSON, transcript JSONL, messages JSON, or directory.
 
@@ -525,6 +542,7 @@ def load_audit_traces(
                     git_repo=git_repo,
                     baseline=baseline,
                     workspace=workspace,
+                    workspace_root=workspace_root,
                 )
             )
         except AuditError as exc:
