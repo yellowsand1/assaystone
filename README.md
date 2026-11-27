@@ -219,8 +219,8 @@ distribution, use `uvx` above or install Python 3.12.
 
 - **GitHub Action**: gate a PR and upload the certificate (above).
 - **pytest**: `pytest --assaystone` runs the contract after the suite.
-- **Claude Code hooks**: a deterministic pre-tool policy gate, and a Stop
-  audit; each in `warn` or `block` mode.
+- **Claude Code hooks**: a pre-tool policy gate, a post-tool syntax/secret
+  check, and a Stop audit; each in `warn` or `block` mode.
 - **Adapters**: Claude Agent SDK, OpenAI Agents SDK, LangGraph messages, and
   LangSmith / Langfuse / OpenTelemetry exports.
 - **Custom checks**: a check declares `claim`, `catches`, `blind_spots`, `trusts`,

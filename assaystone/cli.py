@@ -56,6 +56,7 @@ from .goodhart import (
 )
 from .hooks.claude_code import install_claude_code
 from .hooks.claude_code import main as claude_code_hook_main
+from .hooks.claude_code import main_post as claude_code_post_main
 from .hooks.claude_code import main_pre as claude_code_pre_main
 from .init import init_project
 from .leaderboard import LeaderboardError, run_leaderboard
@@ -1932,6 +1933,10 @@ def cmd_hook_claude_code_pre(args: argparse.Namespace) -> int:
     return claude_code_pre_main()
 
 
+def cmd_hook_claude_code_post(args: argparse.Namespace) -> int:
+    return claude_code_post_main()
+
+
 def cmd_hook_install(args: argparse.Namespace) -> int:
     settings = (
         Path.home() / ".claude" / "settings.json"
@@ -2109,9 +2114,13 @@ def _parser() -> argparse.ArgumentParser:
         "claude-code-pre", help="Claude Code PreToolUse hook runner"
     )
     claude_pre.set_defaults(func=cmd_hook_claude_code_pre)
+    claude_post = hook_sub.add_parser(
+        "claude-code-post", help="Claude Code PostToolUse hook runner"
+    )
+    claude_post.set_defaults(func=cmd_hook_claude_code_post)
     install = hook_sub.add_parser("install", help="install a hook")
     install_sub = install.add_subparsers(dest="install_target", required=True)
-    install_claude = install_sub.add_parser("claude-code", help="install the Claude Code Stop and PreToolUse hooks")
+    install_claude = install_sub.add_parser("claude-code", help="install the Claude Code pre-tool, post-tool, and Stop hooks")
     install_claude.add_argument("--path", default=".")
     install_claude.add_argument("--user", action="store_true", help="write ~/.claude/settings.json")
     install_claude.add_argument("--mode", choices=["warn", "block"], default="warn")

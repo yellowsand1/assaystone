@@ -107,7 +107,7 @@ enforced now:
 | `check` on a live git worktree | done |
 | five-command surface, lab frozen | done |
 | `prove` (recall, resistance, false alarms, cost in one report) | next |
-| harness gates (pre-tool / post-tool / pre-final) | pre-tool done; post-tool and pre-final next |
+| harness gates (pre-tool / post-tool / pre-final) | pre-tool and post-tool done; pre-final next |
 | spec coverage as a first-class obligation | next |
 | provenance across compaction and delegation | workspace-root inference done; view metadata next |
 | lifecycle gates consuming certificates | frozen until P2 |
