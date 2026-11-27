@@ -108,7 +108,7 @@ Exit codes are the interface: `0` pass, `1` fail, `2` escalate or unable to
 check. A CI step can gate on them without parsing output.
 
 ```yaml
-- uses: yellowsand1/assaystone@v0.35.0
+- uses: yellowsand1/assaystone@v0.36.0
   with:
     contract: .assaystone/contract.json
     base: origin/${{ github.base_ref }}
@@ -221,7 +221,7 @@ delete the rest.
 
 ```bash
 uvx assaystone --version        # no install, throwaway environment
-pip install assaystone==0.35.0  # the published release
+pip install assaystone==0.36.0  # the published release
 ```
 
 Python 3.10+.
@@ -273,7 +273,7 @@ The direction, the ten laws, the non-goals, and the kill criteria are in
 
 ## Status
 
-`v0.35.0` — alpha. The kernel is stable; the surface is deliberately small:
+`v0.36.0` — alpha. The kernel is stable; the surface is deliberately small:
 `audit`, `check`, `certificate`, `prove`, `hook`. Everything else lives under
 `assaystone lab` and is frozen — no new features, deletion allowed. Old top-level
 names still resolve as aliases so existing CI does not break.
