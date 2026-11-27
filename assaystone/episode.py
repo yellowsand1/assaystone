@@ -120,11 +120,18 @@ def _read(root: Path, relative: str) -> tuple[str, str]:
         return "", f"unreadable: {exc}"
 
 
+def _is_control_path(path: str) -> bool:
+    """The tool's own records are not the work under review."""
+    return path == ".assaystone" or path.startswith(".assaystone/")
+
+
 def diff_artifacts(root: Path, base: str) -> tuple[list[Artifact], list[str]]:
     """Build artifacts for every change between ``base`` and the working tree."""
     artifacts: list[Artifact] = []
     skipped: list[str] = []
     for status, old, new in _name_status(root, base):
+        if _is_control_path(new):
+            continue
         letter = status[0]
         if letter == "D":
             artifacts.append(Artifact(old, "", "deleted"))
@@ -144,6 +151,8 @@ def diff_artifacts(root: Path, base: str) -> tuple[list[Artifact], list[str]]:
             continue
         artifacts.append(Artifact(new, content, "added" if letter == "A" else "modified"))
     for path in _untracked(root):
+        if _is_control_path(path):
+            continue
         content, reason = _read(root, path)
         if reason:
             skipped.append(f"{path} ({reason})")

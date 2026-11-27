@@ -22,3 +22,6 @@ htmlcov/
 # demo artifacts
 *-demo-trail.jsonl
 assaystone-demo-certificates/
+
+# runtime records written by the pre-tool hook
+.assaystone/session.jsonl
