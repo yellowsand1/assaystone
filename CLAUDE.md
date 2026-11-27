@@ -39,13 +39,15 @@ P0 结束前，不新增命令、不新增领域包、不新增检查、不新�
 
 ```
 kernel（可改）      model.py contract.py verifiers.py runner.py workspace.py
-                    certificate.py（新） audit.py reports.py
+                    certificate.py episode.py audit.py reports.py
 测量（可改）        failure_zoo.py goodhart.py mutate.py backtest.py
                     coverage.py compose.py reportcard.py stats.py
 入口（可改）        cli.py pytest_plugin.py hooks/ adapters/ importers/
+                    （产品面只有 audit / check / certificate / prove / hook）
 冻结（不改）        plane.py oracles.py gate/trail/receipt/keys/waiver/
                     canary.py drill.py portfolio.py prepare.py nextstep.py
                     brief.py diff.py propose.py leaderboard.py
+                    （全部位于 `assaystone lab`；旧名字保留为别名）
 ```
 
 冻结区：可以修 bug、修测试、修文档；**不许加功能**。删除冻结区的代码是允许的，

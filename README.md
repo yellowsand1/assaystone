@@ -45,6 +45,9 @@ certificate: ./assaystone-demo-certificates/audit-demo-session.certificate.json
 verify it:  assaystone certificate verify <that file>
 ```
 
+*(The certificate line is on `main`; the published `0.32.0` demo stops at the
+summary.)*
+
 The demo ends with the artifact, not with advice. The agent fixed the rounding bug, then deleted the one test it still failed, and
 reported success. `tests.pass` saw a green suite. The audit found the deleted
 test. The same attacks, with minimal reproductions, are in
