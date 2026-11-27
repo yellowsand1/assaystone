@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.31.0 — 2026-11-27
+
 - **`capability next --apply`.** Carries out every mechanical blocker: the
   approval oracle, the missing stage policy, the approval and `require` entries.
   It refuses to write a manifest that would not validate, and reports what it
