@@ -131,6 +131,9 @@ class Contract:
     # A pass must rest on at least one measured, independent check. Without it
     # the run escalates: an unmeasured instrument may report, not decide.
     require_measured: bool = False
+    # A pass must rest on a native (or restored) view of the execution. A
+    # judgment about a compacted or delegated summary is not the same decision.
+    require_native_view: bool = False
 
     @classmethod
     def load(cls, path: str | Path) -> "Contract":
@@ -167,6 +170,7 @@ class Contract:
             domain=str(data.get("domain") or ""),
             criteria=criteria,
             require_measured=bool(data.get("require_measured", False)),
+            require_native_view=bool(data.get("require_native_view", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -179,6 +183,7 @@ class Contract:
             "required_defects": list(self.required_defects),
             "domain": self.domain,
             "require_measured": self.require_measured,
+            "require_native_view": self.require_native_view,
             "verifiers": [
                 {
                     "name": spec.name,

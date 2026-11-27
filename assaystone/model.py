@@ -183,6 +183,10 @@ class Trace:
     # guard that recorded the steps itself). Testimony from an agent trace is
     # not independent evidence.
     source: str = "agent"
+    # Which view of the execution the verifier saw: native, compacted,
+    # delegated, imported, or restored. A judgment about a summary is not a
+    # judgment about the execution.
+    view: dict[str, Any] = field(default_factory=dict)
 
     def artifact_map(self) -> dict[str, Artifact]:
         return {a.path: a for a in self.artifacts}
@@ -206,6 +210,7 @@ class Trace:
             "labels": self.labels.to_dict() if self.labels else None,
             "created_at": self.created_at,
             "source": self.source,
+            **({"view": self.view} if self.view else {}),
         }
 
     @classmethod
@@ -222,6 +227,7 @@ class Trace:
             labels=Label.from_dict(data["labels"]) if data.get("labels") else None,
             created_at=data.get("created_at", utc_now()),
             source=str(data.get("source") or "agent"),
+            view=dict(data.get("view") or {}),
         )
 
     def save(self, path: str | Path) -> None:

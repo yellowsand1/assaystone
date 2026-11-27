@@ -229,6 +229,12 @@ def run_contract(
                 f"{unknown[0].reasons[0] if unknown[0].reasons else 'unresolved'}"
             )
 
+    if contract.require_native_view and overall == PASS:
+        kind = str((trace.view or {}).get("kind") or "unknown")
+        if kind not in ("native", "restored"):
+            overall = ESCALATE
+            first_failure = f"transport required: verifier saw a {kind} view"
+
     if contract.require_measured and overall == PASS:
         data = reliability if reliability is not None else load_reliability()
         measured = [

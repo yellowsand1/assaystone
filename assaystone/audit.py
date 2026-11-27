@@ -266,6 +266,16 @@ def reconstruct_artifacts(messages: Sequence[Any], baseline: str | Path) -> list
     return replay_tool_calls(_tool_uses(messages), baseline)
 
 
+def _claude_view(entries: Sequence[Any], agent: str = "claude-code") -> dict[str, Any]:
+    """Which view of the execution the transcript preserved."""
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("isCompactSummary") or str(entry.get("type")) == "summary":
+            return {"kind": "compacted", "adapter": agent, "truncated": True}
+    return {"kind": "native", "adapter": agent}
+
+
 def _trace_from_messages(
     messages: Sequence[Any],
     *,
@@ -276,6 +286,7 @@ def _trace_from_messages(
     baseline: str | Path | None,
     workspace: bool = False,
     workspace_root: str | Path | None = None,
+    view: dict[str, Any] | None = None,
     parse_warnings: list[str] | None = None,
 ) -> Trace:
     tool_calls = list(_tool_uses(messages))
@@ -301,6 +312,7 @@ def _trace_from_messages(
         artifacts=artifacts,
         agent=agent,
         trace_id=trace_id or source.stem,
+        view=view or {"kind": "native", "adapter": agent},
     )
     if not trace.task:
         trace.task = trace.input.splitlines()[0][:200] if trace.input else ""
@@ -344,10 +356,15 @@ def _load_import(
     workspace: bool,
 ) -> list[Trace]:
     if format == "langsmith":
-        return load_langsmith(path, baseline=baseline, git_repo=git_repo, workspace=workspace)
-    if format == "langfuse":
-        return load_langfuse(path, baseline=baseline, git_repo=git_repo, workspace=workspace)
-    return load_otel(path, baseline=baseline, git_repo=git_repo, workspace=workspace)
+        traces = load_langsmith(path, baseline=baseline, git_repo=git_repo, workspace=workspace)
+    elif format == "langfuse":
+        traces = load_langfuse(path, baseline=baseline, git_repo=git_repo, workspace=workspace)
+    else:
+        traces = load_otel(path, baseline=baseline, git_repo=git_repo, workspace=workspace)
+    for trace in traces:
+        trace.view.setdefault("kind", "imported")
+        trace.view.setdefault("adapter", format)
+    return traces
 
 
 def _load_file(
@@ -407,6 +424,7 @@ def _load_file(
                     baseline=baseline,
                     workspace=workspace,
                     workspace_root=workspace_root,
+                    view=_claude_view(entries),
                     parse_warnings=jsonl_errors,
                 )
             ]

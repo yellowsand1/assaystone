@@ -147,6 +147,12 @@ A check with no measurement says `unmeasured`; it does not get a number. The
 profile is generated from the public corpora and cited by digest, so a reviewer
 can see what the instrument is worth, not only what it said.
 
+The certificate also says **which view** the verifier judged. An execution that
+was compacted, delegated, or imported through a vendor is a summary, not the
+execution: `transport compacted (risk high)`. A contract can require a native
+view, and a pass that rests on a summary escalates. See
+[docs/transport.md](docs/transport.md).
+
 Calibration can also be a gate. Set `"require_measured": true` in a contract and
 a pass that rests only on unmeasured checks becomes an escalation. External
 checks can bring their own profile with `--reliability profile.json`; the

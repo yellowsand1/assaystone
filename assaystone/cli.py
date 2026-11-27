@@ -682,6 +682,13 @@ def cmd_certificate(args: argparse.Namespace) -> int:
             f"{len(assurance['declared_defects'])} declared defects covered"
             + (f"; uncovered: {', '.join(uncovered)}" if uncovered else "")
         )
+    transport = assurance.get("transport") or {}
+    if transport:
+        text = f"{transport.get('view', 'unknown')} (risk {transport.get('risk', 'unknown')})"
+        if transport.get("adapter"):
+            text += f", adapter {transport['adapter']}"
+        print(f"transport     {text}")
+
     calibration_data = assurance.get("calibration") or {}
     if calibration_data:
         total = int(calibration_data.get("measured_checks", 0)) + int(

@@ -41,6 +41,7 @@ CONTRACT_SCHEMA: dict[str, Any] = {
         },
         "domain": {"type": "string"},
         "require_measured": {"type": "boolean"},
+        "require_native_view": {"type": "boolean"},
         "criteria": {
             "type": "array",
             "items": {"$ref": "#/$defs/criterion"},

@@ -86,6 +86,29 @@ def _declaration(name: str) -> dict[str, Any]:
     }
 
 
+def _transport(trace: Trace) -> dict[str, Any]:
+    """What the verifier saw: the execution, or a summary of it."""
+    view = trace.view or {}
+    kind = str(view.get("kind") or "unknown")
+    if kind in ("native", "restored"):
+        risk = "low"
+    elif kind in ("compacted", "delegated"):
+        risk = "high"
+    else:
+        risk = "medium"
+    result = {
+        "view": kind,
+        "adapter": str(view.get("adapter") or ""),
+        "risk": risk,
+        "truncated": bool(view.get("truncated")),
+    }
+    if risk != "low":
+        result["reason"] = (
+            "the verifier judged an abstracted view; evidence may not transport"
+        )
+    return result
+
+
 def _artifact_digests(trace: Trace) -> list[dict[str, Any]]:
     return [
         {
@@ -181,6 +204,7 @@ def build_certificate(
         "escalations": list(result.unconfirmed),
         "not_run": not_run,
         "calibration": calibration([verdict.verifier for verdict in result.verdicts], measured),
+        "transport": _transport(trace),
     }
     spec_results = [item for item in result.criteria if item.source == "evidence"]
     if spec_results:
@@ -218,6 +242,7 @@ def build_certificate(
         "trace_digest": digest(trace.to_dict()),
         "artifacts": _artifact_digests(trace),
         "provenance": dict(provenance or {"source": trace.source}),
+        "view": dict(trace.view),
     }
 
     body: dict[str, Any] = {

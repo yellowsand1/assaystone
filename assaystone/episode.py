@@ -230,6 +230,7 @@ class GitEpisode:
                 "skipped": skipped,
             },
             source="runtime",
+            view={"kind": "native", "adapter": "git-worktree"},
         )
         self.provenance = {
             "kind": "git_worktree",

@@ -157,6 +157,7 @@ class GuardSession:
             evidence=dict(self.evidence),
             final_message=self.final_message,
             source="runtime",
+            view={"kind": "native", "adapter": "runtime"},
         )
 
     def call(
@@ -231,6 +232,7 @@ class GuardSession:
             evidence=merged_evidence,
             final_message=self.final_message,
             source="runtime",
+            view={"kind": "native", "adapter": "runtime"},
         )
         result = run_contract(self.guard.contract, trace, self.guard.baseline)
         self.guard._enforce(result)
