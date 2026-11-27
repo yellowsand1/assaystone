@@ -21,7 +21,8 @@
   "schemas": {
     "contract": "https://assaystone.dev/protocol/v1/contract.schema.json",
     "verifier": "https://assaystone.dev/protocol/v1/verifier.schema.json",
-    "verdict": "https://assaystone.dev/protocol/v1/verdict.schema.json"
+    "verdict": "https://assaystone.dev/protocol/v1/verdict.schema.json",
+    "reliability": "https://assaystone.dev/protocol/v1/reliability.schema.json"
   },
   "verifiers": [
     {

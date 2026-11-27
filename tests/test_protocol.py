@@ -13,6 +13,7 @@ from assaystone.protocol import (
     INDEPENDENCE,
     LAYERS,
     PROTOCOL_VERSION,
+    SCHEMAS,
     check_contract,
     describe_protocol,
     write_schemas,
@@ -69,10 +70,19 @@ class ProtocolTest(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("duplicate verifier in contract: tests.pass", result.violations)
 
+    def test_reliability_schema_is_registered(self):
+        self.assertIn("reliability", SCHEMAS)
+        self.assertEqual(
+            SCHEMAS["reliability"]["$id"],
+            "https://assaystone.dev/protocol/v1/reliability.schema.json",
+        )
+        entry = SCHEMAS["reliability"]["$defs"]["entry"]["properties"]
+        self.assertEqual(entry["recall"]["maximum"], 1)
+
     def test_write_schemas(self):
         with tempfile.TemporaryDirectory() as tmp:
             paths = write_schemas(tmp)
-            self.assertEqual(len(paths), 3)
+            self.assertEqual(len(paths), 4)
             names = {Path(path).name for path in paths}
             self.assertEqual(
                 names,
@@ -80,6 +90,7 @@ class ProtocolTest(unittest.TestCase):
                     "contract.schema.json",
                     "verifier.schema.json",
                     "verdict.schema.json",
+                    "reliability.schema.json",
                 },
             )
             contract_schema = json.loads(
@@ -160,7 +171,7 @@ class ProtocolCliTest(unittest.TestCase):
             with contextlib.redirect_stdout(out):
                 code = cli.main(["protocol", "--schemas", tmp, "--json"])
             self.assertEqual(code, 0)
-            self.assertEqual(len(list(Path(tmp).glob("*.schema.json"))), 3)
+            self.assertEqual(len(list(Path(tmp).glob("*.schema.json"))), 4)
 
 
 if __name__ == "__main__":
