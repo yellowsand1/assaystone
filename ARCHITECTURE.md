@@ -58,7 +58,10 @@ reasons, evidence)`. `None` is escalation, not failure.
 **Certificate.** `certificate.py`, schema `assaystone.certificate/1`. The `id` is
 the content address of the decision: `issued_at` and per-check `duration_ms` are
 excluded, so the same decision keeps the same id across machines. `verify`
-recomputes the id; it does not re-run the agent.
+recomputes the id; it does not re-run the agent. Each check carries its measured
+`reliability` — recall on its declared defects, false alarms, sample size — and a
+`reliability_digest`; `assurance.calibration` summarizes how much of the decision
+rests on measured instruments.
 
 ## The layers
 
@@ -90,14 +93,17 @@ enforced now:
    failure; skipped checks are recorded in `assurance.not_run`.
 5. Same episode + same contract + same versions → same certificate id.
 6. The deterministic layer makes no network calls.
-7. A check ships only with a clean case, a defective case, and a declared blind
-   spot.
+7. A check ships only with a clean case, a defective case, a declared blind
+   spot, and a reliability profile; the profile travels with the certificate.
+8. An unmeasured check is labelled `unmeasured`. It never receives a number it
+   did not earn.
 
 ## Migration status
 
 | area | state |
 |---|---|
 | certificate v1 + offline verify | done |
+| measured reliability in every certificate | done |
 | `check` on a live git worktree | done |
 | five-command surface, lab frozen | done |
 | `prove` (recall, resistance, false alarms, cost in one report) | next |

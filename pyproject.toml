@@ -75,6 +75,7 @@ assaystone = [
   "demo_data/**/*.md",
   "demo_data/**/*.py",
   "demo_data/**/*.yml",
+  "reliability.json",
 ]
 
 [tool.setuptools.exclude-package-data]

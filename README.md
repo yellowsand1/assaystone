@@ -18,8 +18,10 @@ could not, and the cost of deciding.
 
 It is not an eval platform, an agent framework, or a judge. It is the acceptance
 layer: contracts a domain expert can review, checks that declare what they cannot
-see, and a verdict a third party can re-check without re-running the agent. It
-runs locally, offline, with no API key.
+see, and a verdict a third party can re-check without re-running the agent. Every
+certificate also carries the **measured reliability** of the checks that decided
+it — recall, false alarms, and the sample size behind the number. It runs
+locally, offline, with no API key.
 
 ```bash
 uvx assaystone demo audit                 # find a failure you did not know you had
@@ -130,6 +132,27 @@ artifact.
 The first four are not hypothetical: they are labelled cases in
 [failure_zoo](failure_zoo/README.md), and every built-in check is scored against
 them on every release.
+
+## Calibrated, not just evidenced
+
+A verdict is only as good as the check behind it. Each check in a certificate
+carries its measurement: recall on the defect classes it *claims*, false alarms
+on clean cases, adversarial recall, and `n` — the sample size.
+
+```
+calibration   3/12 checks measured (gap 75%); min recall 100% on n=2; max false alarm 0%
+```
+
+A check with no measurement says `unmeasured`; it does not get a number. The
+profile is generated from the public corpora and cited by digest, so a reviewer
+can see what the instrument is worth, not only what it said.
+
+```bash
+assaystone prove --write-reliability profile.json
+```
+
+The current table, including the checks that are still unmeasured, is
+[docs/reliability.md](docs/reliability.md).
 
 ## Prove the checks
 

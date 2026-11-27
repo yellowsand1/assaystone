@@ -23,6 +23,8 @@ from typing import Any
 from . import __version__
 from .contract import Contract
 from .model import ESCALATE, FAIL, RunResult, Trace
+from .reliability import calibration, profile_for
+from .reliability import load as load_reliability
 from .verifiers import REGISTRY
 
 SCHEMA = "assaystone.certificate/1"
@@ -103,14 +105,22 @@ def build_certificate(
     provenance: dict[str, Any] | None = None,
     issued_at: str | None = None,
     tool_version: str | None = None,
+    reliability: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the certificate for one contract run over one trace."""
+    """Build the certificate for one contract run over one trace.
+
+    Every check carries its measured reliability — recall on the defect classes
+    it claims, false alarms on clean cases, and the sample size. A check with no
+    measurement says ``unmeasured`` rather than implying a number.
+    """
+    measured = reliability if reliability is not None else load_reliability()
     params_by_name = {spec.name: spec.params for spec in contract.verifiers}
     planned = [spec.name for spec in contract.verifiers]
     executed = {verdict.verifier for verdict in result.verdicts}
 
     checks: list[dict[str, Any]] = []
     for verdict in result.verdicts:
+        reliability_entry = profile_for(verdict.verifier, measured)
         checks.append(
             {
                 "id": verdict.verifier,
@@ -124,6 +134,8 @@ def build_certificate(
                 "duration_ms": round(verdict.duration_ms, 3),
                 "params_digest": digest(params_by_name.get(verdict.verifier, {})),
                 "declaration": _declaration(verdict.verifier),
+                "reliability": reliability_entry,
+                "reliability_digest": digest(reliability_entry),
             }
         )
 
@@ -165,6 +177,7 @@ def build_certificate(
         "uncovered_defects": uncovered_defects,
         "escalations": list(result.unconfirmed),
         "not_run": not_run,
+        "calibration": calibration([verdict.verifier for verdict in result.verdicts], measured),
     }
 
     routed_to_human = result.verdict == ESCALATE

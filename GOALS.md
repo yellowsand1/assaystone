@@ -17,6 +17,25 @@ If a change does not make that sentence more true, it is not our work.
 
 ---
 
+## 0.5 The one thing only we do
+
+Every verifier on the market tells you a verdict. Almost none tells you what
+the verdict is worth. Assaystone attaches the measurement to the decision:
+
+- each check carries recall on the defect classes it **claims**, false-alarm
+  rate on clean cases, adversarial recall, and the sample size behind the number;
+- the certificate cites the digest of the profile it used, so a reviewer sees
+  the instrument's calibration, not only its output;
+- a check with no measurement says `unmeasured`; it does not get a number;
+- the registry is public and neutral. A vendor will not publish an unfavorable
+  number about its own checker; a neutral registry can. That is the durable
+  position: the referee's referee, made portable.
+
+The corpus and the measurements compound. A competitor can copy the code; it
+cannot copy the evidence without doing the work.
+
+---
+
 ## 1. Why this exists
 
 Agents have converged. The loop is commodity: messages, tool calls, context
@@ -166,9 +185,10 @@ Every abstraction must be earned here before it is generalized.
    agent-written testimony, even when they declare themselves independent.
 5. **The contract is the product.** Checks are replaceable. Criteria, defect
    tags, and `on_unknown` are the durable artifact.
-6. **Verify the verifier.** Every check ships with a clean case, a defective
-   case, a declared blind spot, and a measured cost. If we cannot measure it, it
-   is not shipped.
+6. **Verify the verifier, and carry the measurement.** Every check ships with a
+   clean case, a defective case, a declared blind spot, a measured cost, and a
+   reliability profile. The profile travels with every certificate the check
+   decides. If we cannot measure it, it is not shipped.
 7. **Cheap in the loop.** The deterministic layer runs in under a second on a
    normal PR. If it cannot, it is CI-only and must say so.
 8. **No new category.** We live in pytest, CI, the agent hook, and the PR
@@ -225,6 +245,8 @@ verifiers, number of domain packs, lines of code.
 
 - [x] This document
 - [x] **Certificate v1**: hash-addressed, provenance-bound, versioned
+- [x] **Measured reliability travels with the decision**: per-check recall,
+      false-alarm rate, sample size, and a corpus digest in every certificate
 - [x] `verify --certificate`; `certificate verify` to re-check a third-party file
 - [x] `check`: a live git worktree becomes an episode and a certificate, with no
       trace and no instrumentation
