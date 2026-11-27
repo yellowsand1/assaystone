@@ -1049,6 +1049,43 @@ has to come from a person. Those stay on the "still needs a person" list. If the
 manifest requires an owner approval, applying changes makes it stale, and the
 command says so.
 
+## What the environment owes
+
+`next` makes the manifest able to express a stage. This checks the things outside
+it that the gate reads:
+
+```bash
+assaystone capability prepare --manifest .assaystone/capability.json \
+  --stage canary --root .
+```
+
+```text
+pricing-change at `canary`
+
+1 thing(s) the gate will not find
+
+1. [approver] approvals.json does not exist; `approval` will escalate until
+   someone records the `publish` approval
+   the approver writes approvals.json; shape:
+     {
+       "approvals": [
+         {
+           "action": "publish",
+           "approved": true,
+           "approver": "<the person who approved>",
+           "scope": "<what they approved>"
+         }
+       ]
+     }
+```
+
+It checks, per required oracle: an approval record that exists, names the
+action, and is granted (and signed, when the oracle asks for a signature); a
+drill record that exists and passed; a session record the hook will write. Each
+need names **who** has to act — `approver` or `operator` — because an approval is
+a person's decision and a drill is a claim about the world. Nothing is created on
+the operator's behalf.
+
 ## Which checks earn their keep
 
 The trail already records, per decision, which oracle ran and what it said. That

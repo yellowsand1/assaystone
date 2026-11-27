@@ -170,6 +170,24 @@ capability quote-service: ok
   oracles=8 criteria=7 policies=3
   criteria gated by some stage: 7/7
 
+== 7c. what a person still has to do
+quote-service at `canary`
+
+1 thing(s) the gate will not find
+
+1. [approver] approvals.json does not exist; `reviewer` will escalate until someone records the `promote` approval
+   the approver writes approvals.json; shape:
+     {
+       "approvals": [
+         {
+           "action": "promote",
+           "approved": true,
+           "approver": "<the person who approved>",
+           "scope": "<what they approved>"
+         }
+       ]
+     }
+
 == 8. one table across repositories
 capability               owner            risk     lifecycle  criteria  last                         approval  receipt  critical
 quote-service            platform-team    high     design     7/7       shadow:pass                  -         ok              1

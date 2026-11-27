@@ -62,6 +62,8 @@ from .plane import (
     render_gate,
 )
 from .portfolio import build_portfolio, load_index, render_portfolio
+from .prepare import prepare as prepare_stage
+from .prepare import render as render_prepare
 from .propose import materialise as materialise_proposals
 from .propose import propose as propose_checks
 from .propose import scan as scan_repository
@@ -521,6 +523,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_propose(args)
     if args.capability_command == "next":
         return _cmd_capability_next(args)
+    if args.capability_command == "prepare":
+        return _cmd_capability_prepare(args)
     if args.capability_command == "list":
         return _cmd_capability_list(args)
     try:
@@ -640,6 +644,23 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_prepare(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    stage = args.stage or manifest.lifecycle
+    result = prepare_stage(manifest, stage, args.root)
+    if args.json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print(render_prepare(result))
     return 0
 
 
@@ -2088,6 +2109,23 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_next.add_argument("--json", action="store_true")
     capability_next.set_defaults(func=cmd_capability)
+
+    capability_prepare = capability_sub.add_parser(
+        "prepare",
+        help="what the gate will look for and will not find",
+    )
+    capability_prepare.add_argument("--manifest", required=True, metavar="PATH")
+    capability_prepare.add_argument(
+        "--stage",
+        default=None,
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
+    capability_prepare.add_argument("--root", default=".")
+    capability_prepare.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_prepare.add_argument("--json", action="store_true")
+    capability_prepare.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",

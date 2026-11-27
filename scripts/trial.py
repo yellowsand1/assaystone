@@ -283,6 +283,12 @@ def _run(out: list[str]) -> int:
                    ".assaystone/capability.json")
         out.append(normalise(proc.stdout, root))
 
+        say(out, "7c. what a person still has to do")
+        proc = run(root, "capability", "prepare", "--manifest",
+                   ".assaystone/capability.json", "--stage", "canary",
+                   "--root", ".")
+        out.append(normalise(proc.stdout, root))
+
         say(out, "8. one table across repositories")
         proc = run(root, "capability", "list", "--root", ".")
         out.append(normalise(proc.stdout, root))
