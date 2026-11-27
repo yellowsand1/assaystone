@@ -50,6 +50,7 @@ from .leaderboard import LeaderboardError, run_leaderboard
 from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
+from .nextstep import apply_patches
 from .nextstep import plan as plan_next
 from .nextstep import render as render_next
 from .oracles import OracleError, OracleRegistry
@@ -667,10 +668,40 @@ def _cmd_capability_next(args: argparse.Namespace) -> int:
             if item.runs and item.last_outcome == "pass"
         }
     plan_ = plan_next(manifest, target=args.stage, ready_oracles=ready)
-    if args.json:
-        print(json.dumps(plan_.to_dict(), indent=2))
-    else:
-        print(render_next(plan_))
+    if not args.apply:
+        if args.json:
+            print(json.dumps(plan_.to_dict(), indent=2))
+        else:
+            print(render_next(plan_))
+        return 0
+
+    data = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
+    applied, skipped = apply_patches(data, plan_)
+    if not applied:
+        print("nothing to apply: every blocker needs a human decision")
+        for item in skipped:
+            print(f"  - {item}")
+        return 0
+    try:
+        CapabilityManifest.from_dict(data, source=str(args.manifest))
+    except PlaneError as exc:
+        print(f"error: the result would be invalid: {exc}", file=sys.stderr)
+        return 2
+    Path(args.manifest).write_text(
+        json.dumps(data, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"applied {len(applied)} change(s) to {args.manifest}:")
+    for item in applied:
+        print(f"  + {item}")
+    if skipped:
+        print("still needs a person:")
+        for item in skipped:
+            print(f"  - {item}")
+    updated = CapabilityManifest.load(args.manifest)
+    if updated.manifest_approval:
+        print(
+            "\nthe owner approval is now stale: re-run `capability accept`"
+        )
     return 0
 
 
@@ -2049,6 +2080,11 @@ def _parser() -> argparse.ArgumentParser:
     capability_next.add_argument("--root", default=".")
     capability_next.add_argument(
         "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_next.add_argument(
+        "--apply",
+        action="store_true",
+        help="apply every blocker that can be applied mechanically",
     )
     capability_next.add_argument("--json", action="store_true")
     capability_next.set_defaults(func=cmd_capability)

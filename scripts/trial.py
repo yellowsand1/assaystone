@@ -271,6 +271,18 @@ def _run(out: list[str]) -> int:
                    "--trail", ".assaystone/trail.jsonl", "--stage", "canary")
         out.append(normalise(proc.stdout, root))
 
+        say(out, "7b. one command later, the stage is declared")
+        proc = run(root, "capability", "next", "--manifest",
+                   ".assaystone/capability.json", "--stage", "canary",
+                   "--apply")
+        out.append(normalise(proc.stdout, root))
+        proc = run(root, "capability", "next", "--manifest",
+                   ".assaystone/capability.json", "--stage", "canary")
+        out.append(normalise(proc.stdout, root))
+        proc = run(root, "capability", "validate", "--manifest",
+                   ".assaystone/capability.json")
+        out.append(normalise(proc.stdout, root))
+
         say(out, "8. one table across repositories")
         proc = run(root, "capability", "list", "--root", ".")
         out.append(normalise(proc.stdout, root))

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **`capability next --apply`.** Carries out every mechanical blocker: the
+  approval oracle, the missing stage policy, the approval and `require` entries.
+  It refuses to write a manifest that would not validate, and reports what it
+  will not do — inventing a compensation command or an approval. Applying makes
+  an owner approval stale, and the command says so. The trial ends with the
+  blocker, the apply, and the stage declared.
 No changes yet.
 
 ## 0.30.0 — 2026-11-27

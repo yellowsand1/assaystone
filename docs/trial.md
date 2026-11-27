@@ -155,7 +155,20 @@ quote-service: design -> canary
            "description": "a named reviewer approved promotion",
            "payload": {"action": "promote", "record": "approvals.json"}
          }
-   then: add `approvals: ["reviewer"]` and `allow_merge: true` to the policy, then re-run `capability next`
+   then: applied by --apply
+
+== 7b. one command later, the stage is declared
+applied 3 change(s) to .assaystone/capability.json:
+  + added oracle `reviewer`
+  + `canary` now lists `reviewer` in approvals
+  + `canary` allows merging
+quote-service: design -> canary
+
+ready: nothing structural blocks this promotion; run the gate to decide
+capability quote-service: ok
+  owner=platform-team risk=high lifecycle=design
+  oracles=8 criteria=7 policies=3
+  criteria gated by some stage: 7/7
 
 == 8. one table across repositories
 capability               owner            risk     lifecycle  criteria  last                         approval  receipt  critical

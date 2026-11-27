@@ -96,7 +96,7 @@ class NextTest(unittest.TestCase):
             },
         }))
         self.assertTrue(result.ready, [item.detail for item in result.blockers])
-        self.assertIn("ready: nothing blocks", render(result))
+        self.assertIn("nothing structural blocks", render(result))
 
     def test_missing_evidence_is_reported_when_a_trail_is_given(self):
         result = plan(

@@ -1032,8 +1032,22 @@ quote-service: shadow -> canary
 It reports, in order: a missing stage policy (with the policy to add), a stage
 that permits nothing, a critical criterion the stage does not gate, and — when a
 trail is supplied — a required oracle with no passing decision on that trail.
-The snippets are drafts the owner still reviews and signs; the point is that
-nobody has to guess the shape of an approval oracle.
+
+`--apply` carries out everything that is mechanical:
+
+```text
+applied 3 change(s) to .assaystone/capability.json:
+  + added oracle `reviewer`
+  + `canary` now lists `reviewer` in approvals
+  + `canary` allows merging
+```
+
+It adds the approval oracle, the policy, and the missing `require` entries, then
+refuses to write a manifest that would not validate. What it will not do is
+invent evidence: a compensation oracle has to be a real command, and an approval
+has to come from a person. Those stay on the "still needs a person" list. If the
+manifest requires an owner approval, applying changes makes it stale, and the
+command says so.
 
 ## Which checks earn their keep
 
