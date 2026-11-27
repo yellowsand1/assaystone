@@ -161,10 +161,56 @@ VERDICT_SCHEMA: dict[str, Any] = {
     },
 }
 
+RELIABILITY_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://assaystone.dev/protocol/v1/reliability.schema.json",
+    "title": "Assaystone reliability profile v1",
+    "type": "object",
+    "required": ["schema", "checks"],
+    "properties": {
+        "schema": {"const": "assaystone.reliability/1"},
+        "measured_at": {"type": "string"},
+        "tool_version": {"type": "string"},
+        "method": {"type": "string"},
+        "source": {"type": "string"},
+        "corpus_digest": {"type": "string"},
+        "checks": {
+            "type": "object",
+            "additionalProperties": {"$ref": "#/$defs/entry"},
+        },
+    },
+    "$defs": {
+        "entry": {
+            "type": "object",
+            "properties": {
+                "status": {"enum": ["measured", "unmeasured"]},
+                "recall": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+                "false_alarm_rate": {
+                    "type": ["number", "null"],
+                    "minimum": 0,
+                    "maximum": 1,
+                },
+                "declared_cases": {"type": "integer", "minimum": 0},
+                "clean_cases": {"type": "integer", "minimum": 0},
+                "adversarial_cases": {"type": "integer", "minimum": 0},
+                "adversarial_caught": {"type": "integer", "minimum": 0},
+                "layer": {"type": "string"},
+                "claim": {"type": "string"},
+                "catches": {"type": "array", "items": {"type": "string"}},
+                "blind_spots": {"type": "array", "items": {"type": "string"}},
+                "cost_usd": {"type": "number", "minimum": 0},
+                "profile": {"type": "object"},
+            },
+        }
+    },
+}
+
+
 SCHEMAS = {
     "contract": CONTRACT_SCHEMA,
     "verifier": VERIFIER_SCHEMA,
     "verdict": VERDICT_SCHEMA,
+    "reliability": RELIABILITY_SCHEMA,
 }
 
 

@@ -15,6 +15,7 @@ from assaystone.reliability import (
     calibration,
     load,
     profile_for,
+    validate,
 )
 from assaystone.runner import run_contract
 
@@ -36,6 +37,9 @@ class ReliabilityTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.profile = build()
+
+    def test_the_packaged_profile_passes_its_own_validator(self):
+        self.assertEqual(validate(self.profile), [])
 
     def test_the_packaged_profile_measures_known_checks(self):
         entry = self.profile["checks"]["tests.integrity"]
