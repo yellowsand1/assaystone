@@ -51,6 +51,11 @@ Criteria are the human-readable requirements; a verifier spec is one way to
 decide them. A criterion without a verifier is an open obligation, reported in
 the certificate's `assurance.open_obligations`.
 
+**Spec.** `spec.py`: obligations with deterministic evidence rules (`path`,
+`contains`, `absent`, `exists`). `check --spec` compiles them into criteria with
+`source: "evidence"`; the certificate's `assurance.spec` reports satisfied,
+violated, unknown, and coverage. The spec is an artifact, not an NLP parser.
+
 **Check.** `verifiers.py`: `claim`, `catches`, `blind_spots`, `trusts`,
 `independence`, `cost_usd`, `layer`, and `check(ctx, params) -> (ok|None,
 reasons, evidence)`. `None` is escalation, not failure.
@@ -108,6 +113,6 @@ enforced now:
 | five-command surface, lab frozen | done |
 | `prove` (recall, resistance, false alarms, cost in one report) | next |
 | harness gates (pre-tool / post-tool / pre-final) | all three done |
-| spec coverage as a first-class obligation | next |
+| spec coverage as a first-class obligation | v1 done |
 | provenance across compaction and delegation | workspace-root inference done; view metadata next |
 | lifecycle gates consuming certificates | frozen until P2 |

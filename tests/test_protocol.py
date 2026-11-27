@@ -79,10 +79,19 @@ class ProtocolTest(unittest.TestCase):
         entry = SCHEMAS["reliability"]["$defs"]["entry"]["properties"]
         self.assertEqual(entry["recall"]["maximum"], 1)
 
+    def test_spec_schema_is_registered(self):
+        self.assertIn("spec", SCHEMAS)
+        self.assertEqual(
+            SCHEMAS["spec"]["$id"],
+            "https://assaystone.dev/protocol/v1/spec.schema.json",
+        )
+        kinds = SCHEMAS["spec"]["$defs"]["evidence"]["properties"]["kind"]["enum"]
+        self.assertEqual(kinds, ["path", "contains", "absent", "exists"])
+
     def test_write_schemas(self):
         with tempfile.TemporaryDirectory() as tmp:
             paths = write_schemas(tmp)
-            self.assertEqual(len(paths), 4)
+            self.assertEqual(len(paths), 5)
             names = {Path(path).name for path in paths}
             self.assertEqual(
                 names,
@@ -91,6 +100,7 @@ class ProtocolTest(unittest.TestCase):
                     "verifier.schema.json",
                     "verdict.schema.json",
                     "reliability.schema.json",
+                    "spec.schema.json",
                 },
             )
             contract_schema = json.loads(
@@ -171,7 +181,7 @@ class ProtocolCliTest(unittest.TestCase):
             with contextlib.redirect_stdout(out):
                 code = cli.main(["protocol", "--schemas", tmp, "--json"])
             self.assertEqual(code, 0)
-            self.assertEqual(len(list(Path(tmp).glob("*.schema.json"))), 4)
+            self.assertEqual(len(list(Path(tmp).glob("*.schema.json"))), 5)
 
 
 if __name__ == "__main__":

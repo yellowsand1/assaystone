@@ -106,6 +106,7 @@ def build_certificate(
     issued_at: str | None = None,
     tool_version: str | None = None,
     reliability: dict[str, Any] | None = None,
+    spec: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the certificate for one contract run over one trace.
 
@@ -152,7 +153,9 @@ def build_certificate(
             reason = "not executed"
         not_run.append({"id": name, "reason": reason})
 
-    open_obligations = [item.id for item in contract.criteria if not item.verifiers]
+    open_obligations = [
+        item.id for item in contract.criteria if not item.verifiers and not item.evidence
+    ]
     unknown = [item.id for item in result.criteria if item.outcome == ESCALATE]
     criteria_total = len(result.criteria)
 
@@ -179,6 +182,20 @@ def build_certificate(
         "not_run": not_run,
         "calibration": calibration([verdict.verifier for verdict in result.verdicts], measured),
     }
+    spec_results = [item for item in result.criteria if item.source == "evidence"]
+    if spec_results:
+        satisfied = [item.id for item in spec_results if item.outcome == "pass"]
+        violated = [item.id for item in spec_results if item.outcome == "fail"]
+        unknown = [item.id for item in spec_results if item.outcome == "escalate"]
+        assurance["spec"] = {
+            "task": (spec or {}).get("task", ""),
+            "digest": (spec or {}).get("digest", ""),
+            "total": len(spec_results),
+            "satisfied": satisfied,
+            "violated": violated,
+            "unknown": unknown,
+            "coverage": round(len(satisfied) / len(spec_results), 4),
+        }
 
     routed_to_human = result.verdict == ESCALATE
     human_review = float(contract.human_review_cost_usd)
@@ -213,6 +230,7 @@ def build_certificate(
             "domain": contract.domain,
             "digest": digest(contract.to_dict()),
             "criteria": [item.to_dict() for item in contract.criteria],
+            **({"spec": spec} if spec else {}),
         },
         "decision": {
             "verdict": result.verdict,

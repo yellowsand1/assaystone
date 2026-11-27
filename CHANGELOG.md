@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-No changes yet.
+- **Task specs: obligations compiled into evidence.** `check --spec spec.json`
+  (and `verify --spec`) adds the spec's obligations to the contract as criteria
+  with deterministic evidence rules: `path`, `contains`, `absent`, `exists`.
+  The certificate reports satisfied, violated, and unknown obligations plus a
+  coverage ratio. `spec.schema.json` joins the protocol schemas. The spec is an
+  artifact, not a prompt: no natural-language parsing, no model. See
+  `docs/spec.md`.
 
 ## 0.35.0 — 2026-11-27
 

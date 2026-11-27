@@ -16,6 +16,7 @@ from .model import (
 )
 from .reliability import load as load_reliability
 from .reliability import profile_for
+from .spec import evaluate_obligation
 from .verifiers import (
     REGISTRY,
     Verifier,
@@ -38,6 +39,7 @@ def run_contract(
     decisive_failure: str | None = None
     escalation_reason: str | None = None
     unconfirmed: list[str] = []
+    evidence_results: dict[str, tuple[bool | None, list[str], list[str]]] = {}
 
     for spec in contract.verifiers:
         if spec.name not in REGISTRY:
@@ -106,6 +108,10 @@ def run_contract(
                     # so an independent check can confirm or leave it for review.
                     unconfirmed.append(reason)
 
+        for criterion in contract.criteria:
+            if criterion.evidence:
+                evidence_results[criterion.id] = evaluate_obligation(criterion, ctx)
+
     if decisive_failure is not None:
         overall = FAIL
         first_failure = decisive_failure
@@ -123,6 +129,33 @@ def run_contract(
     if contract.criteria:
         by_name = {verdict.verifier: verdict for verdict in verdicts}
         for criterion in contract.criteria:
+            if criterion.evidence:
+                ok, reasons, evidence = evidence_results.get(
+                    criterion.id, (None, ["evidence was not evaluated"], [])
+                )
+                if ok is True:
+                    outcome = PASS
+                elif ok is False:
+                    outcome = FAIL
+                else:
+                    outcome = ESCALATE
+                if outcome == ESCALATE and criterion.on_unknown == "fail":
+                    outcome = FAIL
+                    reasons = reasons + ["on_unknown=fail"]
+                criterion_verdicts.append(
+                    CriterionVerdict(
+                        id=criterion.id,
+                        kind=criterion.kind,
+                        defect=criterion.defect,
+                        severity=criterion.severity,
+                        outcome=outcome,
+                        verifiers=[],
+                        reasons=reasons,
+                        source="evidence",
+                        evidence=evidence,
+                    )
+                )
+                continue
             if criterion.verifiers:
                 bound = [name for name in criterion.verifiers if name in by_name]
             else:
@@ -167,6 +200,10 @@ def run_contract(
                     outcome=outcome,
                     verifiers=bound,
                     reasons=reasons,
+                    source="check",
+                    evidence=[
+                        item for verdict in related for item in verdict.evidence
+                    ],
                 )
             )
 

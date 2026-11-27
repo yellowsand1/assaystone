@@ -276,7 +276,8 @@ GitHub Action only. That is a smaller, honest product, and it is allowed to win.
 
 - [x] Pre-tool gate with runtime-written evidence (`.assaystone/session.jsonl`)
 - [x] Post-tool and pre-final gates with runtime evidence
-- [ ] Spec coverage as a first-class obligation, checked at pre-final
+- [x] Spec coverage as a first-class obligation (v1: deterministic
+      evidence rules; pre-final runs the same contract)
 - [ ] Provenance survives compaction and delegation (certificate says what view
       the verifier saw)
 - [x] Sub-second deterministic path on a real repository (68–98 ms on Flask; see

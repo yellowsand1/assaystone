@@ -43,6 +43,10 @@ class Criterion:
     verifiers: list[str] = field(default_factory=list)
     severity: str = "high"
     on_unknown: str = "escalate"
+    # Deterministic evidence rules for a spec obligation. A criterion with
+    # evidence is decided by the rules, not by a verifier.
+    evidence: list[dict[str, Any]] = field(default_factory=list)
+    evidence_mode: str = "all"
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "Criterion":
@@ -66,6 +70,14 @@ class Criterion:
         if on_unknown not in ON_UNKNOWN:
             raise ValueError(f"criterion {cid}: unknown on_unknown {on_unknown!r}")
         verifiers = [str(name) for name in data.get("verifiers") or []]
+        evidence = data.get("evidence") or []
+        if not isinstance(evidence, list) or not all(
+            isinstance(rule, dict) for rule in evidence
+        ):
+            raise ValueError(f"criterion {cid}: evidence must be a list of objects")
+        evidence_mode = str(data.get("evidence_mode") or "all").strip()
+        if evidence_mode not in ("all", "any"):
+            raise ValueError(f"criterion {cid}: evidence_mode must be all or any")
         return cls(
             id=cid,
             kind=kind,
@@ -74,6 +86,8 @@ class Criterion:
             verifiers=verifiers,
             severity=severity,
             on_unknown=on_unknown,
+            evidence=[dict(rule) for rule in evidence],
+            evidence_mode=evidence_mode,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -85,6 +99,14 @@ class Criterion:
             "verifiers": list(self.verifiers),
             "severity": self.severity,
             "on_unknown": self.on_unknown,
+            **(
+                {
+                    "evidence": [dict(rule) for rule in self.evidence],
+                    "evidence_mode": self.evidence_mode,
+                }
+                if self.evidence
+                else {}
+            ),
         }
 
 
