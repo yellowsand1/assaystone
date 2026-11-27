@@ -50,6 +50,8 @@ from .leaderboard import LeaderboardError, run_leaderboard
 from .leaderboard import render_summary as render_leaderboard
 from .model import ESCALATE, FAIL, PASS, load_traces
 from .mutate import run_mutation
+from .nextstep import plan as plan_next
+from .nextstep import render as render_next
 from .oracles import OracleError, OracleRegistry
 from .plane import (
     GATING_SEVERITIES,
@@ -516,6 +518,8 @@ def cmd_capability(args: argparse.Namespace) -> int:
         return _cmd_capability_utility(args)
     if args.capability_command == "propose":
         return _cmd_capability_propose(args)
+    if args.capability_command == "next":
+        return _cmd_capability_next(args)
     if args.capability_command == "list":
         return _cmd_capability_list(args)
     try:
@@ -635,6 +639,38 @@ def _cmd_capability_init(args: argparse.Namespace) -> int:
         f"\nrun: assaystone gate --manifest {display_path(path, root)} "
         "--stage shadow --root ."
     )
+    return 0
+
+
+def _cmd_capability_next(args: argparse.Namespace) -> int:
+    try:
+        manifest = CapabilityManifest.load(
+            args.manifest, registry=_registry(args.registry)
+        )
+    except (PlaneError, OracleError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    ready: set[str] | None = None
+    if args.trail:
+        from .utility import build_report
+
+        report = build_report(manifest, args.trail)
+        if not report.trail_ok:
+            print(
+                "error: " + (report.errors[0] if report.errors else "bad trail"),
+                file=sys.stderr,
+            )
+            return 2
+        ready = {
+            item.id
+            for item in report.oracles
+            if item.runs and item.last_outcome == "pass"
+        }
+    plan_ = plan_next(manifest, target=args.stage, ready_oracles=ready)
+    if args.json:
+        print(json.dumps(plan_.to_dict(), indent=2))
+    else:
+        print(render_next(plan_))
     return 0
 
 
@@ -1998,6 +2034,24 @@ def _parser() -> argparse.ArgumentParser:
     )
     capability_propose.add_argument("--json", action="store_true")
     capability_propose.set_defaults(func=cmd_capability)
+
+    capability_next = capability_sub.add_parser(
+        "next",
+        help="what blocks the next lifecycle stage, and the patch to add",
+    )
+    capability_next.add_argument("--manifest", required=True, metavar="PATH")
+    capability_next.add_argument(
+        "--stage",
+        default=None,
+        choices=["design", "shadow", "canary", "production", "incident", "retired"],
+    )
+    capability_next.add_argument("--trail", default=None, metavar="PATH")
+    capability_next.add_argument("--root", default=".")
+    capability_next.add_argument(
+        "--registry", metavar="PATH", default=None, help="oracle registry JSON"
+    )
+    capability_next.add_argument("--json", action="store_true")
+    capability_next.set_defaults(func=cmd_capability)
 
     gate_parser = sub.add_parser(
         "gate",

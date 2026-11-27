@@ -265,17 +265,11 @@ def _run(out: list[str]) -> int:
             "commit. That is the rule working, not a defect:\n      a decision "
             "covers the code it saw."
         )
-        say(out, "7. what is still unresolved")
-        proc = run(root, "capability", "status", "--manifest",
+        say(out, "7. what blocks the next stage")
+        proc = run(root, "capability", "next", "--manifest",
                    ".assaystone/capability.json",
-                   "--trail", ".assaystone/trail.jsonl",
-                   "--receipt", ".assaystone/receipt.json", "--stage", "shadow")
-        text = normalise(proc.stdout, root)
-        out.extend(
-            line for line in text.splitlines()
-            if line.startswith("Stage gap") or line.startswith("  `")
-            or line.startswith("Residual risk") or line.startswith("  -")
-        )
+                   "--trail", ".assaystone/trail.jsonl", "--stage", "canary")
+        out.append(normalise(proc.stdout, root))
 
         say(out, "8. one table across repositories")
         proc = run(root, "capability", "list", "--root", ".")

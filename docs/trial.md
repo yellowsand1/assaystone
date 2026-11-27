@@ -142,10 +142,20 @@ note: the gate ran on the working tree and the commit came after, so the card ma
       the decision stale against the new commit. That is the rule working, not a defect:
       a decision covers the code it saw.
 
-== 7. what is still unresolved
-Residual risk
-  - no recorded `design` gate for the current lifecycle
-  - the last `shadow` decision was made on a different commit (<sha> vs <sha>)
+== 7. what blocks the next stage
+quote-service: design -> canary
+
+1 blocker(s)
+
+1. `canary` exists but does not allow merging, so nothing can move through it
+   add to the manifest:
+         {
+           "id": "reviewer",
+           "type": "human",
+           "description": "a named reviewer approved promotion",
+           "payload": {"action": "promote", "record": "approvals.json"}
+         }
+   then: add `approvals: ["reviewer"]` and `allow_merge: true` to the policy, then re-run `capability next`
 
 == 8. one table across repositories
 capability               owner            risk     lifecycle  criteria  last                         approval  receipt  critical
