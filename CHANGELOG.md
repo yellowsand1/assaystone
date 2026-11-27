@@ -11,6 +11,11 @@
   both hooks and writes a starter policy.
 - **The episode ignores `.assaystone/`.** The tool's own records are not the work
   under review, so `check` no longer treats the session record as a change.
+- **Audit follows the agent into task workspaces.** Absolute tool paths now
+  determine the workspace root when it differs from the transcript's `cwd`; the
+  replay reads the pre-session baseline and falls back to the workspace for files
+  it cannot reconstruct. New files keep `added` status, so a written test is no
+  longer reported as a deleted one. See `docs/field-note-claude-code.md`.
 
 ## 0.33.0 — 2026-11-27
 

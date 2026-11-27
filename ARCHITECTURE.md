@@ -103,5 +103,5 @@ enforced now:
 | `prove` (recall, resistance, false alarms, cost in one report) | next |
 | harness gates (pre-tool / post-tool / pre-final) | pre-tool done; post-tool and pre-final next |
 | spec coverage as a first-class obligation | next |
-| provenance across compaction and delegation | later |
+| provenance across compaction and delegation | workspace-root inference done; view metadata next |
 | lifecycle gates consuming certificates | frozen until P2 |
