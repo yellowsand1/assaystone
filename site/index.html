@@ -46,7 +46,7 @@
         <div class="terminal" aria-label="Install and run Assaystone">
           <div class="terminal-bar"><span></span><span></span><span></span><b>terminal</b></div>
           <div class="terminal-body">
-            <div><span class="prompt">$</span> pip install assaystone==0.36.0</div>
+            <div><span class="prompt">$</span> pip install assaystone==0.37.0</div>
             <div><span class="prompt">$</span> assaystone demo audit</div>
             <div class="finding"><span>HIGH</span> tests.integrity <strong>tests/test_discounts.py (removed 1 test)</strong></div>
             <div class="summary">certificate: audit-demo-session.certificate.json</div>
@@ -150,6 +150,7 @@
         <article><span>03</span><div><h3>Coverage</h3><p>Which declared defect classes are decided by an independent check, which are weak, and which are not covered at all.</p></div></article>
         <article><span>04</span><div><h3>Independence</h3><p>A low-independence failure cannot decide alone. It escalates unless an independent check confirms it.</p></div></article>
         <article><span>05</span><div><h3>Calibration</h3><p>Every certificate says how many of its checks have been measured, and the gap. A check with no data is <code>unmeasured</code> — it never gets a number it did not earn.</p></div></article>
+        <article><span>06</span><div><h3>Transport</h3><p>The certificate says whether the verifier judged the execution or a summary: <code>native</code>, <code>compacted</code>, <code>delegated</code>, <code>imported</code>. A pass built on a summary is not a pass about the work.</p></div></article>
       </div>
       <div class="code-grid">
         <div class="code-card">
@@ -209,8 +210,8 @@ recall=100%  resistance=85%  false_alarms=0</code></pre>
           </div>
         </div>
         <div class="quick-terminal">
-          <button class="copy-button" data-copy="pip install assaystone==0.36.0\nassaystone demo audit\nassaystone check --base origin/main --certificate ./certs">Copy</button>
-          <pre><code>pip install assaystone==0.36.0
+          <button class="copy-button" data-copy="pip install assaystone==0.37.0\nassaystone demo audit\nassaystone check --base origin/main --certificate ./certs">Copy</button>
+          <pre><code>pip install assaystone==0.37.0
 assaystone demo audit
 assaystone check --base origin/main --certificate ./certs</code></pre>
           <p>No API key. No runtime dependencies. Nothing leaves your machine.</p>
