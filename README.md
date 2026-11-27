@@ -45,9 +45,6 @@ certificate: ./assaystone-demo-certificates/audit-demo-session.certificate.json
 verify it:  assaystone certificate verify <that file>
 ```
 
-*(The certificate line is on `main`; the published `0.32.0` demo stops at the
-summary.)*
-
 The demo ends with the artifact, not with advice. The agent fixed the rounding bug, then deleted the one test it still failed, and
 reported success. `tests.pass` saw a green suite. The audit found the deleted
 test. The same attacks, with minimal reproductions, are in
@@ -109,7 +106,7 @@ Exit codes are the interface: `0` pass, `1` fail, `2` escalate or unable to
 check. A CI step can gate on them without parsing output.
 
 ```yaml
-- uses: yellowsand1/assaystone@main   # pin to the next tag when it ships
+- uses: yellowsand1/assaystone@v0.33.0
   with:
     contract: .assaystone/contract.json
     base: origin/${{ github.base_ref }}
@@ -117,8 +114,7 @@ check. A CI step can gate on them without parsing output.
 ```
 
 The Action posts annotations and a step summary, and uploads the certificate as an
-artifact. `check` mode is on `main` and ships in the next tag; the published Action
-`yellowsand1/assaystone@v0.32.0` supports the trace-based `verify` mode.
+artifact.
 
 ## What a passing test suite misses
 
@@ -174,12 +170,10 @@ delete the rest.
 
 ```bash
 uvx assaystone --version        # no install, throwaway environment
-pip install assaystone==0.32.0  # the published release
-pip install "assaystone @ git+https://github.com/yellowsand1/assaystone@main"  # check + certificates
+pip install assaystone==0.33.0  # the published release
 ```
 
-Python 3.10+. The `check` workflow and certificates are on `main` and are not in
-the published `0.32.0` yet.
+Python 3.10+.
 
 macOS note: the system `python3` is often 3.9. If `pip install` cannot find a
 distribution, use `uvx` above or install Python 3.12.
@@ -226,7 +220,7 @@ The direction, the ten laws, the non-goals, and the kill criteria are in
 
 ## Status
 
-`v0.32.0` — alpha. The kernel is stable; the surface is deliberately small:
+`v0.33.0` — alpha. The kernel is stable; the surface is deliberately small:
 `audit`, `check`, `certificate`, `prove`, `hook`. Everything else lives under
 `assaystone lab` and is frozen — no new features, deletion allowed. Old top-level
 names still resolve as aliases so existing CI does not break.
