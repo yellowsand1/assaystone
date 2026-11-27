@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`capability prepare`: what the environment owes the gate.** For each oracle
+  the stage requires, checks the record outside the manifest — an approval that
+  exists, names the action, and is granted (and signed where required); a drill
+  record that passed; a session record. Each need names who has to act and gives
+  the command or the JSON shape. Nothing is created on the operator's behalf.
 No changes yet.
 
 ## 0.31.0 — 2026-11-27
