@@ -319,6 +319,9 @@ def render_markdown(profile: dict[str, Any]) -> str:
             "  sample size.",
             "- Not a vendor comparison. External packs can ship the same profile;",
             "  the certificate cites the digest of whichever profile it used.",
+            "",
+            "`assaystone prove --gaps` turns the table into a work list: the checks",
+            "that decide most often and have no measurement.",
         ]
     )
     return "\n".join(lines) + "\n"

@@ -157,7 +157,12 @@ assaystone prove --write-reliability profile.json
 ```
 
 The current table, including the checks that are still unmeasured, is
-[docs/reliability.md](docs/reliability.md).
+[docs/reliability.md](docs/reliability.md). `prove --gaps` turns the table into a
+work list: the checks that decide most often and have no measurement.
+
+```bash
+assaystone prove --gaps --certificates ./certs
+```
 
 ## Prove the checks
 
