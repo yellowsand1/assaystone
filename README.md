@@ -164,6 +164,20 @@ work list: the checks that decide most often and have no measurement.
 assaystone prove --gaps --certificates ./certs
 ```
 
+## Spec coverage
+
+A contract says what acceptable means. A spec says what this task asked for:
+
+```bash
+assaystone check --base origin/main --spec .assaystone/spec.json
+```
+
+Obligations compile into deterministic evidence rules — a changed path, a file
+that contains a string, a path that must not change, a file that must exist —
+and the certificate reports how many were met, violated, or could not be
+decided. `spec 2/3 obligations met; violated: ci`. Format and limits:
+[docs/spec.md](docs/spec.md).
+
 ## Prove the checks
 
 A verifier you have never challenged is a liability. One command measures both

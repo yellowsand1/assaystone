@@ -113,6 +113,9 @@ class CriterionVerdict:
     outcome: str
     verifiers: list[str] = field(default_factory=list)
     reasons: list[str] = field(default_factory=list)
+    # "check" when a verifier decided it, "evidence" when a spec rule did.
+    source: str = "check"
+    evidence: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -123,6 +126,8 @@ class CriterionVerdict:
             "outcome": self.outcome,
             "verifiers": list(self.verifiers),
             "reasons": list(self.reasons),
+            "source": self.source,
+            "evidence": list(self.evidence),
         }
 
 

@@ -238,6 +238,7 @@ def _write_certificates(
     results: list,
     provenance: dict | None = None,
     reliability: dict | None = None,
+    spec: dict | None = None,
 ) -> list[Path] | None:
     """Write one certificate per trace, or a single file for a single trace.
 
@@ -246,7 +247,12 @@ def _write_certificates(
     """
     documents = [
         build_certificate(
-            result, contract, trace, provenance=provenance, reliability=reliability
+            result,
+            contract,
+            trace,
+            provenance=provenance,
+            reliability=reliability,
+            spec=spec,
         )
         for trace, result in zip(traces, results, strict=True)
     ]
@@ -295,6 +301,23 @@ def _find_contract(repo: Path) -> Path | None:
     return None
 
 
+def _apply_spec(contract: Contract, spec_path: str | None) -> dict | None:
+    if not spec_path:
+        return None
+    from .spec import SpecError
+    from .spec import digest as spec_digest
+    from .spec import load as load_spec
+    from .spec import merge as merge_spec
+
+    try:
+        data = load_spec(spec_path)
+        merge_spec(contract, data)
+    except SpecError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return None
+    return {"task": str(data.get("task") or ""), "digest": spec_digest(data)}
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     """Check one episode: a working tree by default, a recorded trace on request."""
     repo = Path(args.repo)
@@ -316,6 +339,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     contract = _load_contract(contract_path)
     if contract is None:
         return 2
+    spec_meta = _apply_spec(contract, getattr(args, "spec", None))
 
     episode: GitEpisode | None = None
     if args.trace:
@@ -355,6 +379,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                 results,
                 provenance=provenance,
                 reliability=reliability,
+                spec=spec_meta,
             )
             if written is None:
                 return 2
@@ -378,6 +403,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                     trace,
                     provenance=provenance,
                     reliability=reliability,
+                    spec=spec_meta,
                 )
                 for trace, result in zip(traces, results, strict=True)
             ]
@@ -405,6 +431,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
     contract = _load_contract(args.contract)
     if contract is None:
         return 1
+    spec_meta = _apply_spec(contract, getattr(args, "spec", None))
     traces = _load_traces_arg(args.trace)
     if traces is None:
         return 1
@@ -426,7 +453,12 @@ def cmd_verify(args: argparse.Namespace) -> int:
     certificate_paths: list[Path] = []
     if args.certificate:
         written = _write_certificates(
-            args.certificate, contract, traces, results, reliability=reliability
+            args.certificate,
+            contract,
+            traces,
+            results,
+            reliability=reliability,
+            spec=spec_meta,
         )
         if written is None:
             return 2
@@ -445,6 +477,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             json.dumps(
                 {
                     "contract": contract.name,
+                    "spec": spec_meta,
                     "summary": _summary(results),
                     "results": [result.to_dict() for result in results],
                 },
@@ -670,6 +703,17 @@ def cmd_certificate(args: argparse.Namespace) -> int:
         if len(profiles) > 1:
             text += f"; profiles: {', '.join(profiles)}"
         print(f"calibration   {text}")
+    spec_data = assurance.get("spec") or {}
+    if spec_data:
+        text = (
+            f"{len(spec_data.get('satisfied') or [])}/"
+            f"{spec_data.get('total', 0)} obligations met"
+        )
+        if spec_data.get("violated"):
+            text += f"; violated: {', '.join(spec_data['violated'])}"
+        if spec_data.get("unknown"):
+            text += f"; unknown: {', '.join(spec_data['unknown'])}"
+        print(f"spec          {text}")
     print(
         f"cost          ${float(cost.get('decision_usd', 0.0)):.6f} "
         f"(verification ${float(cost.get('verification_usd', 0.0)):.6f})"
@@ -2090,6 +2134,12 @@ def _parser() -> argparse.ArgumentParser:
     check_output.add_argument("--json", action="store_true")
     check_output.add_argument("--github", action="store_true")
     check_parser.add_argument(
+        "--spec",
+        default=None,
+        metavar="PATH",
+        help="task spec whose obligations are added to the contract",
+    )
+    check_parser.add_argument(
         "--reliability",
         action="append",
         default=None,
@@ -2148,6 +2198,12 @@ def _parser() -> argparse.ArgumentParser:
         "--github",
         action="store_true",
         help="emit GitHub Actions annotations and a step summary",
+    )
+    verify.add_argument(
+        "--spec",
+        default=None,
+        metavar="PATH",
+        help="task spec whose obligations are added to the contract",
     )
     verify.add_argument(
         "--reliability",

@@ -68,6 +68,8 @@ CONTRACT_SCHEMA: dict[str, Any] = {
                 },
                 "severity": {"enum": list(SEVERITIES)},
                 "on_unknown": {"enum": list(ON_UNKNOWN)},
+                "evidence": {"type": "array", "items": {"type": "object"}},
+                "evidence_mode": {"enum": ["all", "any"]},
             },
         },
         "verifierSpec": {
@@ -206,11 +208,61 @@ RELIABILITY_SCHEMA: dict[str, Any] = {
 }
 
 
+SPEC_SCHEMA: dict[str, Any] = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://assaystone.dev/protocol/v1/spec.schema.json",
+    "title": "Assaystone task spec v1",
+    "type": "object",
+    "required": ["schema", "obligations"],
+    "properties": {
+        "schema": {"const": "assaystone.spec/1"},
+        "task": {"type": "string"},
+        "obligations": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 200,
+            "items": {"$ref": "#/$defs/obligation"},
+        },
+    },
+    "$defs": {
+        "obligation": {
+            "type": "object",
+            "required": ["id", "statement", "evidence"],
+            "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "statement": {"type": "string", "minLength": 1},
+                "severity": {"enum": ["critical", "high", "medium", "low"]},
+                "on_unknown": {"enum": ["escalate", "fail"]},
+                "mode": {"enum": ["all", "any"]},
+                "evidence": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {"$ref": "#/$defs/evidence"},
+                },
+            },
+        },
+        "evidence": {
+            "type": "object",
+            "required": ["kind", "glob"],
+            "properties": {
+                "kind": {"enum": ["path", "contains", "absent", "exists"]},
+                "glob": {"type": "string", "minLength": 1},
+                "change": {"enum": ["added", "modified", "deleted"]},
+                "min_changed_lines": {"type": "integer", "minimum": 0},
+                "text": {"type": "string"},
+                "regex": {"type": "boolean"},
+            },
+        },
+    },
+}
+
+
 SCHEMAS = {
     "contract": CONTRACT_SCHEMA,
     "verifier": VERIFIER_SCHEMA,
     "verdict": VERDICT_SCHEMA,
     "reliability": RELIABILITY_SCHEMA,
+    "spec": SPEC_SCHEMA,
 }
 
 
