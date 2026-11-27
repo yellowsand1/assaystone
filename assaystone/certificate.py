@@ -143,6 +143,16 @@ def build_certificate(
     open_obligations = [item.id for item in contract.criteria if not item.verifiers]
     unknown = [item.id for item in result.criteria if item.outcome == ESCALATE]
     criteria_total = len(result.criteria)
+
+    declared_defects = sorted(set(contract.required_defects))
+    caught_by_planned: set[str] = set()
+    for name in planned:
+        cls = REGISTRY.get(name)
+        if cls is not None:
+            caught_by_planned.update(getattr(cls, "catches", ()))
+    covered_defects = sorted(set(declared_defects) & caught_by_planned)
+    uncovered_defects = sorted(set(declared_defects) - caught_by_planned)
+
     assurance = {
         "criteria_total": criteria_total,
         "criteria_decided": criteria_total - len(unknown),
@@ -150,6 +160,9 @@ def build_certificate(
         "assurance_gap": round(len(unknown) / criteria_total, 4) if criteria_total else 0.0,
         "unknown_criteria": unknown,
         "open_obligations": open_obligations,
+        "declared_defects": declared_defects,
+        "covered_defects": covered_defects,
+        "uncovered_defects": uncovered_defects,
         "escalations": list(result.unconfirmed),
         "not_run": not_run,
     }

@@ -123,6 +123,19 @@ class CertificateTest(unittest.TestCase):
         self.assertEqual(document["assurance"]["open_obligations"], ["c2"])
         self.assertEqual(document["assurance"]["criteria_total"], 2)
 
+    def test_uncovered_declared_defects_are_reported(self):
+        contract = Contract(
+            name="declares-more-than-it-checks",
+            verifiers=[VerifierSpec("diff.syntax")],
+            required_defects=["syntax-error", "pii-leak"],
+        )
+        trace = self.traces["t01-correct"]
+        result = run_contract(contract, trace, self.baseline)
+        document = build_certificate(result, contract, trace)
+        self.assertEqual(document["assurance"]["declared_defects"], ["pii-leak", "syntax-error"])
+        self.assertIn("syntax-error", document["assurance"]["covered_defects"])
+        self.assertEqual(document["assurance"]["uncovered_defects"], ["pii-leak"])
+
     def test_verify_accepts_a_fresh_certificate(self):
         document, _ = self.certificate("t01-correct")
         check = verify_certificate(document)

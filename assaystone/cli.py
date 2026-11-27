@@ -520,6 +520,13 @@ def cmd_certificate(args: argparse.Namespace) -> int:
         f"({assurance.get('criteria_unknown', 0)}/"
         f"{assurance.get('criteria_total', 0)} criteria unknown)"
     )
+    if assurance.get("declared_defects"):
+        uncovered = assurance.get("uncovered_defects") or []
+        print(
+            f"coverage      {len(assurance.get('covered_defects') or [])}/"
+            f"{len(assurance['declared_defects'])} declared defects covered"
+            + (f"; uncovered: {', '.join(uncovered)}" if uncovered else "")
+        )
     print(
         f"cost          ${float(cost.get('decision_usd', 0.0)):.6f} "
         f"(verification ${float(cost.get('verification_usd', 0.0)):.6f})"

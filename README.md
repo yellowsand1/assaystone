@@ -106,16 +106,16 @@ Exit codes are the interface: `0` pass, `1` fail, `2` escalate or unable to
 check. A CI step can gate on them without parsing output.
 
 ```yaml
-- uses: yellowsand1/assaystone@v0.32.0
+- uses: yellowsand1/assaystone@main   # pin to the next tag when it ships
   with:
     contract: .assaystone/contract.json
     base: origin/${{ github.base_ref }}
     certificate: certs
-    install: assaystone==0.32.0
 ```
 
 The Action posts annotations and a step summary, and uploads the certificate as an
-artifact.
+artifact. `check` mode is on `main` and ships in the next tag; the published Action
+`yellowsand1/assaystone@v0.32.0` supports the trace-based `verify` mode.
 
 ## What a passing test suite misses
 
@@ -171,8 +171,12 @@ delete the rest.
 
 ```bash
 uvx assaystone --version        # no install, throwaway environment
-pip install assaystone          # Python 3.10+
+pip install assaystone==0.32.0  # the published release
+pip install "assaystone @ git+https://github.com/yellowsand1/assaystone@main"  # check + certificates
 ```
+
+Python 3.10+. The `check` workflow and certificates are on `main` and are not in
+the published `0.32.0` yet.
 
 macOS note: the system `python3` is often 3.9. If `pip install` cannot find a
 distribution, use `uvx` above or install Python 3.12.
