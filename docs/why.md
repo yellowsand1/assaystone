@@ -48,6 +48,41 @@ Mutation testing fixes this. Inject one known defect at a time into the agent's 
 
 The demo in this repository does exactly that. The naive contract (`tests + syntax`) kills 67% of injected defects. The hardened contract kills 94%. The surviving mutant is a rounding-constant change the tests cannot distinguish — a test gap, not a verifier bug. That is the finding you want mutation testing to produce.
 
+## Recall is not resistance
+
+Mutation testing asks whether the verifier catches a defect you injected. It does
+not ask the harder question: can an agent that has read the contract obtain a clean
+pass without doing the work?
+
+Those are different measurements. A contract can catch every injected defect and
+still be trivially gameable. The agent does not need to defeat the check; it only
+needs to satisfy the check's proxy. It can add a startup hook that neutralises
+`assertEqual`, shadow the test runner with a local `unittest.py`, move a CI change
+outside the protected path, hardcode the test inputs, or record an approval that
+never happened.
+
+The Goodhart suite measures this directly. Its cases are split by failure mode,
+because the answers differ: deterministic checks stop mechanical attacks and can
+enforce an approval lineage, while semantic attacks remain escapes. A verifier set
+that reports 100% recall and 0% semantic resistance is not contradictory; it is
+honest. The number that matters is not the average. It is which family leaks.
+
+## A verifier must name what it cannot see
+
+Every verifier is a partial oracle. The oracle problem has no general solution:
+no check can be both sound and complete over real work. The practical consequence
+is that a verifier without a declared blind spot is claiming to be an oracle.
+
+So the protocol makes the declaration mandatory. A verifier publishes what it
+claims (`claim`), what it catches (`catches`), what it cannot catch
+(`blind_spots`), what it costs (`cost`), and how much it shares with the generator
+(`independence`). Coverage becomes a residual-risk report rather than a checklist.
+Resistance becomes a measure of declared versus surprise escapes.
+
+The unit of reuse is not a check. It is the declaration. With it, verifiers written
+by different teams and in different languages can be scored by the same benchmark,
+and a contract can be reviewed as a claim rather than a pile of scripts.
+
 ## Backtest before enforcing
 
 Adding a check is a product decision with a catch rate, a false-alarm rate, and a cost. Replay historical traces, measure all three, and only then enforce the check in production.

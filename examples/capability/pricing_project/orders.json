@@ -1,0 +1,5 @@
+[
+  {"order_id": "o-1001", "amount_cents": 4000, "region": "us"},
+  {"order_id": "o-1002", "amount_cents": 5000, "region": "eu"},
+  {"order_id": "o-1003", "amount_cents": 3300, "region": "us"}
+]

@@ -26,6 +26,8 @@ jobs:
         run: make demo
       - name: End-to-end demo (ops/runtime)
         run: make demo-ops
+      - name: End-to-end demo (acceptance plane)
+        run: make demo-plane
       - name: Failure Zoo benchmark
         run: python -m assaystone benchmark failure-zoo
 
@@ -50,6 +52,50 @@ jobs:
         run: |
           python -m assaystone benchmark failure-zoo --md /tmp/failure-zoo.md
           diff -u docs/failure-zoo.md /tmp/failure-zoo.md
+      - name: The trial document is reproducible
+        run: |
+          python scripts/trial.py --markdown > /tmp/trial.md
+          diff -u docs/trial.md /tmp/trial.md
+      - name: Gate this repository
+        env:
+          ASSAYSTONE_RECEIPT_KEY: ci-self-gate
+        run: |
+          python -m assaystone gate \
+            --manifest .assaystone/capability.json \
+            --stage shadow --root . \
+            --owner-public-key .assaystone/owner.pub \
+            --audit .assaystone/trail.jsonl \
+            --receipt .assaystone/receipt.json \
+            --actor ci
+          python -m assaystone trail verify .assaystone/trail.jsonl
+          python -m assaystone receipt verify .assaystone/receipt.json \
+            --commit "$(git rev-parse HEAD)" --outcome pass
+      - name: Capability status
+        env:
+          ASSAYSTONE_RECEIPT_KEY: ci-self-gate
+        run: |
+          {
+            echo "## Assaystone capability status"
+            echo '```'
+            python -m assaystone capability status \
+              --manifest .assaystone/capability.json \
+              --trail .assaystone/trail.jsonl \
+              --receipt .assaystone/receipt.json \
+              --owner-public-key .assaystone/owner.pub \
+              --stage shadow
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Capability portfolio
+        env:
+          ASSAYSTONE_RECEIPT_KEY: ci-self-gate
+        run: python -m assaystone capability list --root . --strict --owner-public-key .assaystone/owner.pub
+      - name: Upload the gate evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: assaystone-self-gate
+          path: |
+            .assaystone/trail.jsonl
+            .assaystone/receipt.json
 
   package:
     runs-on: ubuntu-latest
@@ -74,4 +120,29 @@ jobs:
           /tmp/assaystone-wheel/bin/assaystone demo audit
           /tmp/assaystone-wheel/bin/assaystone demo
           /tmp/assaystone-wheel/bin/assaystone demo ops
+          /tmp/assaystone-wheel/bin/assaystone demo plane --output-dir /tmp/assaystone-demo
           /tmp/assaystone-wheel/bin/assaystone benchmark failure-zoo
+
+  action-gate:
+    runs-on: ubuntu-latest
+    env:
+      ASSAYSTONE_RECEIPT_KEY: ci-action-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        id: gate
+        with:
+          install: "."
+          manifest: examples/capability/pricing.json
+          stage: shadow
+          root: examples/capability/pricing_project
+          audit: /tmp/assaystone-action-trail.jsonl
+          actor: ci
+          receipt: /tmp/assaystone-action-receipt.json
+      - name: Gate outputs, receipt, and trail
+        run: |
+          test "${{ steps.gate.outputs.verdict }}" = "pass"
+          test "${{ steps.gate.outputs.findings }}" = "0"
+          assaystone trail verify /tmp/assaystone-action-trail.jsonl
+          assaystone receipt verify /tmp/assaystone-action-receipt.json \
+            --commit "$GITHUB_SHA" --outcome pass

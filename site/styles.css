@@ -196,7 +196,7 @@ h1 em { color: #9a6200; font-family: Georgia, "Times New Roman", serif; font-wei
 .how-section .kicker { color: var(--amber); }
 .how-section .section-heading h2 { color: #f7f9fc; }
 .how-section .section-heading.center > p:last-child { color: #99a6b7; }
-.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; overflow: hidden; margin-top: 58px; background: #2d3745; border: 1px solid #2d3745; border-radius: 15px; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; overflow: hidden; margin-top: 58px; background: #2d3745; border: 1px solid #2d3745; border-radius: 15px; }
 .steps article { padding: 31px; background: #121923; }
 .step-number { color: var(--amber); font: 700 11px var(--mono); }
 .steps h3 { margin: 25px 0 10px; color: #fff; font-size: 22px; }
@@ -251,6 +251,7 @@ footer { display: flex; align-items: center; justify-content: space-between; max
   .hero-visual { max-width: 760px; margin-top: 10px; }
   .floating-card { right: 12px; }
   .defect-grid { grid-template-columns: 1fr 1fr; }
+  .steps { grid-template-columns: 1fr 1fr; }
   .evidence-section { grid-template-columns: 1fr; gap: 45px; }
   .quickstart-card { grid-template-columns: 1fr; gap: 40px; }
 }

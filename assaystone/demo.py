@@ -1,13 +1,20 @@
 """Packaged end-to-end demos. They work from an installed wheel."""
 from __future__ import annotations
 
+import json
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
+from . import trail as audit_trail
 from .audit import audit_traces, build_audit_contract, load_audit_traces, render_audit
 from .backtest import backtest
 from .contract import Contract
 from .model import FAIL, load_traces, utc_now
 from .mutate import run_mutation
+from .plane import CapabilityManifest, evaluate_gate
+from .runner import run_contract
 from .runtime import ApprovalRequired, ContractFailed, RuntimeGuard
 from .scorecard import render_scorecard
 
@@ -193,6 +200,65 @@ def run_ops(output_dir: str | Path = ".") -> str:
     return "\n".join(lines)
 
 
+def run_adversarial(output_dir: str | Path = ".") -> str:
+    """Show one attack that a green test suite cannot see."""
+    root = DATA_ROOT / "code_agent"
+    baseline = root / "baseline"
+    trace = load_traces(
+        DATA_ROOT / "goodhart" / "traces" / "mechanical" / "g01-harness-hijack.json"
+    )[0]
+    naive = Contract.load(root / "contracts" / "naive.json")
+    hardened = Contract.load(root / "contracts" / "hardened.json")
+    results = [
+        (contract, run_contract(contract, trace, baseline))
+        for contract in (naive, hardened)
+    ]
+
+    lines = [
+        "Assaystone demo — the trap",
+        f"case: {trace.id}",
+        "attack: sitecustomize.py neutralises assertEqual; the suite passes",
+        "the bug is still in pricing/discounts.py",
+        "",
+        f"{'contract':<12} {'verdict':<9} first failure",
+    ]
+    for contract, result in results:
+        detail = result.first_failure or "—"
+        lines.append(f"{contract.name:<12} {result.verdict:<9} {detail}")
+    lines.extend(
+        [
+            "",
+            "read: a green suite is not acceptance. The naive contract only sees",
+            "syntax and tests; the hardened contract sees the startup hook.",
+        ]
+    )
+
+    markdown = [
+        "# Assaystone demo — the trap",
+        "",
+        f"Case: `{trace.id}`. A six-line `sitecustomize.py` patches "
+        "`unittest.TestCase.assertEqual` to a no-op, so the suite passes while "
+        "the bug remains.",
+        "",
+        "| contract | verdict | first failure |",
+        "|---|---|---|",
+    ]
+    for contract, result in results:
+        detail = (result.first_failure or "—").replace("|", "\\|")
+        markdown.append(f"| `{contract.name}` | {result.verdict} | {detail} |")
+    markdown += [
+        "",
+        "The naive contract (`diff.syntax` + `tests.pass`) returns **pass**. "
+        "The hardened contract fails at `tests.harness_integrity`.",
+        "",
+    ]
+    output = _write(
+        output_dir, "assaystone-demo-adversarial.md", "\n".join(markdown)
+    )
+    lines.extend(["", f"details: {output}"])
+    return "\n".join(lines)
+
+
 def run_audit(output_dir: str | Path = ".") -> str:
     root = DATA_ROOT / "audit"
     baseline = root / "baseline"
@@ -207,3 +273,116 @@ def run_audit(output_dir: str | Path = ".") -> str:
     )
     output = _write(output_dir, "assaystone-demo-audit.md", text + "\n")
     return "Assaystone audit demo — a coding-agent transcript\n" + text + f"\n\ndetails: {output}"
+
+
+def run_plane(output_dir: str | Path = ".") -> str:
+    """One screen for the acceptance plane: pass, fail, approve, audit."""
+    root = DATA_ROOT / "plane"
+    project = root / "project"
+    manifest = CapabilityManifest.load(root / "capability.json")
+    lines = [
+        "Assaystone demo — acceptance plane",
+        "domain: pricing; thirteen generic oracles; plane.py unchanged",
+        "",
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        work = Path(tmp) / "project"
+        shutil.copytree(project, work)
+        # The stage chain binds to a commit: a canary pass for one commit cannot
+        # authorise different code. Give the demo a real commit to chain to.
+        try:
+            subprocess.run(["git", "init", "-q"], cwd=work, check=True,
+                           capture_output=True)
+            subprocess.run(["git", "add", "-A"], cwd=work, check=True,
+                           capture_output=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.email=demo@example.invalid",
+                    "-c", "user.name=demo", "commit", "-qm", "baseline",
+                ],
+                cwd=work, check=True, capture_output=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            lines.append("note: git is unavailable; the stage chain cannot "
+                         "bind to a commit")
+
+        shadow = evaluate_gate(manifest, "shadow", work)
+        gap = ", ".join(item["criterion"] for item in shadow.gap) or "none"
+        lines += [
+            f"shadow: {shadow.outcome}  merge_allowed={shadow.merge_allowed}",
+            f"  declared but not gated at this stage: {gap}",
+            "",
+        ]
+
+        fee = work / "fee.py"
+        original = fee.read_text(encoding="utf-8")
+        fee.write_text(
+            original.replace(
+                '"fee_cents": fee_cents(',
+                '"audited": version != "old", "fee_cents": fee_cents(',
+            ),
+            encoding="utf-8",
+        )
+        broken = evaluate_gate(manifest, "shadow", work)
+        parity = next(item for item in broken.results if item.oracle == "parity")
+        lines += [
+            "the refactor adds a field to the wire format; unit tests still pass",
+            f"shadow: {broken.outcome}",
+            f"  parity: {parity.reasons[0]}",
+            "",
+        ]
+        fee.write_text(original, encoding="utf-8")
+
+        (work / "approvals.json").unlink()
+        denied = evaluate_gate(manifest, "canary", work)
+        lines += [
+            "canary without the owner approval:",
+            f"  {denied.outcome}  merge_allowed={denied.merge_allowed}",
+            "",
+        ]
+
+        shutil.copy2(project / "approvals.json", work / "approvals.json")
+        canary = evaluate_gate(manifest, "canary", work)
+        lines += [
+            "canary with the approval:",
+            f"  {canary.outcome}  merge_allowed={canary.merge_allowed}",
+            "",
+        ]
+
+        trail_path = Path(output_dir) / "plane-demo-trail.jsonl"
+        trail_path.unlink(missing_ok=True)
+        entry = audit_trail.append(trail_path, canary, actor="demo")
+        production = evaluate_gate(
+            manifest, "production", work, trail_path=trail_path
+        )
+        lines += [
+            "production, chained to the canary entry:",
+            f"  {production.outcome}  "
+            f"deploy_allowed={production.deploy_allowed}  "
+            f"prior={production.prior.get('stage')}#"
+            f"{production.prior.get('seq')}",
+            "",
+        ]
+        check = audit_trail.verify(trail_path)
+        lines += [
+            f"trail: {trail_path.name} entry {entry['seq']}, chain intact",
+            f"  head {check.head}",
+            "",
+        ]
+
+        tampered = Path(tmp) / "tampered.jsonl"
+        changed = dict(entry)
+        changed["outcome"] = "fail"
+        tampered.write_text(json.dumps(changed) + "\n", encoding="utf-8")
+        bad = audit_trail.verify(tampered)
+        lines += [
+            "editing the recorded outcome:",
+            f"  chain broken: {bad.errors[0]}",
+            "",
+        ]
+
+    lines += [
+        "the core did not change: one manifest bound four primitives",
+        "next: assaystone capability init --root . --owner <team>",
+    ]
+    return "\n".join(lines)

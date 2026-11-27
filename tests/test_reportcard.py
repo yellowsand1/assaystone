@@ -1,0 +1,168 @@
+"""The report card puts four independent claims on one page."""
+
+import contextlib
+import io
+import json
+import unittest
+from pathlib import Path
+
+from assaystone import cli
+from assaystone.contract import Contract
+from assaystone.model import load_traces
+from assaystone.reportcard import run_report_card
+
+REPO = Path(__file__).resolve().parent.parent
+CONTRACTS = REPO / "examples" / "code_agent" / "contracts"
+BASELINE = REPO / "examples" / "code_agent" / "baseline"
+TRACES = REPO / "examples" / "code_agent" / "traces"
+
+
+class ReportCardTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.traces = load_traces(TRACES)
+        cls.hardened = run_report_card(
+            Contract.load(CONTRACTS / "hardened.json"),
+            traces=cls.traces,
+            baseline=BASELINE,
+        )
+        cls.naive = run_report_card(
+            Contract.load(CONTRACTS / "naive.json"),
+            traces=cls.traces,
+            baseline=BASELINE,
+        )
+
+    def test_hardened_passes_all_four_checks(self):
+        card = self.hardened
+        self.assertTrue(card.protocol.ok, card.protocol.violations)
+        self.assertEqual(card.coverage.at_risk, [])
+        self.assertEqual(card.recall.escaped, 0)
+        self.assertEqual(card.recall.caught, 4)
+        # A code contract is scored only against code families: 4/6.
+        self.assertAlmostEqual(card.resistance.resistance, 4 / 6)
+        self.assertTrue(card.ok)
+
+    def test_naive_needs_work_and_names_the_risk(self):
+        card = self.naive
+        self.assertFalse(card.ok)
+        self.assertGreater(len(card.coverage.at_risk), 0)
+        self.assertIn("at risk", card.headline)
+
+    def test_resistance_is_scoped_to_the_contract_domain(self):
+        rows = {row["family"]: row for row in self.hardened.resistance.family_rows()}
+        self.assertEqual(set(rows), {"mechanical", "semantic", "support"})
+        self.assertAlmostEqual(rows["mechanical"]["resistance"], 1.0)
+        self.assertAlmostEqual(rows["semantic"]["resistance"], 0.0)
+        self.assertAlmostEqual(rows["support"]["resistance"], 1.0)
+
+    def test_ops_contract_is_scored_only_against_ops_families(self):
+        ops = run_report_card(
+            Contract.load(REPO / "examples" / "ops_agent" / "contracts" / "hardened.json"),
+            traces=load_traces(REPO / "examples" / "ops_agent" / "traces"),
+            baseline=REPO / "examples" / "ops_agent" / "baseline",
+        )
+        rows = ops.resistance.family_rows()
+        self.assertEqual([row["family"] for row in rows], ["ops_lineage"])
+        self.assertAlmostEqual(ops.resistance.resistance, 1.0)
+        self.assertTrue(ops.ok, ops.headline)
+
+    def test_markdown_has_all_sections(self):
+        text = self.hardened.to_markdown()
+        for heading in (
+            "# Report card: hardened",
+            "## Protocol",
+            "## Coverage",
+            "## Recall (labelled traces)",
+            "## Resistance (Goodhart suite)",
+        ):
+            self.assertIn(heading, text)
+        self.assertIn("**PASS**", text)
+        self.assertIn("Catch rate:", text)
+        self.assertIn("95% CI", text)
+        self.assertNotIn(str(Path.cwd()), text)
+
+    def test_json_shape(self):
+        data = json.loads(json.dumps(self.hardened.to_dict()))
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["coverage"]["at_risk"], [])
+        self.assertEqual(data["recall"]["caught"], 4)
+        self.assertEqual(
+            [row["family"] for row in data["resistance"]["families"]],
+            ["mechanical", "semantic", "support"],
+        )
+
+    def test_undeclared_coverage_needs_work(self):
+        from assaystone.contract import VerifierSpec
+
+        card = run_report_card(
+            Contract(
+                name="undeclared",
+                verifiers=[VerifierSpec("tests.pass")],
+                domain="code",
+            )
+        )
+        self.assertFalse(card.ok)
+        self.assertIn("coverage not declared", card.headline)
+        self.assertIn(
+            "coverage is not measurable", card.to_markdown()
+        )
+
+    def test_without_traces_the_recall_section_is_absent(self):
+        card = run_report_card(Contract.load(CONTRACTS / "hardened.json"))
+        self.assertIsNone(card.recall)
+        self.assertNotIn("## Recall", card.to_markdown())
+
+
+class ReportCardCliTest(unittest.TestCase):
+    def test_hardened_exits_zero(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(
+                [
+                    "scorecard",
+                    "--contract",
+                    str(CONTRACTS / "hardened.json"),
+                    "--trace",
+                    str(TRACES),
+                    "--baseline",
+                    str(BASELINE),
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertIn("**PASS**", out.getvalue())
+
+    def test_naive_exits_one(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(
+                [
+                    "scorecard",
+                    "--contract",
+                    str(CONTRACTS / "naive.json"),
+                    "--trace",
+                    str(TRACES),
+                    "--baseline",
+                    str(BASELINE),
+                ]
+            )
+        self.assertEqual(code, 1)
+        self.assertIn("**NEEDS WORK**", out.getvalue())
+
+    def test_json_output_is_parseable(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(
+                [
+                    "scorecard",
+                    "--contract",
+                    str(CONTRACTS / "hardened.json"),
+                    "--stdout",
+                    "json",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertTrue(json.loads(out.getvalue())["ok"])
+
+
+if __name__ == "__main__":
+    unittest.main()

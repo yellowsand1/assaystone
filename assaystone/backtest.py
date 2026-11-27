@@ -7,6 +7,7 @@ from pathlib import Path
 from .contract import Contract
 from .model import ESCALATE, FAIL, PASS, Trace
 from .runner import run_contract
+from .stats import wilson_interval
 
 
 @dataclass
@@ -58,8 +59,16 @@ class BacktestSummary:
         return self.caught / len(self.defects) if self.defects else 0.0
 
     @property
+    def catch_rate_ci95(self) -> tuple[float, float]:
+        return wilson_interval(self.caught, len(self.defects))
+
+    @property
     def false_alarm_rate(self) -> float:
         return self.false_alarms / len(self.cleans) if self.cleans else 0.0
+
+    @property
+    def false_alarm_ci95(self) -> tuple[float, float]:
+        return wilson_interval(self.false_alarms, len(self.cleans))
 
     @property
     def total_cost(self) -> float:

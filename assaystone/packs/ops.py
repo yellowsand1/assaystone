@@ -44,6 +44,9 @@ class OpsJsonValid(Verifier):
     layer = "L0"
     cost_usd = 0.000001
     description = "orders.json and policy.json must be valid JSON."
+    claim = "orders.json and policy.json parse as JSON objects."
+    catches = ("invalid-json",)
+    blind_spots = ("valid JSON carrying the wrong values",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         reasons: list[str] = []
@@ -63,6 +66,9 @@ class AmountConserved(Verifier):
     layer = "L0"
     cost_usd = 0.000010
     description = "Refunded amount stays within [0, order amount]."
+    claim = "Refunded amounts stay within [0, order amount]."
+    catches = ("amount-mismatch",)
+    blind_spots = ("a refund that is internally consistent but unauthorized",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -83,6 +89,9 @@ class NoDoubleRefund(Verifier):
     layer = "L1"
     cost_usd = 0.000020
     description = "Refund ids are unique and the ledger matches refunded_cents."
+    claim = "Refund ids are unique and the ledger matches refunded_cents."
+    catches = ("double-refund",)
+    blind_spots = ("the same refund recorded under two different ids",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -112,6 +121,9 @@ class RefundLimit(Verifier):
     layer = "L1"
     cost_usd = 0.000020
     description = "New refunds must stay within the per-refund policy limit."
+    claim = "Every new refund is within the per-refund policy limit."
+    catches = ("over-limit",)
+    blind_spots = ("a limit expressed in policy but not in amount",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         limit = int(params.get("limit_cents", 10000))
@@ -137,6 +149,9 @@ class StatusConsistent(Verifier):
     layer = "L1"
     cost_usd = 0.000020
     description = "Order status must match the refunded amount."
+    claim = "Each order status matches its refunded amount."
+    catches = ("status-inconsistent",)
+    blind_spots = ("a consistent but wrong status transition",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         data = _load_current(ctx)
@@ -158,12 +173,132 @@ class StatusConsistent(Verifier):
         return (not reasons, reasons, [f"checked {len(_orders(data))} order(s)"])
 
 
+def _args_match(planned: dict[str, Any], actual: dict[str, Any]) -> bool:
+    """An approval covers the action it names, not just the tool."""
+    if not planned:
+        return False
+    return all(actual.get(key) == value for key, value in planned.items())
+
+
+@register
+class ApprovalLineage(Verifier):
+    name = "ops.approval_lineage"
+    layer = "L2"
+    cost_usd = 0.000025
+    independence = "medium"
+    description = "Irreversible actions must be preceded by a matching approval request."
+    claim = (
+        "Every irreversible tool call is preceded by an approved approval.request "
+        "for the same arguments."
+    )
+    catches = ("missing-approval-lineage", "wrong-approval")
+    blind_spots = (
+        "a forged approval.request step in an agent-written transcript",
+        "an approval granted outside the trace and never recorded",
+    )
+    trusts = ("trace",)
+
+    def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
+        required = set(params.get("require_approval_for", ["refund.create"]))
+        pending: list[tuple[str, dict[str, Any]]] = []
+        reasons: list[str] = []
+        checked = 0
+        for step in ctx.trace.steps:
+            if step.tool == "approval.request":
+                target = (step.args or {}).get("tool")
+                planned = (step.args or {}).get("args") or {}
+                if step.ok and target:
+                    pending.append((str(target), dict(planned)))
+                continue
+            if step.tool in required:
+                checked += 1
+                match = None
+                for index, (target, planned) in enumerate(pending):
+                    if target == step.tool and _args_match(planned, step.args or {}):
+                        match = index
+                        break
+                if match is None:
+                    reasons.append(
+                        f"{step.tool}: no preceding approval.request for these arguments"
+                    )
+                else:
+                    pending.pop(match)
+        return (
+            not reasons,
+            reasons,
+            [f"checked {checked} irreversible call(s)"],
+        )
+
+
+@register
+class RefundLineage(Verifier):
+    name = "ops.refund_lineage"
+    layer = "L1"
+    cost_usd = 0.000025
+    independence = "medium"
+    description = "Every new refund in the ledger has a matching refund.create step."
+    claim = "Each new refund in orders.json matches a recorded refund.create step."
+    catches = ("double-refund", "phantom-refund")
+    blind_spots = (
+        "a forged refund.create step in an agent-written transcript",
+        "a refund already present in the baseline ledger",
+    )
+    trusts = ("trace", "artifacts")
+
+    def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
+        data = _load_current(ctx)
+        baseline = _load_baseline(ctx)
+        if data is None:
+            return None, ["orders.json missing or invalid"], []
+        baseline_ids = {refund.get("id") for refund in _refunds(baseline)}
+        new_refunds = [
+            refund for refund in _refunds(data) if refund.get("id") not in baseline_ids
+        ]
+        remaining = [
+            step
+            for step in ctx.trace.steps
+            if step.tool == "refund.create" and step.ok
+        ]
+        reasons: list[str] = []
+        for refund in new_refunds:
+            order_id = refund.get("order_id")
+            amount = int(refund.get("amount_cents", 0))
+            match = None
+            for index, step in enumerate(remaining):
+                if (
+                    (step.args or {}).get("order_id") == order_id
+                    and int((step.args or {}).get("amount_cents", -1)) == amount
+                ):
+                    match = index
+                    break
+            if match is None:
+                reasons.append(
+                    f"{refund.get('id')}: no matching refund.create step "
+                    f"for {order_id} / {amount}"
+                )
+            else:
+                # One step justifies one refund; two identical refunds need two.
+                remaining.pop(match)
+        return (
+            not reasons,
+            reasons,
+            [f"checked {len(new_refunds)} new refund(s)"],
+        )
+
+
 @register
 class ApprovalRecorded(Verifier):
     name = "ops.approval_recorded"
     layer = "L2"
     cost_usd = 0.000030
     description = "Irreversible tools must have an approved record in evidence."
+    claim = "Every irreversible tool call has an approved record in evidence."
+    catches = ("missing-approval",)
+    blind_spots = (
+        "forged approval records (the evidence channel is written by the agent)",
+        "an approval granted for a different amount or target",
+    )
+    trusts = ("evidence",)
 
     def check(self, ctx: VerifyContext, params: dict[str, Any]) -> Check:
         required = set(params.get("require_approval_for", ["refund.create"]))

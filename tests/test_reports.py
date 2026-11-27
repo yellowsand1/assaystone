@@ -8,7 +8,7 @@ from unittest.mock import patch
 from assaystone.audit import audit_traces, build_audit_contract, load_audit_traces
 from assaystone.cli import _write_github_outputs
 from assaystone.contract import Contract
-from assaystone.model import load_traces
+from assaystone.model import RunResult, Trace, Verdict, load_traces
 from assaystone.reports import (
     write_audit_junit,
     write_audit_sarif,
@@ -94,6 +94,48 @@ class AuditReportsTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertIn("tests.integrity", text)
             self.assertIn("<failure", text)
+
+
+class UnconfirmedReportsTest(unittest.TestCase):
+    """An unconfirmed low-independence failure must be visible to CI."""
+
+    def result(self):
+        return RunResult(
+            trace_id="t-1",
+            contract="contract",
+            verdict="escalate",
+            verdicts=[
+                Verdict(
+                    verifier="test.low",
+                    layer="L1",
+                    ok=False,
+                    reasons=["low-independence failure"],
+                    independence="low",
+                )
+            ],
+            first_failure="unconfirmed low-independence failure: test.low",
+            unconfirmed=["test.low: low-independence failure"],
+        )
+
+    def test_sarif_surfaces_unconfirmed_failures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_sarif(Path(tmp) / "out.sarif", [Trace(id="t-1", task="")], [self.result()])
+            data = json.loads(path.read_text(encoding="utf-8"))
+            results = data["runs"][0]["results"]
+            unconfirmed = [
+                item for item in results
+                if item["ruleId"] == "assaystone.unconfirmed"
+            ]
+            self.assertEqual(len(unconfirmed), 1)
+            self.assertEqual(unconfirmed[0]["level"], "warning")
+            self.assertIn("low-independence", unconfirmed[0]["message"]["text"])
+
+    def test_junit_includes_unconfirmed_in_details(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = write_junit(Path(tmp) / "out.xml", [self.result()])
+            text = path.read_text(encoding="utf-8")
+            self.assertIn("unconfirmed:", text)
+            self.assertIn("low-independence failure", text)
 
 
 if __name__ == "__main__":

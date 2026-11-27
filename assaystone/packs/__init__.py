@@ -3,6 +3,6 @@
 Importing this package registers every pack. The core runner stays
 domain-agnostic; packs add verifiers only.
 """
-from . import ops  # noqa: F401
+from . import data, external, ops, research  # noqa: F401
 
-__all__ = ["ops"]
+__all__ = ["data", "external", "ops", "research"]

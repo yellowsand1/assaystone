@@ -16,6 +16,15 @@ This merges the hook into `.claude/settings.local.json` (project scope). Use
 `--user` for `~/.claude/settings.json`, and `--mode block` to enforce. Restart Claude
 Code so it loads the settings.
 
+To run a capability gate at Stop as well:
+
+```bash
+assaystone hook install claude-code --mode block \
+  --manifest .assaystone/capability.json --stage shadow
+```
+
+This also writes `.assaystone/hook.json`:
+
 The equivalent settings entry is:
 
 ```json
@@ -31,6 +40,43 @@ The equivalent settings entry is:
   }
 }
 ```
+
+```json
+{
+  "capability": ".assaystone/capability.json",
+  "stage": "shadow",
+  "trail": ".assaystone/trail.jsonl"
+}
+```
+
+With `trail`, the hook appends its decision to that trail and writes the entry
+hash into `.assaystone/runtime/last.json`, so a later gate can check that the
+session and the decision it names are the same object. The record ignores
+`.assaystone/` when it hashes the workspace: the evidence directory is not the
+work under review, and it changes as the record is written.
+
+The hook's gate skips `runtime` and `drill` oracles and says so — the process
+that writes the session evidence cannot require it to exist already. CI, running
+after the session, evaluates them normally.
+
+## Gate the capability at Stop
+
+With `capability` in the config, the hook evaluates the manifest against the working
+tree before it lets the session stop. It uses the same oracles as CI; the difference
+is who is watching:
+
+- **pass** — the gate is silent.
+- **fail or escalate** — the compact oracle table is printed; in `block` mode the
+  stop is refused, so the agent keeps working.
+- **hook error** (bad manifest, missing oracle) — fails open with the error; a broken
+  hook must not trap the session.
+- The hook does **not** sign a receipt and does **not** load the owner or receipt
+  keys. Those belong to CI and the owner, not the agent. The CI gate with a receipt
+  remains the authoritative record; the hook is the agent's feedback loop.
+
+Keep the hook manifest fast. A full test suite at every Stop is correct but slow;
+use a capability whose criteria are the checks an agent should iterate on, and keep
+the full suite in CI.
 
 ## Behavior
 

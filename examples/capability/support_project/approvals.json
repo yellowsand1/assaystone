@@ -1,0 +1,5 @@
+{
+  "approvals": [
+    {"action": "refund", "approved": true, "approver": "manager-1"}
+  ]
+}

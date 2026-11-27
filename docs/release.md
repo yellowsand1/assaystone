@@ -4,7 +4,10 @@ PyPI versions are immutable. If a release is broken, yank it and publish a patch
 
 ## 1. Version and docs
 
-- [ ] Bump `version` in `pyproject.toml` and `__version__` in `assaystone/__init__.py`.
+- [ ] Write `docs/releases/v<version>.md`.
+- [ ] Run `make release-prep VERSION=<version>`. It bumps every version reference,
+      moves the Unreleased changelog entries under the new version, and fails
+      before writing if any edit would not apply.
 - [ ] Update the README status line and `CHANGELOG.md`.
 - [ ] Add `docs/releases/v<version>.md` with highlights and known limitations.
 - [ ] Check the repository URLs in `pyproject.toml`, `README.md`, and
@@ -17,6 +20,7 @@ make test
 make demo-audit
 make demo
 make demo-ops
+make demo-plane
 make benchmark
 ```
 
@@ -48,8 +52,8 @@ cd /tmp && /tmp/assaystone-release/bin/assaystone demo audit
 2. In the GitHub repository, create an environment named `PyPI` (no secrets needed).
 3. Push a version tag, or run the **release** workflow manually with the tag:
    ```bash
-   git tag v0.5.0
-   git push origin v0.5.0
+   git tag v0.32.0
+   git push origin v0.32.0
    ```
    For a manual run, `tag` is required and must start with `v`. If the version is
    already on PyPI, set `publish_pypi=false` to build and create only the GitHub

@@ -6,8 +6,15 @@ A verifier returns `(ok, reasons, evidence)`:
 - `ok=False` — the check failed.
 - `ok=None` — the check cannot decide; the run escalates to a human.
 
-Every verifier declares `layer`, `cost_usd`, and `independence`. The runner sorts by
-cost and stops at the first required failure.
+Every verifier declares `layer`, `cost_usd`, `independence`, `claim`, `catches`,
+and `blind_spots`. The runner sorts by cost and stops at the first required
+failure. A failure from a `low`-independence verifier is not decisive: the runner
+looks for independent confirmation and escalates if none arrives. See
+[the protocol](protocol.md) for the full ABI.
+
+Checks also declare `trusts`: which sources they read. A check that trusts
+`trace` or `evidence` is downgraded to low independence when the trace was
+written by the agent; `RuntimeGuard` writes `source: runtime`.
 
 ## Built-in pack
 
@@ -15,11 +22,15 @@ cost and stops at the first required failure.
 |---|---|---|---|---|
 | `budget.steps` | L0 | 0.000001 | `max_steps` | runaway loops |
 | `diff.syntax` | L1 | 0.000010 | — | broken Python |
-| `diff.forbidden_paths` | L1 | 0.000010 | `forbidden` | CI/config edits |
+| `diff.forbidden_paths` | L1 | 0.000010 | `forbidden` | CI/config edits on the declared list |
+| `diff.ci_surface` | L1 | 0.000020 | `protected` | CI/build edits anywhere (`.github/`, `ci/`, `tox.ini`, …) |
+| `diff.language_coverage` | L2 | 0.000005 | `supported_suffixes`, `source_suffixes` | a changed source file in a language no check supports (escalates) |
 | `tests.integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_test_changes` | test edits anywhere (`tests/`, `server/tests/`) |
+| `tests.harness_integrity` | L1 | 0.000020 | `extra_names`, `extra_suffixes` | startup hooks, module shadowing, `.pth` files |
+| `tests.support_integrity` | L1 | 0.000020 | `protected_prefixes`, `allow_support_changes` | test support code changes (`helpers/`, `testing/`, …) |
 | `diff.max_lines` | L0 | 0.000020 | `max_changed_lines` | oversized patches |
 | `diff.public_api` | L2 | 0.000030 | — | removed/changed public API |
-| `quality.no_debug_prints` | L2 | 0.000030 | — | `print()` / `breakpoint()` |
+| `quality.no_debug_prints` | L2 | 0.000030 | `exclude_prefixes`, `exclude_names` | `print()` / `breakpoint()` in production paths; tests, examples, scripts, repro, tools, benchmarks, docs are excluded |
 | `evidence.claims` | L3 | 0.000050 | — | success claims without evidence |
 | `tests.pass` | L1 | 0.002000 | — | failing test suite |
 
@@ -38,9 +49,52 @@ Importing `assaystone` registers the ops pack. It reads `orders.json` and
 | `ops.no_double_refund` | L1 | 0.000020 | — | duplicate refund ids, ledger mismatch |
 | `ops.refund_limit` | L1 | 0.000020 | `limit_cents` | new refund above policy |
 | `ops.status_consistent` | L1 | 0.000020 | — | status not matching refunded amount |
-| `ops.approval_recorded` | L2 | 0.000030 | `require_approval_for` | irreversible action without approval |
+| `ops.refund_lineage` | L1 | 0.000025 | — | a refund row with no matching `refund.create` step |
+| `ops.approval_recorded` | L2 | 0.000030 | `require_approval_for` | irreversible action without an approval record |
+| `ops.approval_lineage` | L2 | 0.000025 | `require_approval_for` | an approval absent from the trace or granted for different arguments |
 
 See `examples/ops_agent/` for the contracts, traces, and runtime demo.
+
+## Data pack
+
+Importing `assaystone` registers the data pack. It reads `report.json` from the
+workspace and is the third domain: the acceptance language is unchanged.
+
+| Verifier | Layer | Cost | Catches |
+|---|---|---|---|
+| `data.schema` | L0 | 0.000005 | a report missing required fields or row keys |
+| `data.totals` | L0 | 0.000005 | rows that do not sum to `total_cents` |
+| `data.no_pii` | L1 | 0.000005 | an added email address or phone number |
+
+See `assaystone/demo_data/data_agent/` for the baseline, traces, and contract.
+
+## Research pack
+
+The fourth domain. It reads `report.md` and `sources.json` from the workspace.
+The criteria are all about evidence, and the language is unchanged.
+
+| Verifier | Layer | Cost | Catches |
+|---|---|---|---|
+| `research.citations` | L1 | 0.000005 | a non-heading paragraph without a citation |
+| `research.sources_exist` | L0 | 0.000005 | a citation to an unknown source id |
+| `research.quotes_verbatim` | L1 | 0.000005 | a quote that is not in any source |
+
+See `assaystone/demo_data/research_agent/`.
+
+## External pack
+
+These adapters reuse installed tools without making them a runtime dependency. If
+the tool is missing, the verifier escalates: the absence of a check is not evidence
+that the work is acceptable.
+
+| Verifier | Layer | Cost | Params | Catches | Independence |
+|---|---|---|---|---|---|
+| `external.pytest` | L1 | 0.003000 | `args`, `timeout` | `regression` | medium |
+| `external.ruff_debug_print` | L2 | 0.000500 | `timeout` | `debug-print` | high |
+
+`external.pytest` is only `medium` independence because it executes Python in the
+same workspace as the agent and can be shadowed by a local module or a startup
+hook. `external.ruff_debug_print` is static analysis, so it stays `high`.
 
 ## Contract params
 

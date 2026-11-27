@@ -10,3 +10,11 @@ assaystone-demo-*.md
 assaystone-demo-contract.json
 .coverage
 htmlcov/
+.assaystone/trail.jsonl
+.assaystone/receipt.json
+.assaystone/release-trail.jsonl
+.assaystone/release-receipt.json
+# runtime records are machine-local evidence
+.assaystone/runtime/
+# drill records bind to a commit; they are machine-local evidence
+.assaystone/drills/

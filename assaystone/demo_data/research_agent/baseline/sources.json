@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "id": "s1",
+      "title": "Market report",
+      "text": "The market grew by 12% in 2025."
+    },
+    {
+      "id": "s2",
+      "title": "Survey",
+      "text": "Two thirds of respondents preferred the new interface."
+    }
+  ]
+}

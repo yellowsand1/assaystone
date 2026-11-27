@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "oracles": [
+    {
+      "id": "java.maven.compile",
+      "version": 2,
+      "owner": "platform-team",
+      "type": "command",
+      "description": "Maven compile, tests skipped",
+      "payload": {"command": ["mvn", "-q", "-DskipTests", "compile"], "timeout": 600}
+    },
+    {
+      "id": "java.maven.test",
+      "version": 1,
+      "owner": "platform-team",
+      "type": "command",
+      "description": "Maven test",
+      "payload": {"command": ["mvn", "-q", "test"], "timeout": 900}
+    },
+    {
+      "id": "java.maven.flyway_validate",
+      "version": 1,
+      "owner": "platform-team",
+      "type": "command",
+      "description": "Flyway validate: migrations match the schema history",
+      "payload": {"command": ["mvn", "-q", "flyway:validate"], "timeout": 300}
+    },
+    {
+      "id": "java.classes",
+      "version": 1,
+      "owner": "platform-team",
+      "type": "file",
+      "description": "compile output exists",
+      "payload": {"path": "target/classes", "mode": "exists"}
+    },
+    {
+      "id": "java.feature_branch",
+      "version": 1,
+      "owner": "platform-team",
+      "type": "git",
+      "description": "the change is on a feature branch",
+      "payload": {"mode": "branch", "expected": "feature/"}
+    }
+  ]
+}

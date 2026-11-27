@@ -56,5 +56,6 @@
     "defect": "double-refund",
     "note": "the same refund id is written twice"
   },
-  "created_at": "2026-11-23T08:46:57Z"
+  "created_at": "2026-11-23T08:46:57Z",
+  "source": "runtime"
 }

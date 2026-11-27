@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "capability": "assaystone-repository",
+  "manifest_digest": "sha256:e86b1d6b2ead24c19827a0954c8d839bd632c9c19f6bea1a5c50323d498ba6ce",
+  "approved_by": "yellowsand1",
+  "at": "2026-11-26T06:18:30Z",
+  "key_id": "sha256:4588390fcd48b067",
+  "signature": "ed25519:uLgQ1Ry8S8a03WKowu/3kcObog9VxPT/z5dLQ7xP1QGTaxNQBUsIcuahEdAQ0aw/tr9FWKwVj/aWyo/LK+fSCA=="
+}

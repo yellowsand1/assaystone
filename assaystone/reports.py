@@ -81,6 +81,31 @@ def write_sarif(
                     ],
                 }
             )
+    # A low-independence failure that no independent check confirmed is not a
+    # verdict; surface it as a warning so CI and reviewers can see it.
+    for result in results:
+        if not result.unconfirmed:
+            continue
+        trace = traces_by_id.get(result.trace_id)
+        rules.append("assaystone.unconfirmed")
+        sarif_results.append(
+            {
+                "ruleId": "assaystone.unconfirmed",
+                "level": "warning",
+                "message": {
+                    "text": "unconfirmed low-independence failure(s): "
+                    + "; ".join(result.unconfirmed),
+                },
+                "locations": [
+                    {
+                        "physicalLocation": {
+                            "artifactLocation": {"uri": _location(trace)}
+                        }
+                    }
+                ],
+            }
+        )
+
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(
@@ -147,15 +172,20 @@ def _junit_document(cases: list[tuple[str, str, str, str]], suite: str) -> str:
 
 
 def write_junit(path: str | Path, results: Sequence[RunResult], suite: str = "assaystone") -> Path:
-    cases = [
-        (
-            result.trace_id,
-            result.verdict,
-            result.first_failure or result.verdict,
-            "; ".join(result.reasons),
+    cases = []
+    for result in results:
+        details = "; ".join(result.reasons)
+        if result.unconfirmed:
+            unconfirmed = "unconfirmed: " + "; ".join(result.unconfirmed)
+            details = f"{details} | {unconfirmed}" if details else unconfirmed
+        cases.append(
+            (
+                result.trace_id,
+                result.verdict,
+                result.first_failure or result.verdict,
+                details,
+            )
         )
-        for result in results
-    ]
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(_junit_document(cases, suite), encoding="utf-8")

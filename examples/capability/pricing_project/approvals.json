@@ -1,0 +1,11 @@
+{
+  "approvals": [
+    {
+      "action": "publish",
+      "approved": true,
+      "approver": "pricing-owner",
+      "approved_at": "2026-11-25T09:00:00Z",
+      "scope": "fee refactor, shadow parity attached"
+    }
+  ]
+}

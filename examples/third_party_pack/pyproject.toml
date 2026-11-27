@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "assaystone-todo-guard"
+version = "0.1.0"
+description = "Example third-party verifier pack for Assaystone"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.entry-points."assaystone.verifiers"]
+todo_guard = "todo_guard.verifiers"
+
+[tool.setuptools.packages.find]
+include = ["todo_guard*"]

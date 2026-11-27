@@ -1,0 +1,330 @@
+"""The workspace registry: every capability in one read-only table."""
+
+import contextlib
+import io
+import json
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+
+from assaystone import cli, trail
+from assaystone.plane import CapabilityManifest, evaluate_gate
+from assaystone.portfolio import (
+    build_portfolio,
+    discover,
+    render_portfolio,
+)
+
+REPO = Path(__file__).resolve().parent.parent
+
+
+def manifest_data(capability):
+    return {
+        "capability": capability,
+        "owner": "team",
+        "systems": [],
+        "data_classes": [],
+        "irreversible_actions": [],
+        "risk": "high",
+        "lifecycle": "shadow",
+        "criteria": [
+            {
+                "id": "ok",
+                "kind": "postcondition",
+                "statement": "it works",
+                "oracle": "ok",
+                "severity": "critical",
+            }
+        ],
+        "oracles": [
+            {"id": "ok", "type": "command", "payload": {"command": ["true"]}}
+        ],
+        "policies": {"shadow": {"require": ["ok"], "allow_merge": False}},
+    }
+
+
+class PortfolioTest(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.manifests = {}
+        for name in ("cap-a", "cap-b"):
+            directory = self.root / ".assaystone" / name
+            directory.mkdir(parents=True)
+            path = directory / "capability.json"
+            path.write_text(
+                json.dumps(manifest_data(name)), encoding="utf-8"
+            )
+            self.manifests[name] = (path, CapabilityManifest.load(path))
+
+    def record(self, name):
+        path, manifest = self.manifests[name]
+        gate = evaluate_gate(manifest, "shadow", self.root)
+        trail.append(
+            path.parent / "trail.jsonl",
+            gate,
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+
+    def test_discovers_nested_capabilities(self):
+        found = discover(self.root)
+        self.assertEqual(len(found), 2)
+        self.assertTrue(all(".assaystone" in path.parts for path in found))
+
+    def test_portfolio_flags_missing_evidence(self):
+        self.record("cap-a")
+        portfolio = build_portfolio(self.root)
+        by_name = {
+            entry.card.capability: entry
+            for entry in portfolio.entries
+            if entry.card
+        }
+        self.assertEqual(by_name["cap-a"].critical, [])
+        self.assertIn(
+            "no trail evidence", by_name["cap-b"].critical
+        )
+        self.assertEqual(portfolio.critical_count(), 1)
+        text = render_portfolio(portfolio)
+        self.assertIn("cap-a", text)
+        self.assertIn("cap-b", text)
+        self.assertIn("1 with critical risks", text)
+
+    def test_strict_cli(self):
+        self.record("cap-a")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(
+                ["capability", "list", "--root", str(self.root), "--json"]
+            )
+        self.assertEqual(code, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(len(payload["capabilities"]), 2)
+        self.assertEqual(payload["critical"], 1)
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main(
+                [
+                    "capability",
+                    "list",
+                    "--root",
+                    str(self.root),
+                    "--strict",
+                ]
+            )
+        self.assertEqual(code, 1)
+
+        self.record("cap-b")
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main(
+                [
+                    "capability",
+                    "list",
+                    "--root",
+                    str(self.root),
+                    "--strict",
+                ]
+            )
+        self.assertEqual(code, 0)
+
+    def test_stage_gap_is_not_a_portfolio_defect(self):
+        directory = self.root / ".assaystone" / "cap-c"
+        directory.mkdir(parents=True)
+        data = manifest_data("cap-c")
+        data["criteria"].append(
+            {
+                "id": "approved",
+                "kind": "evidence",
+                "statement": "approved later",
+                "oracle": "approve",
+                "severity": "critical",
+            }
+        )
+        data["oracles"].append(
+            {"id": "approve", "type": "command", "payload": {"command": ["true"]}}
+        )
+        data["policies"]["production"] = {
+            "require": ["approve"],
+            "approvals": ["approve"],
+            "allow_merge": True,
+            "allow_deploy": True,
+            "rollback_required": True,
+            "rollback": "approve",
+        }
+        path = directory / "capability.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        shadow = evaluate_gate(manifest, "shadow", self.root)
+        trail.append(
+            directory / "trail.jsonl",
+            shadow,
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        portfolio = build_portfolio(
+            self.root
+        )
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-c"
+        )
+        self.assertEqual(entry.critical, [])
+        self.assertNotEqual(entry.card.stage_gap, [])
+        self.assertEqual(portfolio.critical_count(), 2)
+
+    def test_a_future_stage_without_evidence_is_not_critical(self):
+        directory = self.root / ".assaystone" / "cap-d"
+        directory.mkdir(parents=True)
+        data = manifest_data("cap-d")
+        data["policies"]["production"] = {
+            "require": ["ok"],
+            "approvals": ["ok"],
+            "allow_merge": True,
+            "allow_deploy": True,
+            "rollback_required": True,
+            "rollback": "ok",
+        }
+        path = directory / "capability.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "shadow", self.root),
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-d"
+        )
+        self.assertEqual(entry.critical, [])
+
+        data["lifecycle"] = "production"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "production", self.root),
+            actor="ci",
+            at="2026-11-25T00:01:00Z",
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-d"
+        )
+        self.assertEqual(entry.critical, [])
+
+    def test_current_lifecycle_needs_its_own_gate(self):
+        directory = self.root / ".assaystone" / "cap-e"
+        directory.mkdir(parents=True)
+        data = manifest_data("cap-e")
+        data["lifecycle"] = "production"
+        data["policies"]["production"] = {
+            "require": ["ok"],
+            "approvals": ["ok"],
+            "allow_merge": True,
+            "allow_deploy": True,
+            "rollback_required": True,
+            "rollback": "ok",
+        }
+        path = directory / "capability.json"
+        path.write_text(json.dumps(data), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "shadow", self.root),
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-e"
+        )
+        self.assertTrue(
+            any("no recorded `production` gate" in issue for issue in entry.critical)
+        )
+
+    def test_stale_evidence_for_the_current_lifecycle_is_critical(self):
+        repo = self.root
+        subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+        (repo / "a.txt").write_text("a\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=a@b.c", "-c", "user.name=t",
+             "commit", "-qm", "one"],
+            cwd=repo,
+            check=True,
+        )
+        directory = self.root / ".assaystone" / "cap-f"
+        directory.mkdir(parents=True)
+        path = directory / "capability.json"
+        path.write_text(json.dumps(manifest_data("cap-f")), encoding="utf-8")
+        manifest = CapabilityManifest.load(path)
+        trail.append(
+            directory / "trail.jsonl",
+            evaluate_gate(manifest, "shadow", repo),
+            actor="ci",
+            at="2026-11-25T00:00:00Z",
+        )
+        self.assertEqual(build_portfolio(self.root).critical_count(), 2)
+
+        (repo / "b.txt").write_text("b\n", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=repo, check=True)
+        subprocess.run(
+            ["git", "-c", "user.email=a@b.c", "-c", "user.name=t",
+             "commit", "-qm", "two"],
+            cwd=repo,
+            check=True,
+        )
+        portfolio = build_portfolio(self.root)
+        entry = next(
+            item
+            for item in portfolio.entries
+            if item.card and item.card.capability == "cap-f"
+        )
+        self.assertTrue(
+            any("different commit" in issue for issue in entry.critical)
+        )
+
+    def test_invalid_manifest_is_a_critical_entry(self):
+        broken = self.root / ".assaystone" / "broken" / "capability.json"
+        broken.parent.mkdir(parents=True)
+        broken.write_text("{not json", encoding="utf-8")
+        portfolio = build_portfolio(self.root)
+        broken_entries = [
+            entry for entry in portfolio.entries if entry.card is None
+        ]
+        self.assertEqual(len(broken_entries), 1)
+        self.assertTrue(
+            any("manifest is invalid" in issue for issue in broken_entries[0].critical)
+        )
+
+    def test_repository_discovers_its_own_capability(self):
+        found = discover(REPO)
+        self.assertTrue(
+            any(
+                path.name == "capability.json" and ".assaystone" in path.parts
+                for path in found
+            )
+        )
+
+    def test_empty_workspace_message(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                code = cli.main(["capability", "list", "--root", tmp])
+        self.assertEqual(code, 0)
+        self.assertIn("No capabilities found", out.getvalue())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -132,6 +132,21 @@ class AssaystoneTest(unittest.TestCase):
         )
         self.assertEqual(run_contract(contract, app, self.baseline).verdict, "fail")
 
+    def test_no_debug_prints_ignores_repro_and_tools(self):
+        # Found in a real session: a reproduction script legitimately prints.
+        contract = Contract(
+            name="quality", verifiers=[VerifierSpec("quality.no_debug_prints")]
+        )
+        for path in ("repro/common.py", "tools/export.py", "benchmarks/run.py"):
+            trace = Trace(
+                id="repro",
+                task="",
+                artifacts=[Artifact(path, "print('debug')\n", "modified")],
+            )
+            self.assertEqual(
+                run_contract(contract, trace, self.baseline).verdict, "pass", path
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

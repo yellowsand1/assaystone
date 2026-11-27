@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "assaystone"
-version = "0.5.0"
+version = "0.32.0"
 description = "Audit AI agent traces for silent failures, then gate CI and runtime with acceptance contracts."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -55,7 +55,8 @@ assaystone = "assaystone.cli:main"
 
 [project.optional-dependencies]
 pytest = ["pytest>=7"]
-dev = ["pytest>=7", "build>=1.2", "ruff>=0.9", "coverage[toml]>=7"]
+crypto = ["cryptography>=42"]
+dev = ["pytest>=7", "build>=1.2", "ruff>=0.9", "coverage[toml]>=7", "cryptography>=42"]
 
 [project.entry-points.pytest11]
 assaystone = "assaystone.pytest_plugin"

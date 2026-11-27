@@ -1,0 +1,141 @@
+{
+  "capability": "java-change",
+  "owner": "platform-team",
+  "systems": [
+    "git",
+    "maven",
+    "mysql",
+    "ci"
+  ],
+  "data_classes": [
+    "internal"
+  ],
+  "irreversible_actions": [
+    "merge",
+    "deploy",
+    "ddl"
+  ],
+  "risk": "high",
+  "lifecycle": "shadow",
+  "retention": "90d",
+  "registry": "oracles.json",
+  "criteria": [
+    {
+      "id": "compiles",
+      "kind": "postcondition",
+      "statement": "The Java project compiles.",
+      "oracle": "compile",
+      "severity": "critical"
+    },
+    {
+      "id": "tests-pass",
+      "kind": "postcondition",
+      "statement": "The test suite passes.",
+      "oracle": "tests",
+      "severity": "critical"
+    },
+    {
+      "id": "migration-reversible",
+      "kind": "invariant",
+      "statement": "The migration has a rollback path.",
+      "oracle": "migration",
+      "severity": "critical"
+    },
+    {
+      "id": "dba-approved",
+      "kind": "evidence",
+      "statement": "A DBA approved the migration.",
+      "oracle": "dba",
+      "severity": "critical"
+    },
+    {
+      "id": "feature-branch",
+      "kind": "precondition",
+      "statement": "The change is on a feature branch.",
+      "oracle": "branch",
+      "severity": "high"
+    }
+  ],
+  "oracles": [
+    {
+      "id": "compile",
+      "ref": "java.maven.compile",
+      "version": 2
+    },
+    {
+      "id": "tests",
+      "ref": "java.maven.test"
+    },
+    {
+      "id": "migration",
+      "ref": "java.maven.flyway_validate"
+    },
+    {
+      "id": "classes",
+      "ref": "java.classes"
+    },
+    {
+      "id": "branch",
+      "ref": "java.feature_branch"
+    },
+    {
+      "id": "dba",
+      "type": "human",
+      "description": "DBA approval",
+      "payload": {
+        "action": "ddl",
+        "record": "approvals.json"
+      }
+    },
+    {
+      "id": "rollback_plan",
+      "type": "human",
+      "description": "owner attests a reviewed rollback plan",
+      "payload": {
+        "action": "rollback",
+        "record": "approvals.json"
+      }
+    }
+  ],
+  "policies": {
+    "shadow": {
+      "require": [
+        "compile",
+        "tests",
+        "classes",
+        "branch"
+      ],
+      "allow_merge": false
+    },
+    "canary": {
+      "require": [
+        "compile",
+        "tests",
+        "classes",
+        "migration",
+        "branch"
+      ],
+      "approvals": [
+        "dba"
+      ],
+      "allow_merge": true
+    },
+    "production": {
+      "require": [
+        "compile",
+        "tests",
+        "classes",
+        "migration",
+        "branch"
+      ],
+      "approvals": [
+        "dba"
+      ],
+      "allow_merge": true,
+      "allow_deploy": true,
+      "rollback_required": true,
+      "rollback": "rollback_plan",
+      "after": "canary"
+    }
+  }
+}

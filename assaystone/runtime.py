@@ -156,6 +156,7 @@ class GuardSession:
             artifacts=list(self.artifacts),
             evidence=dict(self.evidence),
             final_message=self.final_message,
+            source="runtime",
         )
 
     def call(
@@ -177,6 +178,16 @@ class GuardSession:
         if policy == REQUIRE_APPROVAL:
             callback = self.guard.approval_callback
             approved = bool(callback(tool, args, self.snapshot())) if callback else False
+            # Record the request in the trace, not only in evidence. Evidence is
+            # a claim; a step is a lineage that a verifier can walk.
+            self.steps.append(
+                Step(
+                    tool="approval.request",
+                    args={"tool": tool, "args": args},
+                    result="approved" if approved else "denied",
+                    ok=approved,
+                )
+            )
             self.evidence.setdefault("approvals", []).append(
                 {"tool": tool, "args": args, "approved": approved}
             )
@@ -219,6 +230,7 @@ class GuardSession:
             artifacts=list(self.artifacts) + list(artifacts or []),
             evidence=merged_evidence,
             final_message=self.final_message,
+            source="runtime",
         )
         result = run_contract(self.guard.contract, trace, self.guard.baseline)
         self.guard._enforce(result)

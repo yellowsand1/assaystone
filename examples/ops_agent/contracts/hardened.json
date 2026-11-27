@@ -1,15 +1,34 @@
 {
   "name": "hardened",
+  "domain": "ops",
+  "criteria": [
+    {"id": "no-double-refund", "kind": "invariant", "statement": "Each refund row has a matching refund.create step and a unique id.", "defect": "double-refund", "verifiers": ["ops.no_double_refund", "ops.refund_lineage"], "severity": "critical"},
+    {"id": "refund-within-limit", "kind": "invariant", "statement": "A new refund stays within the policy limit.", "defect": "over-limit", "verifiers": ["ops.refund_limit"], "severity": "high"},
+    {"id": "status-consistent", "kind": "postcondition", "statement": "The order status matches the refunded amount.", "defect": "status-inconsistent", "verifiers": ["ops.status_consistent"], "severity": "medium"},
+    {"id": "approval-recorded", "kind": "evidence", "statement": "Every irreversible tool call has an approval record.", "defect": "missing-approval", "verifiers": ["ops.approval_recorded"], "severity": "critical"},
+    {"id": "approval-lineage", "kind": "forbidden_action", "statement": "No irreversible action runs without a prior approval request.", "defect": "missing-approval-lineage", "verifiers": ["ops.approval_lineage"], "severity": "critical"},
+    {"id": "approval-matches-action", "kind": "evidence", "statement": "An approval covers the arguments of the action it authorizes.", "defect": "wrong-approval", "verifiers": ["ops.approval_lineage"], "severity": "critical"}
+  ],
   "test_command": ["{python}", "-c", "pass"],
   "fail_fast": true,
   "human_review_cost_usd": 6.0,
   "max_verification_cost_usd": 0.05,
+  "required_defects": [
+    "over-limit",
+    "double-refund",
+    "missing-approval",
+    "missing-approval-lineage",
+    "wrong-approval",
+    "status-inconsistent"
+  ],
   "verifiers": [
     {"name": "ops.json_valid", "required": true},
     {"name": "ops.amount_conserved", "required": true},
     {"name": "ops.no_double_refund", "required": true},
+    {"name": "ops.refund_lineage", "required": true},
     {"name": "ops.refund_limit", "required": true, "params": {"limit_cents": 10000}},
     {"name": "ops.status_consistent", "required": true},
-    {"name": "ops.approval_recorded", "required": true, "params": {"require_approval_for": ["refund.create"]}}
+    {"name": "ops.approval_recorded", "required": true, "params": {"require_approval_for": ["refund.create"]}},
+    {"name": "ops.approval_lineage", "required": true, "params": {"require_approval_for": ["refund.create"]}}
   ]
 }
