@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.36.0 — 2026-11-27
+
 - **Task specs: obligations compiled into evidence.** `check --spec spec.json`
   (and `verify --spec`) adds the spec's obligations to the contract as criteria
   with deterministic evidence rules: `path`, `contains`, `absent`, `exists`.
