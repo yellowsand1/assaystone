@@ -246,13 +246,19 @@ verifiers, number of domain packs, lines of code.
 plane and every lab command. Ship `audit` + `check` as a pytest plugin and a
 GitHub Action only. That is a smaller, honest product, and it is allowed to win.
 
-### P2 — Harness-native (after P1)
+### P2 — Harness-native (starts after P1, unless the owner orders otherwise)
 
-- [ ] Pre-tool / post-tool / pre-final gates with runtime-written evidence
+> P1 remains the top metric. The owner authorized the pre-tool gate early because
+> no external repository was available; it adds no new user-facing surface beyond
+> `hook`.
+
+- [x] Pre-tool gate with runtime-written evidence (`.assaystone/session.jsonl`)
+- [ ] Post-tool / pre-final gates
 - [ ] Spec coverage as a first-class obligation, checked at pre-final
 - [ ] Provenance survives compaction and delegation (certificate says what view
       the verifier saw)
-- [ ] Sub-second deterministic path on a real repository
+- [x] Sub-second deterministic path on a real repository (68–98 ms on Flask; see
+      `docs/field-note-flask.md`)
 
 ### P3 — Lifecycle (only after P2)
 

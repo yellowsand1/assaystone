@@ -26,6 +26,14 @@ from typing import Any
 
 from ..adapters.messages import artifacts_from_git
 from ..audit import AuditReport, audit_traces, build_audit_contract, load_audit_traces
+from ..policy import (
+    DEFAULT_POLICY,
+    POLICY_FILE,
+    ActionPolicy,
+    PolicyError,
+    evaluate_action,
+    record_decision,
+)
 from ..replay import git_preimage, is_git_repo, is_git_root
 
 
@@ -343,6 +351,82 @@ def run_hook(payload: dict[str, Any]) -> tuple[int, str]:
     return 0, message + "\n\nSet ASSAYSTONE_HOOK_MODE=block to enforce."
 
 
+def _load_action_policy(cwd: Path) -> tuple[ActionPolicy | None, str]:
+    path = cwd / ".assaystone" / POLICY_FILE
+    try:
+        return ActionPolicy.load(path), ""
+    except FileNotFoundError:
+        return None, ""
+    except (OSError, ValueError, PolicyError) as exc:
+        return None, f"assaystone: pre-tool policy is not usable: {exc}"
+
+
+def run_pre_hook(payload: dict[str, Any]) -> tuple[int, str]:
+    """Decide one tool call before it executes.
+
+    Exit 2 blocks the call in Claude Code and shows stderr to the model. A
+    missing policy is passive on purpose: installing a hook must not silently
+    start denying work.
+    """
+    event = str(payload.get("hook_event_name") or "PreToolUse")
+    if event != "PreToolUse":
+        return 0, ""
+    cwd = Path(payload.get("cwd") or os.getcwd()).resolve()
+    policy, error = _load_action_policy(cwd)
+    if error:
+        return 0, error
+    if policy is None:
+        return 0, ""
+
+    tool = str(payload.get("tool_name") or "")
+    args = payload.get("tool_input")
+    if not isinstance(args, dict):
+        args = {}
+    decision = evaluate_action(tool, args, cwd, policy)
+    if policy.record:
+        record_decision(
+            cwd,
+            session_id=str(payload.get("session_id") or ""),
+            tool=tool,
+            args=args,
+            decision=decision,
+        )
+
+    mode = (
+        os.environ.get("ASSAYSTONE_HOOK_MODE") or policy.mode or "warn"
+    ).lower()
+    if decision.allowed:
+        return 0, ""
+    reason = decision.reasons[0] if decision.reasons else "denied by policy"
+    rule = f" (rule: {decision.rule})" if decision.rule else ""
+    message = f"Assaystone pre-tool gate: {tool} denied — {reason}{rule}"
+    if mode == "block":
+        return 2, message + "\n\nSet mode=warn in .assaystone/policy.json to report only."
+    return 0, message + "\n\nSet mode=block in .assaystone/policy.json to enforce."
+
+
+def _ensure_command_hook(
+    hooks: dict[str, Any],
+    event: str,
+    command: str,
+    matcher: str | None = None,
+) -> bool:
+    groups = hooks.setdefault(event, [])
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        if matcher is not None and group.get("matcher") not in (None, matcher):
+            continue
+        for hook in group.get("hooks", []) or []:
+            if isinstance(hook, dict) and hook.get("command") == command:
+                return False
+    entry: dict[str, Any] = {"hooks": [{"type": "command", "command": command}]}
+    if matcher is not None:
+        entry["matcher"] = matcher
+    groups.append(entry)
+    return True
+
+
 def install_claude_code(
     settings_path: str | Path,
     mode: str = "warn",
@@ -368,29 +452,30 @@ def install_claude_code(
         raise ValueError(f"{target}: expected a JSON object")
 
     hooks = settings.setdefault("hooks", {})
-    stop = hooks.setdefault("Stop", [])
-    settings_changed = True
-    for group in stop:
-        if not isinstance(group, dict):
-            continue
-        for hook in group.get("hooks", []) or []:
-            if isinstance(hook, dict) and hook.get("command") == command:
-                settings_changed = False
-                break
-        if not settings_changed:
-            break
-    if settings_changed:
-        stop.append({"hooks": [{"type": "command", "command": command}]})
+    settings_changed = _ensure_command_hook(hooks, "Stop", command)
+    pre_command = "assaystone hook claude-code-pre"
+    if mode == "block":
+        pre_command = "ASSAYSTONE_HOOK_MODE=block " + pre_command
+    settings_changed = (
+        _ensure_command_hook(hooks, "PreToolUse", pre_command, matcher="*")
+        or settings_changed
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     if settings_changed:
         target.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+    root = (
+        target.parent.parent
+        if target.parent.name == ".claude"
+        else target.parent
+    )
+    policy_path = root / ".assaystone" / POLICY_FILE
+    if not policy_path.exists():
+        policy_path.parent.mkdir(parents=True, exist_ok=True)
+        policy_path.write_text(
+            json.dumps(DEFAULT_POLICY, indent=2) + "\n", encoding="utf-8"
+        )
     config_changed = False
     if manifest:
-        root = (
-            target.parent.parent
-            if target.parent.name == ".claude"
-            else target.parent
-        )
         config_path = root / ".assaystone" / "hook.json"
         try:
             config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -422,6 +507,21 @@ def main() -> int:
         print("assaystone hook: expected a JSON object on stdin", file=sys.stderr)
         return 0
     code, message = run_hook(payload)
+    if message:
+        print(message, file=sys.stderr if code == 2 else sys.stdout)
+    return code
+
+
+def main_pre() -> int:
+    try:
+        payload = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        print(f"assaystone hook: invalid JSON on stdin: {exc}", file=sys.stderr)
+        return 0
+    if not isinstance(payload, dict):
+        print("assaystone hook: expected a JSON object on stdin", file=sys.stderr)
+        return 0
+    code, message = run_pre_hook(payload)
     if message:
         print(message, file=sys.stderr if code == 2 else sys.stdout)
     return code

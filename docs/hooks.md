@@ -1,8 +1,14 @@
-# Claude Code Stop hook
+# Claude Code hooks
 
-`assaystone hook claude-code` is a Stop hook: when Claude finishes a turn, it audits
-the session transcript against the repository. It is the fastest way to put the audit
-in a daily workflow.
+Two hooks, one contract:
+
+- **`assaystone hook claude-code-pre`** runs on `PreToolUse`. It decides one tool
+  call *before* it executes, from a small local policy, and can block it.
+- **`assaystone hook claude-code`** runs on `Stop`. It audits the session
+  transcript against the repository and can refuse the stop.
+
+Both write what they observed into `.assaystone/`, which is excluded from the
+diff under review: the tool's own records are not the work.
 
 ## Install
 
@@ -12,7 +18,8 @@ cd your-agent-repo
 assaystone hook install claude-code --mode warn
 ```
 
-This merges the hook into `.claude/settings.local.json` (project scope). Use
+This merges both hooks into `.claude/settings.local.json` (project scope) and
+writes a starter `.assaystone/policy.json`. Use
 `--user` for `~/.claude/settings.json`, and `--mode block` to enforce. Restart Claude
 Code so it loads the settings.
 
@@ -30,6 +37,14 @@ The equivalent settings entry is:
 ```json
 {
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {"type": "command", "command": "assaystone hook claude-code-pre"}
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
@@ -58,6 +73,53 @@ work under review, and it changes as the record is written.
 The hook's gate skips `runtime` and `drill` oracles and says so — the process
 that writes the session evidence cannot require it to exist already. CI, running
 after the session, evaluates them normally.
+
+## Gate the action before it runs
+
+The pre-tool hook reads `.assaystone/policy.json` and evaluates the call with no
+model, no network, and no repository copy:
+
+```json
+{
+  "mode": "warn",
+  "deny_paths": [".github/workflows/", ".github/actions/"],
+  "deny_commands": [
+    "rm\\s+-rf\\s+/(?:\\s|$)",
+    "git\\s+push\\s+(?:--force|-f)\\b",
+    "chmod\\s+777\\b",
+    "DROP\\s+(?:TABLE|DATABASE)\\b"
+  ],
+  "allow_write_roots": ["."],
+  "record": true
+}
+```
+
+- **`deny_tools`** — exact Claude Code tool names, for example `WebFetch`.
+- **`deny_paths`** — prefixes for any path the tool will write or edit.
+- **`deny_commands`** — regular expressions searched in a `Bash` command.
+- **`allow_write_roots`** — when set, a write outside these prefixes is denied.
+- **`mode`** — `warn` reports; `block` exits 2, which makes Claude Code refuse the
+  call and show the reason to the model. `ASSAYSTONE_HOOK_MODE` overrides it.
+- **`record`** — append every decision to `.assaystone/session.jsonl`.
+
+Every call is denied if its path resolves outside the workspace, regardless of
+the policy. Denied arguments are recorded as digests, and commands are stored
+redacted, so the record does not become a secret leak.
+
+A missing policy file is passive: installing a hook must not silently start
+denying work. The installer writes a conservative starter policy; edit it.
+
+Limits, stated rather than hidden:
+
+- The command rule is lexical. `bash -c "$(echo cm0gLXJmIC8= | base64 -d)"` will
+  not match a pattern for `rm -rf /`. This is a guardrail, not a sandbox.
+- `deny_paths` sees file-tool arguments. A shell redirect such as
+  `echo x > .github/workflows/ci.yml` is a `Bash` call with no path argument; it
+  needs a `deny_commands` pattern of its own.
+- A script the agent writes and then runs is only seen at the `Bash` call that
+  runs it, not at the writes inside the script.
+- It judges the call, not the intent. A denied action can still be legitimate;
+  the message says which rule matched so a human can adjust the policy.
 
 ## Gate the capability at Stop
 

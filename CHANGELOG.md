@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-No changes yet.
+- **Pre-tool gate for Claude Code.** `assaystone hook claude-code-pre` decides a
+  tool call before it executes from `.assaystone/policy.json`: denied tools,
+  denied paths, denied shell patterns, and a workspace boundary. In `block` mode
+  it exits 2, so Claude Code refuses the call. Every decision is appended to
+  `.assaystone/session.jsonl` as runtime-written evidence; arguments are stored
+  as digests and commands are redacted. `hook install claude-code` now installs
+  both hooks and writes a starter policy.
+- **The episode ignores `.assaystone/`.** The tool's own records are not the work
+  under review, so `check` no longer treats the session record as a change.
 
 ## 0.33.0 — 2026-11-27
 
