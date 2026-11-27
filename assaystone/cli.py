@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 from . import __version__, demo
@@ -95,6 +96,7 @@ from .receipt import (
 )
 from .reliability import build as build_reliability_profile
 from .reliability import load as load_reliability
+from .reliability import profile_for as profile_for_entry
 from .replay import git_preimage, is_git_repo
 from .reportcard import run_report_card
 from .reports import write_audit_junit, write_audit_sarif, write_junit, write_sarif
@@ -108,6 +110,7 @@ from .scaffold import (
 from .sessions import SessionDiscoveryError, find_latest_session
 from .utility import build_report as build_utility_report
 from .utility import render_report as render_utility_report
+from .verifiers import REGISTRY
 from .waiver import (
     WaiverError,
     create_waiver,
@@ -462,8 +465,91 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _prove_gaps(args: argparse.Namespace) -> int:
+    profile = load_reliability(extra=args.reliability)
+    counts: Counter[str] = Counter()
+    decisions: Counter[str] = Counter()
+    if args.certificates:
+        for path in sorted(Path(args.certificates).glob("*.certificate.json")):
+            try:
+                document = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            for check in document.get("checks") or []:
+                if isinstance(check, dict) and check.get("id"):
+                    counts[str(check["id"])] += 1
+            verdict = str((document.get("decision") or {}).get("verdict") or "")
+            if verdict:
+                decisions[verdict] += 1
+    elif args.contract:
+        contract = _load_contract(args.contract)
+        if contract is None:
+            return 2
+        for spec in contract.verifiers:
+            counts[spec.name] += 1
+    else:
+        for name in profile.get("checks") or {}:
+            counts[name] = 0
+
+    gaps = []
+    for name, count in counts.items():
+        entry = profile_for_entry(name, profile)
+        if entry.get("recall") is not None:
+            continue
+        cls = REGISTRY.get(name)
+        gaps.append(
+            {
+                "check": name,
+                "decisions": count,
+                "layer": entry.get("layer") or (getattr(cls, "layer", "") if cls else ""),
+                "cost_usd": entry.get("cost_usd", getattr(cls, "cost_usd", 0.0) if cls else 0.0),
+                "declared_cases": entry.get("declared_cases", 0),
+            }
+        )
+    gaps.sort(key=lambda item: (-item["decisions"], item["check"]))
+    total = sum(counts.values())
+    gap = round(sum(item["decisions"] for item in gaps) / total, 4) if total else 0.0
+
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "checks": len(counts),
+                    "unmeasured": len(gaps),
+                    "gap": gap,
+                    "decisions": dict(decisions),
+                    "gaps": gaps,
+                },
+                indent=2,
+            )
+        )
+        return 0
+
+    if not gaps:
+        print("calibration gaps: none — every deciding check has a measurement")
+        return 0
+    print("calibration gaps — checks that decide without a measurement\n")
+    print(f"{'check':28} {'decisions':>9} {'layer':>5} {'cost_usd':>10} {'cases':>6}")
+    for item in gaps:
+        print(
+            f"{item['check']:28} {item['decisions']:>9} {item['layer']:>5} "
+            f"{item['cost_usd']:>10.6f} {item['declared_cases']:>6}"
+        )
+    print(
+        f"\n{len(gaps)}/{len(counts)} checks unmeasured; "
+        f"{gap:.0%} of check-instances have no labelled case."
+    )
+    print(
+        "Add a case to failure_zoo/, or ship a profile with "
+        "`--reliability profile.json`."
+    )
+    return 0
+
+
 def cmd_prove(args: argparse.Namespace) -> int:
     """Verify the verifier: recall on labelled defects, resistance to a gamer."""
+    if args.gaps:
+        return _prove_gaps(args)
     contract = _load_contract(args.contract) if args.contract else None
     if args.contract and contract is None:
         return 2
@@ -2106,6 +2192,24 @@ def _parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="write the measured reliability profile (see docs/reliability.md)",
+    )
+    prove_parser.add_argument(
+        "--gaps",
+        action="store_true",
+        help="report checks that decide without a measured reliability",
+    )
+    prove_parser.add_argument(
+        "--certificates",
+        default=None,
+        metavar="DIR",
+        help="count deciding checks from certificate files (with --gaps)",
+    )
+    prove_parser.add_argument(
+        "--reliability",
+        action="append",
+        default=None,
+        metavar="PATH",
+        help="extra reliability profile to merge (repeatable)",
     )
     prove_parser.set_defaults(func=cmd_prove)
 

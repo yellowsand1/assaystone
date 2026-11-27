@@ -26,6 +26,10 @@
   pass rest on at least one measured, independent check. A pass that rests only on
   unmeasured instruments escalates with `calibration required`, instead of
   borrowing credibility it has not earned.
+- **`prove --gaps`: the calibration work list.** Given a certificate directory or
+  a contract, it ranks the checks that decide most often and have no measurement,
+  with the sample size they are missing. The gap stops being a number and becomes
+  a list of cases to add.
 - **Audit follows the agent into task workspaces.** Absolute tool paths now
   determine the workspace root when it differs from the transcript's `cwd`; the
   replay reads the pre-session baseline and falls back to the workspace for files
