@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+No changes yet.
+
+## 0.30.0 — 2026-11-27
+
 - **`capability next`: what blocks the next stage, and the patch.** Reports a
   missing stage policy, a stage that permits nothing, a critical criterion the
   stage does not gate, and (with a trail) a required oracle without a passing
